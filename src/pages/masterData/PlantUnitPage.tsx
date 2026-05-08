@@ -1,0 +1,428 @@
+import {
+  Box, Card, CardContent, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, IconButton, Chip,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, Button, CircularProgress, Alert, Tooltip,
+  Typography, MenuItem, FormControl, InputLabel, Select,
+  Grid, Divider, Stack,
+} from '@mui/material';
+import { Edit, Delete, Add, FilterList, AccountTree } from '@mui/icons-material';
+import { useEffect, useState, useCallback } from 'react';
+import { useMsal } from '@azure/msal-react';
+import PageHeader from '../../components/shared/PageHeader';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import { plantUnitApi } from '../../api/masterData/plantUnitApi';
+import { powerPlantApi } from '../../api/masterData/powerPlantApi';
+import type { PlantUnit, PlantUnitForm, PowerPlant } from '../../types/masterData';
+
+const FUEL_CONFIGS = ['Single', 'Dual'];
+const FUEL_TYPES = ['Gas', 'LCO', 'DFO', 'Gas/LCO', 'Gas/DFO'];
+
+const emptyForm: PlantUnitForm = {
+  plantName: '',
+  plantCode: '',
+  unitName: '',
+  unitCode: '',
+  installedCapacity: 0,
+  fuelConfiguration: '',
+  fuelType: '',
+};
+
+export default function PlantUnitPage() {
+  const { accounts } = useMsal();
+  const user = accounts[0];
+
+  const [rows, setRows] = useState<PlantUnit[]>([]);
+  const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filter
+  const [filterPlantCode, setFilterPlantCode] = useState<string>('');
+
+  // Dialog
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<PlantUnit | null>(null);
+  const [form, setForm] = useState<PlantUnitForm>(emptyForm);
+  const [saving, setSaving] = useState(false);
+
+  // Delete
+  const [deleteTarget, setDeleteTarget] = useState<PlantUnit | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Load plants for filter/dropdown
+  useEffect(() => {
+    powerPlantApi.getAll()
+      .then((res) => setPlants(res.data))
+      .catch(() => setError('Failed to load plants.'));
+  }, []);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = filterPlantCode
+        ? await plantUnitApi.getByPlant(filterPlantCode)
+        : await plantUnitApi.getAll();
+      setRows(res.data);
+    } catch {
+      setError('Failed to load plant units.');
+    } finally {
+      setLoading(false);
+    }
+  }, [filterPlantCode]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handlePlantChange = (plantCode: string) => {
+    const plant = plants.find((p) => p.plantCode === plantCode);
+    setForm((prev) => ({
+      ...prev,
+      plantCode,
+      plantName: plant?.plantName ?? '',
+    }));
+  };
+
+  const openCreate = () => {
+    setEditTarget(null);
+    setForm(emptyForm);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (row: PlantUnit) => {
+    setEditTarget(row);
+    setForm({
+      plantName: row.plantName,
+      plantCode: row.plantCode,
+      unitName: row.unitName,
+      unitCode: row.unitCode,
+      installedCapacity: row.installedCapacity,
+      fuelConfiguration: row.fuelConfiguration,
+      fuelType: row.fuelType,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        createdByName: user?.name ?? '',
+        createdByEmail: user?.username ?? '',
+      };
+      if (editTarget) {
+        await plantUnitApi.update(editTarget.id, payload);
+      } else {
+        await plantUnitApi.create(payload);
+      }
+      setDialogOpen(false);
+      fetchAll();
+    } catch {
+      setError('Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await plantUnitApi.delete(deleteTarget.id);
+      setDeleteTarget(null);
+      fetchAll();
+    } catch {
+      setError('Failed to delete record.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const isFormValid =
+    form.plantCode &&
+    form.unitName.trim() &&
+    form.unitCode.trim() &&
+    form.installedCapacity > 0;
+
+  // Detect if selected plant is thermal (needs fuel fields)
+  const selectedPlant = plants.find((p) => p.plantCode === form.plantCode);
+  const isThermal = selectedPlant?.classificationType?.toLowerCase() === 'thermal';
+
+  return (
+    <Box>
+      <PageHeader
+        title="Plant Units"
+        subtitle="Manage generating units within each power plant"
+        breadcrumbs={[{ label: 'Master Data' }, { label: 'Plant Units' }]}
+        action={{ label: 'Add Plant Unit', onClick: openCreate, icon: <Add /> }}
+      />
+
+      {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
+
+      {/* Filter Bar */}
+      <Card sx={{ mb: 2 }}>
+        <CardContent sx={{ py: '12px !important' }}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <FilterList sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">
+              Filter:
+            </Typography>
+            <FormControl size="small" sx={{ minWidth: 240 }}>
+              <InputLabel>Power Plant</InputLabel>
+              <Select
+                label="Power Plant"
+                value={filterPlantCode}
+                onChange={(e) => setFilterPlantCode(e.target.value)}
+              >
+                <MenuItem value="">All Plants</MenuItem>
+                {plants.map((p) => (
+                  <MenuItem key={p.id} value={p.plantCode}>
+                    {p.plantName} ({p.plantCode})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {filterPlantCode && (
+              <Button size="small" variant="outlined" onClick={() => setFilterPlantCode('')}>
+                Clear
+              </Button>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent sx={{ p: 0 }}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Plant</TableCell>
+                  <TableCell>Unit Name</TableCell>
+                  <TableCell>Unit Code</TableCell>
+                  <TableCell>Installed Capacity</TableCell>
+                  <TableCell>Fuel Config</TableCell>
+                  <TableCell>Fuel Type</TableCell>
+                  <TableCell>Created By</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                      <CircularProgress size={32} />
+                    </TableCell>
+                  </TableRow>
+                ) : rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <AccountTree sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                          No plant units found
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled">
+                          {filterPlantCode ? 'Try clearing the filter.' : 'Click "Add Plant Unit" to get started.'}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantName}</Typography>
+                        <Typography variant="caption" color="text.secondary">{row.plantCode}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.unitName}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={row.unitCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {row.installedCapacity.toLocaleString()} MW
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        {row.fuelConfiguration ? (
+                          <Chip
+                            label={row.fuelConfiguration}
+                            size="small"
+                            color={row.fuelConfiguration === 'Dual' ? 'secondary' : 'default'}
+                            sx={{ fontWeight: 500 }}
+                          />
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">N/A</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {row.fuelType ? (
+                          <Typography variant="body2">{row.fuelType}</Typography>
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">N/A</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{row.createdByName}</Typography>
+                        <Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+
+      {/* Create / Edit Dialog */}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {editTarget ? 'Edit Plant Unit' : 'Add Plant Unit'}
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: '20px !important' }}>
+          <Grid container spacing={2.5}>
+            {/* Plant */}
+            <Grid size={{ xs: 12 }}>
+              <FormControl fullWidth required>
+                <InputLabel>Power Plant</InputLabel>
+                <Select
+                  label="Power Plant"
+                  value={form.plantCode}
+                  onChange={(e) => handlePlantChange(e.target.value)}
+                  disabled={!!editTarget}
+                >
+                  {plants.map((p) => (
+                    <MenuItem key={p.id} value={p.plantCode}>
+                      {p.plantName} ({p.plantCode})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Unit Name & Code */}
+            <Grid size={{ xs: 12, sm: 8 }}>
+              <TextField
+                label="Unit Name"
+                value={form.unitName}
+                onChange={(e) => setForm({ ...form, unitName: e.target.value })}
+                fullWidth required
+                placeholder="e.g. Unit 1, Turbine A"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                label="Unit Code"
+                value={form.unitCode}
+                onChange={(e) => setForm({ ...form, unitCode: e.target.value.toUpperCase() })}
+                fullWidth required
+                placeholder="e.g. U1"
+                slotProps={{
+                  htmlInput: {
+                    maxLength: 20,
+                  },
+                }}
+              />
+            </Grid>
+
+            {/* Capacity */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                label="Installed Capacity (MW)"
+                type="number"
+                value={form.installedCapacity || ''}
+                onChange={(e) => setForm({ ...form, installedCapacity: Number(e.target.value) })}
+                fullWidth required
+                slotProps={{
+                  htmlInput: {
+                    min: 0,
+                    step: 0.01,
+                  },
+                }}
+              />
+            </Grid>
+
+            {/* Fuel fields — only for thermal plants */}
+            {isThermal && (
+              <>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>Fuel Configuration</InputLabel>
+                    <Select
+                      label="Fuel Configuration"
+                      value={form.fuelConfiguration}
+                      onChange={(e) => setForm({ ...form, fuelConfiguration: e.target.value })}
+                    >
+                      {FUEL_CONFIGS.map((f) => (
+                        <MenuItem key={f} value={f}>{f}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>Fuel Type</InputLabel>
+                    <Select
+                      label="Fuel Type"
+                      value={form.fuelType}
+                      onChange={(e) => setForm({ ...form, fuelType: e.target.value })}
+                    >
+                      {FUEL_TYPES.map((f) => (
+                        <MenuItem key={f} value={f}>{f}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </>
+            )}
+          </Grid>
+        </DialogContent>
+        <Divider />
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Stack direction="row" spacing={1.5}>
+            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              variant="contained"
+              disabled={saving || !isFormValid}
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
+            >
+              {saving ? 'Saving...' : editTarget ? 'Update Unit' : 'Add Unit'}
+            </Button>
+          </Stack>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Plant Unit"
+        message={`Are you sure you want to delete "${deleteTarget?.unitName}" from ${deleteTarget?.plantName}?`}
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </Box>
+  );
+}
