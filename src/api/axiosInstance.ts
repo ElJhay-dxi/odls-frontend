@@ -1,8 +1,7 @@
 import axios from 'axios';
-import { PublicClientApplication, InteractionRequiredAuthError } from '@azure/msal-browser';
-import { msalConfig, apiConfig } from '../auth/authConfig';
-
-const msalInstance = new PublicClientApplication(msalConfig);
+import { InteractionRequiredAuthError } from '@azure/msal-browser';
+import { apiConfig } from '../auth/authConfig';
+import { msalInstance } from '../auth/msalInstance';
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -11,11 +10,12 @@ const axiosInstance = axios.create({
   },
 });
 
-// Attach Bearer token to every request
 axiosInstance.interceptors.request.use(async (config) => {
   const accounts = msalInstance.getAllAccounts();
 
-  if (accounts.length === 0) return config;
+  if (accounts.length === 0) {
+    return config;
+  }
 
   const request = {
     scopes: apiConfig.scopes,
@@ -27,20 +27,21 @@ axiosInstance.interceptors.request.use(async (config) => {
     config.headers.Authorization = `Bearer ${response.accessToken}`;
   } catch (error) {
     if (error instanceof InteractionRequiredAuthError) {
-      await msalInstance.acquireTokenPopup(request);
+      const response = await msalInstance.acquireTokenPopup(request);
+      config.headers.Authorization = `Bearer ${response.accessToken}`;
     }
   }
 
   return config;
 });
 
-// Global response error handler
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       console.error('Unauthorized – redirecting to login');
     }
+
     return Promise.reject(error);
   }
 );

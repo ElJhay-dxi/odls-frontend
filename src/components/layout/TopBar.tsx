@@ -26,10 +26,17 @@ export default function TopBar({ sidebarOpen, onToggleSidebar, drawerWidth }: To
   const displayName = user?.name ?? 'User';
   const initials = displayName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
-  const handleLogout = () => {
-    instance.logoutPopup();
-    setAnchorEl(null);
-  };
+  const handleLogout = async () => {
+  setAnchorEl(null);
+
+  try {
+    await instance.logoutRedirect({
+      postLogoutRedirectUri: import.meta.env.VITE_AZURE_REDIRECT_URI,
+    });
+  } catch (e) {
+    console.error(e);
+  }
+};
 
   return (
     <AppBar
