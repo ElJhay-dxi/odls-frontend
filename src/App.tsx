@@ -8,14 +8,15 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import PlantClassificationPage from './pages/masterData/PlantClassificationPage';
 import GenerationTypePage from './pages/masterData/GenerationTypePage';
 import PowerPlantPage from './pages/masterData/PowerPlantPage';
+import PlantLocationPage from './pages/masterData/PlantLocationPage';
 import PlantUnitPage from './pages/masterData/PlantUnitPage';
 import PlantUnitSystemPage from './pages/masterData/PlantUnitSystemPage';
 import PlantUnitSubSystemPage from './pages/masterData/PlantUnitSubSystemPage';
 import PlantUnitEquipmentPage from './pages/masterData/PlantUnitEquipmentPage';
 import BalanceOfPlantPage from './pages/masterData/BalanceOfPlantPage';
-//import BopSystemPage from './pages/masterData/BopSystemPage';
-//import BopSubSystemPage from './pages/masterData/BopSubSystemPage';
-//import BopEquipmentPage from './pages/masterData/BopEquipmentPage';
+import BopSystemPage from './pages/masterData/BopSystemPage';
+import BopSubSystemPage from './pages/masterData/BopSubSystemPage';
+import BopEquipmentPage from './pages/masterData/BopEquipmentPage';
 
 export default function App() {
   return (
@@ -34,15 +35,16 @@ export default function App() {
             {/* Master Data */}
             <Route path="master/plant-classifications" element={<PlantClassificationPage />} />
             <Route path="master/generation-types" element={<GenerationTypePage />} />
+            <Route path="master/plant-locations" element={<PlantLocationPage />} />
             <Route path="master/power-plants" element={<PowerPlantPage />} />
             <Route path="master/plant-units" element={<PlantUnitPage />} />
             <Route path="master/unit-systems" element={<PlantUnitSystemPage />} />
             <Route path="master/unit-subsystems" element={<PlantUnitSubSystemPage />} />
             <Route path="master/unit-equipment" element={<PlantUnitEquipmentPage />} />
             <Route path="master/bop" element={<BalanceOfPlantPage />} />
-            {/* <Route path="master/bop-systems" element={<BopSystemPage />} />
+            <Route path="master/bop-systems" element={<BopSystemPage />} />
             <Route path="master/bop-subsystems" element={<BopSubSystemPage />} />
-            <Route path="master/bop-equipment" element={<BopEquipmentPage />} /> */}
+            <Route path="master/bop-equipment" element={<BopEquipmentPage />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

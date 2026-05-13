@@ -5,7 +5,7 @@ import {
 import {
   Dashboard, Factory, ElectricBolt, AccountTree,
   ExpandLess, ExpandMore, Tune, WaterDrop,
-  Science, Assignment, BarChart, Settings,
+  Science, Assignment, BarChart, Settings, LocationOn,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Plant Classifications', icon: <Tune />, path: '/master/plant-classifications' },
       { label: 'Generation Types', icon: <ElectricBolt />, path: '/master/generation-types' },
+      { label: 'Plant Locations', icon: <LocationOn />, path: '/master/plant-locations' },
       { label: 'Power Plants', icon: <Factory />, path: '/master/power-plants' },
       { label: 'Plant Units', icon: <AccountTree />, path: '/master/plant-units' },
       { label: 'Unit Systems', icon: <AccountTree />, path: '/master/unit-systems' },
@@ -169,7 +170,9 @@ export default function Sidebar({ open }: SidebarProps) {
                 />
               )}
               {open && hasChildren && (
-                isExpanded ? <ExpandLess sx={{ fontSize: '1rem', opacity: 0.7 }} /> : <ExpandMore sx={{ fontSize: '1rem', opacity: 0.7 }} />
+                isExpanded
+                  ? <ExpandLess sx={{ fontSize: '1rem', opacity: 0.7 }} />
+                  : <ExpandMore sx={{ fontSize: '1rem', opacity: 0.7 }} />
               )}
             </ListItemButton>
           </Tooltip>

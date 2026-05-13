@@ -6,8 +6,8 @@ import {
   Avatar,
 } from '@mui/material';
 import {
-  Factory, ElectricBolt, WaterDrop, WbSunny,
-  Air, AccountTree, Refresh, FiberManualRecord,
+  Factory, ElectricBolt, WaterDrop, /*WbSunny,
+  Air,*/ AccountTree, Refresh, FiberManualRecord,
 } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import { useMsal } from '@azure/msal-react';
@@ -40,7 +40,7 @@ const buildStatCards = (stats: DashboardStats | null) => [
     iconBg: '#E3EEF8',
     sub: 'Hydroelectric generation',
   },
-  {
+  /*{
     label: 'Solar Plants',
     value: stats?.solarPlants ?? null,
     icon: <WbSunny />,
@@ -55,7 +55,7 @@ const buildStatCards = (stats: DashboardStats | null) => [
     iconColor: '#2E7D32',
     iconBg: '#E8F5E9',
     sub: 'Wind generation units',
-  },
+  },*/
   {
     label: 'Total Units',
     value: stats?.totalUnits ?? null,
@@ -219,7 +219,8 @@ export default function DashboardPage() {
 
       <Grid container spacing={2.5} sx={{ mb: 3.5 }}>
         {statCards.map((card) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }} key={card.label}>
+          /*<Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}*/ 
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }} key={card.label}>
             <StatCard {...card} loading={statsLoading} />
           </Grid>
         ))}
