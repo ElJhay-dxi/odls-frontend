@@ -50,16 +50,13 @@ export interface PowerPlantForm {
   plantName: string;
   plantCode: string;
   classificationCode: number;
-  classificationType: string;
   generationTypeCode: number;
-  generationTypeName: string;
   plantOwner: string;
   numberOfUnits: number;
   installedCapacity: number;
   standardMeasuringUnit: number;
   commissioningDate: string;
   locationCode: number;
-  locationName: string;
 }
 
 // ─── Plant Unit ────────────────────────────────────────────────────────────────

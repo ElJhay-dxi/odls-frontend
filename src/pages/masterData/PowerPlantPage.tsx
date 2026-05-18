@@ -8,7 +8,6 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, Factory } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
-import { useMsal } from '@azure/msal-react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -31,22 +30,16 @@ const emptyForm: PowerPlantForm = {
   plantName: '',
   plantCode: '',
   classificationCode: 0,
-  classificationType: '',
   generationTypeCode: 0,
-  generationTypeName: '',
   plantOwner: '',
   numberOfUnits: 0,
   installedCapacity: 0,
   standardMeasuringUnit: 0,
   commissioningDate: '',
   locationCode: 0,
-  locationName: '',
 };
 
 export default function PowerPlantPage() {
-  const { accounts } = useMsal();
-  const user = accounts[0];
-
   const [rows, setRows] = useState<PowerPlant[]>([]);
   const [classifications, setClassifications] = useState<PlantClassification[]>([]);
   const [generationTypes, setGenerationTypes] = useState<GenerationType[]>([]);
@@ -93,7 +86,7 @@ export default function PowerPlantPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Cascade: when classificationCode changes in form, filter generation types
+  // Cascade: filter generation types when classification changes
   useEffect(() => {
     if (form.classificationCode) {
       setFilteredGenTypes(
@@ -105,32 +98,19 @@ export default function PowerPlantPage() {
   }, [form.classificationCode, generationTypes]);
 
   const handleClassificationChange = (code: number) => {
-    const cls = classifications.find((c) => c.classificationCode === code);
     setForm((prev) => ({
       ...prev,
       classificationCode: code,
-      classificationType: cls?.classificationType ?? '',
       generationTypeCode: 0,
-      generationTypeName: '',
     }));
   };
 
   const handleGenerationTypeChange = (code: number) => {
-    const gen = filteredGenTypes.find((g) => g.typeCode === code);
-    setForm((prev) => ({
-      ...prev,
-      generationTypeCode: code,
-      generationTypeName: gen?.typeName ?? '',
-    }));
+    setForm((prev) => ({ ...prev, generationTypeCode: code }));
   };
 
   const handleLocationChange = (code: number) => {
-    const loc = locations.find((l) => l.locationCode === code);
-    setForm((prev) => ({
-      ...prev,
-      locationCode: code,
-      locationName: loc?.locationName ?? '',
-    }));
+    setForm((prev) => ({ ...prev, locationCode: code }));
   };
 
   const openCreate = () => {
@@ -145,16 +125,13 @@ export default function PowerPlantPage() {
       plantName: row.plantName,
       plantCode: row.plantCode,
       classificationCode: row.classificationCode,
-      classificationType: row.classificationType,
       generationTypeCode: row.generationTypeCode,
-      generationTypeName: row.generationTypeName,
       plantOwner: row.plantOwner,
       numberOfUnits: row.numberOfUnits,
       installedCapacity: row.installedCapacity,
       standardMeasuringUnit: row.standardMeasuringUnit,
       commissioningDate: row.commissioningDate.split('T')[0],
       locationCode: row.locationCode,
-      locationName: row.locationName,
     });
     setDialogOpen(true);
   };
@@ -162,15 +139,10 @@ export default function PowerPlantPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {
-        ...form,
-        createdByName: user?.name ?? '',
-        createdByEmail: user?.username ?? '',
-      };
       if (editTarget) {
-        await powerPlantApi.update(editTarget.id, payload);
+        await powerPlantApi.update(editTarget.id, form);
       } else {
-        await powerPlantApi.create(payload);
+        await powerPlantApi.create(form);
       }
       setDialogOpen(false);
       fetchAll();
@@ -189,7 +161,7 @@ export default function PowerPlantPage() {
       setDeleteTarget(null);
       fetchAll();
     } catch {
-      setError('Failed to delete record.');
+      setError('Cannot delete — this plant has units linked to it. Remove those first.');
     } finally {
       setDeleting(false);
     }
@@ -351,11 +323,7 @@ export default function PowerPlantPage() {
                 onChange={(e) => setForm({ ...form, plantCode: e.target.value.toUpperCase() })}
                 fullWidth required
                 placeholder="e.g. AKS"
-                slotProps={{
-                  htmlInput: {
-                    maxLength: 20,
-                  },
-                }}
+                slotProps={{ htmlInput: { maxLength: 20 } }}
               />
             </Grid>
 
@@ -432,61 +400,29 @@ export default function PowerPlantPage() {
                 label="Installed Capacity (MW)"
                 type="number"
                 value={form.installedCapacity || ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    installedCapacity: Number(e.target.value),
-                  })
-                }
-                fullWidth
-                required
-                slotProps={{
-                  htmlInput: {
-                    min: 0,
-                    step: 0.01,
-                  },
-                }}
+                onChange={(e) => setForm({ ...form, installedCapacity: Number(e.target.value) })}
+                fullWidth required
+                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               />
             </Grid>
-
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 label="Standard Measuring Unit"
                 type="number"
                 value={form.standardMeasuringUnit || ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    standardMeasuringUnit: Number(e.target.value),
-                  })
-                }
+                onChange={(e) => setForm({ ...form, standardMeasuringUnit: Number(e.target.value) })}
                 fullWidth
-                slotProps={{
-                  htmlInput: {
-                    min: 0,
-                    step: 0.01,
-                  },
-                }}
+                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               />
             </Grid>
-
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 label="Number of Units"
                 type="number"
                 value={form.numberOfUnits || ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    numberOfUnits: Number(e.target.value),
-                  })
-                }
+                onChange={(e) => setForm({ ...form, numberOfUnits: Number(e.target.value) })}
                 fullWidth
-                slotProps={{
-                  htmlInput: {
-                    min: 0,
-                  },
-                }}
+                slotProps={{ htmlInput: { min: 0 } }}
               />
             </Grid>
 
@@ -496,19 +432,9 @@ export default function PowerPlantPage() {
                 label="Commissioning Date"
                 type="date"
                 value={form.commissioningDate}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    commissioningDate: e.target.value,
-                  })
-                }
-                fullWidth
-                required
-                slotProps={{
-                  inputLabel: {
-                    shrink: true,
-                  },
-                }}
+                onChange={(e) => setForm({ ...form, commissioningDate: e.target.value })}
+                fullWidth required
+                slotProps={{ inputLabel: { shrink: true } }}
               />
             </Grid>
           </Grid>

@@ -13,6 +13,7 @@ export const powerPlantApi = {
   getByCode: (plantCode: string) =>
     axiosInstance.get<PowerPlant>(`${BASE}/code/${plantCode}`),
 
+  // Backend resolves classificationType, generationTypeName, locationName from codes
   create: (data: PowerPlantForm) =>
     axiosInstance.post<PowerPlant>(BASE, data),
 
