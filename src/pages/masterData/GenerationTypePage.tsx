@@ -4,11 +4,10 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, CircularProgress, Alert, Tooltip,
   Typography, MenuItem, FormControl, InputLabel, Select,
-  Stack,
+  Stack, Divider,
 } from '@mui/material';
 import { Edit, Delete, Add, FilterList } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
-import { useMsal } from '@azure/msal-react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { generationTypeApi } from '../../api/masterData/generationTypeApi';
@@ -16,15 +15,11 @@ import { plantClassificationApi } from '../../api/masterData/plantClassification
 import type { GenerationType, GenerationTypeForm, PlantClassification } from '../../types/masterData';
 
 const emptyForm: GenerationTypeForm = {
-  typeCode: 0,
   typeName: '',
   classificationCode: 0,
 };
 
 export default function GenerationTypePage() {
-  const { accounts } = useMsal();
-  const user = accounts[0];
-
   const [rows, setRows] = useState<GenerationType[]>([]);
   const [classifications, setClassifications] = useState<PlantClassification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,22 +70,17 @@ export default function GenerationTypePage() {
 
   const openEdit = (row: GenerationType) => {
     setEditTarget(row);
-    setForm({ typeCode: row.typeCode, typeName: row.typeName, classificationCode: row.classificationCode });
+    setForm({ typeName: row.typeName, classificationCode: row.classificationCode });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {
-        ...form,
-        createdByName: user?.name ?? '',
-        createdByEmail: user?.username ?? '',
-      };
       if (editTarget) {
-        await generationTypeApi.update(editTarget.id, payload);
+        await generationTypeApi.update(editTarget.id, form);
       } else {
-        await generationTypeApi.create(payload);
+        await generationTypeApi.create(form);
       }
       setDialogOpen(false);
       fetchAll();
@@ -109,17 +99,13 @@ export default function GenerationTypePage() {
       setDeleteTarget(null);
       fetchAll();
     } catch {
-      setError('Failed to delete record.');
+      setError('Cannot delete — this generation type is assigned to one or more power plants.');
     } finally {
       setDeleting(false);
     }
   };
 
-  const classificationLabel = (code: number) =>
-    classifications.find((c) => c.classificationCode === code)?.classificationType ?? `Code ${code}`;
-
   const isFormValid =
-    form.typeCode > 0 &&
     form.typeName.trim().length > 0 &&
     form.classificationCode > 0;
 
@@ -158,11 +144,7 @@ export default function GenerationTypePage() {
               </Select>
             </FormControl>
             {filterClassCode !== '' && (
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => setFilterClassCode('')}
-              >
+              <Button size="small" variant="outlined" onClick={() => setFilterClassCode('')}>
                 Clear
               </Button>
             )}
@@ -176,7 +158,6 @@ export default function GenerationTypePage() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Type Code</TableCell>
                   <TableCell>Type Name</TableCell>
                   <TableCell>Plant Classification</TableCell>
                   <TableCell>Created By</TableCell>
@@ -187,13 +168,13 @@ export default function GenerationTypePage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                       <CircularProgress size={32} />
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                       <Typography variant="body2" color="text.secondary">
                         No generation types found.{' '}
                         {filterClassCode ? 'Try clearing the filter.' : 'Click "Add Generation Type" to get started.'}
@@ -204,16 +185,13 @@ export default function GenerationTypePage() {
                   rows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>
-                        <Chip label={row.typeCode} size="small" variant="outlined" />
-                      </TableCell>
-                      <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {row.typeName}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={classificationLabel(row.classificationCode)}
+                          label={row.classificationType}
                           size="small"
                           color="primary"
                           variant="outlined"
@@ -255,24 +233,8 @@ export default function GenerationTypePage() {
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editTarget ? 'Edit Generation Type' : 'Add Generation Type'}
         </DialogTitle>
-        <DialogContent sx={{ pt: '16px !important', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          <TextField
-            label="Type Code"
-            type="number"
-            value={form.typeCode || ''}
-            onChange={(e) => setForm({ ...form, typeCode: Number(e.target.value) })}
-            fullWidth
-            required
-            helperText="e.g. 1 = Simple Cycle, 2 = Combined Cycle, 3 = Hydro"
-          />
-          <TextField
-            label="Type Name"
-            placeholder="e.g. Simple Cycle, Combined Cycle, Hydro"
-            value={form.typeName}
-            onChange={(e) => setForm({ ...form, typeName: e.target.value })}
-            fullWidth
-            required
-          />
+        <Divider />
+        <DialogContent sx={{ pt: '20px !important', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <FormControl fullWidth required>
             <InputLabel>Plant Classification</InputLabel>
             <Select
@@ -287,19 +249,31 @@ export default function GenerationTypePage() {
               ))}
             </Select>
           </FormControl>
+          <TextField
+            label="Type Name"
+            placeholder="e.g. Simple Cycle, Combined Cycle, Hydro"
+            value={form.typeName}
+            onChange={(e) => setForm({ ...form, typeName: e.target.value })}
+            fullWidth
+            required
+            helperText="A unique code will be assigned automatically."
+          />
         </DialogContent>
+        <Divider />
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            variant="contained"
-            disabled={saving || !isFormValid}
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
+          <Stack direction="row" spacing={1.5}>
+            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              variant="contained"
+              disabled={saving || !isFormValid}
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
+            >
+              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Generation Type'}
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
 

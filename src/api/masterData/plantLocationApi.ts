@@ -1,5 +1,5 @@
 import axiosInstance from '../axiosInstance';
-import type { PlantLocation } from '../../types/masterData';
+import type { PlantLocation, PlantLocationForm } from '../../types/masterData';
 
 const BASE = '/plantlocations';
 
@@ -10,10 +10,12 @@ export const plantLocationApi = {
   getById: (id: string) =>
     axiosInstance.get<PlantLocation>(`${BASE}/${id}`),
 
-  create: (data: Partial<PlantLocation>) =>
+  // Only sends locationName — backend auto-generates code and audit fields
+  create: (data: PlantLocationForm) =>
     axiosInstance.post<PlantLocation>(BASE, data),
 
-  update: (id: string, data: Partial<PlantLocation>) =>
+  // Only sends locationName — location code is immutable after creation
+  update: (id: string, data: PlantLocationForm) =>
     axiosInstance.put<PlantLocation>(`${BASE}/${id}`, data),
 
   delete: (id: string) =>

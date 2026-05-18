@@ -1,24 +1,22 @@
 import {
   Box, Card, CardContent, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, IconButton, Chip,
+  TableContainer, TableHead, TableRow, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, CircularProgress, Alert, Tooltip,
   Typography, Divider, Stack,
 } from '@mui/material';
 import { Edit, Delete, Add, LocationOn } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
-import { useMsal } from '@azure/msal-react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { plantLocationApi } from '../../api/masterData/plantLocationApi';
-import type { PlantLocation } from '../../types/masterData';
+import type { PlantLocation, PlantLocationForm } from '../../types/masterData';
 
-const emptyForm = { locationCode: 0, locationName: '' };
+const emptyForm: PlantLocationForm = {
+  locationName: '',
+};
 
 export default function PlantLocationPage() {
-  const { accounts } = useMsal();
-  const user = accounts[0];
-
   const [rows, setRows] = useState<PlantLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +24,7 @@ export default function PlantLocationPage() {
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantLocation | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<PlantLocationForm>(emptyForm);
   const [saving, setSaving] = useState(false);
 
   // Delete
@@ -56,27 +54,22 @@ export default function PlantLocationPage() {
 
   const openEdit = (row: PlantLocation) => {
     setEditTarget(row);
-    setForm({ locationCode: row.locationCode, locationName: row.locationName });
+    setForm({ locationName: row.locationName });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {
-        ...form,
-        createdByName: user?.name ?? '',
-        createdByEmail: user?.username ?? '',
-      };
       if (editTarget) {
-        await plantLocationApi.update(editTarget.id, payload);
+        await plantLocationApi.update(editTarget.id, form);
       } else {
-        await plantLocationApi.create(payload);
+        await plantLocationApi.create(form);
       }
       setDialogOpen(false);
       fetchAll();
     } catch {
-      setError('Failed to save. Check for duplicate code or name.');
+      setError('Failed to save. Check for duplicate name.');
     } finally {
       setSaving(false);
     }
@@ -96,9 +89,7 @@ export default function PlantLocationPage() {
     }
   };
 
-  const isFormValid =
-    form.locationCode > 0 &&
-    form.locationName.trim().length > 0;
+  const isFormValid = form.locationName.trim().length > 0;
 
   return (
     <Box>
@@ -117,7 +108,6 @@ export default function PlantLocationPage() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Location Code</TableCell>
                   <TableCell>Location Name</TableCell>
                   <TableCell>Created By</TableCell>
                   <TableCell>Created On</TableCell>
@@ -127,13 +117,13 @@ export default function PlantLocationPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
                       <CircularProgress size={32} />
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                    <TableCell colSpan={4} align="center" sx={{ py: 8 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <LocationOn sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
                         <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
@@ -148,14 +138,6 @@ export default function PlantLocationPage() {
                 ) : (
                   rows.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>
-                        <Chip
-                          label={row.locationCode}
-                          size="small"
-                          variant="outlined"
-                          color="primary"
-                        />
-                      </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <LocationOn sx={{ fontSize: '1rem', color: 'text.disabled' }} />
@@ -202,22 +184,16 @@ export default function PlantLocationPage() {
           {editTarget ? 'Edit Location' : 'Add Location'}
         </DialogTitle>
         <Divider />
-        <DialogContent sx={{ pt: '20px !important', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          <TextField
-            label="Location Code"
-            type="number"
-            value={form.locationCode || ''}
-            onChange={(e) => setForm({ ...form, locationCode: Number(e.target.value) })}
-            fullWidth required
-            helperText="Unique numeric identifier for this location"
-            slotProps={{  htmlInput: {    min: 1,  },}}
-          />
+        <DialogContent sx={{ pt: '20px !important' }}>
           <TextField
             label="Location Name"
             value={form.locationName}
-            onChange={(e) => setForm({ ...form, locationName: e.target.value })}
-            fullWidth required
-            placeholder="e.g. Akosombo, Akuse, Tema"
+            onChange={(e) => setForm({ locationName: e.target.value })}
+            fullWidth
+            required
+            autoFocus
+            placeholder="e.g. Volta Region, Greater Accra"
+            helperText="A unique code will be assigned automatically."
           />
         </DialogContent>
         <Divider />

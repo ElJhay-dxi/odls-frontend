@@ -19,12 +19,12 @@ export interface PlantClassificationForm {
 // ─── Generation Type ───────────────────────────────────────────────────────────
 export interface GenerationType extends AuditFields {
   typeCode: number;
-  typeName: string; // simple, combine, hydro, solar, wind
+  typeName: string;
   classificationCode: number;
+  classificationType: string;
 }
 
 export interface GenerationTypeForm {
-  typeCode: number;
   typeName: string;
   classificationCode: number;
 }
@@ -243,6 +243,10 @@ export interface BopEquipmentForm {
 // ─── Plant Location ────────────────────────────────────────────────────────────
 export interface PlantLocation extends AuditFields {
   locationCode: number;
+  locationName: string;
+}
+
+export interface PlantLocationForm {
   locationName: string;
 }
 
