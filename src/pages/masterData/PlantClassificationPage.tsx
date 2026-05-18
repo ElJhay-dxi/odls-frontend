@@ -1,17 +1,16 @@
 import {
   Box, Card, CardContent, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, IconButton, Chip,
+  TableContainer, TableHead, TableRow, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, CircularProgress, Alert, Tooltip,
-  Typography,
+  Typography, Divider, Stack, Chip,
 } from '@mui/material';
 import { Edit, Delete, Add } from '@mui/icons-material';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { plantClassificationApi } from '../../api/masterData/plantClassificationApi';
 import type { PlantClassification, PlantClassificationForm } from '../../types/masterData';
-import { useMsal } from '@azure/msal-react';
 
 const CLASSIFICATION_COLORS: Record<string, 'primary' | 'error' | 'warning' | 'success' | 'default'> = {
   thermal: 'error',
@@ -21,31 +20,28 @@ const CLASSIFICATION_COLORS: Record<string, 'primary' | 'error' | 'warning' | 's
 };
 
 const emptyForm: PlantClassificationForm = {
-  classificationCode: 0,
   classificationType: '',
 };
 
 export default function PlantClassificationPage() {
-  const { accounts } = useMsal();
-  const user = accounts[0];
-
   const [rows, setRows] = useState<PlantClassification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Dialog state
+  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantClassification | null>(null);
   const [form, setForm] = useState<PlantClassificationForm>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  // Delete confirm
+  // Delete
   const [deleteTarget, setDeleteTarget] = useState<PlantClassification | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
       const res = await plantClassificationApi.getAll();
       setRows(res.data);
     } catch {
@@ -53,9 +49,9 @@ export default function PlantClassificationPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const openCreate = () => {
     setEditTarget(null);
@@ -65,22 +61,17 @@ export default function PlantClassificationPage() {
 
   const openEdit = (row: PlantClassification) => {
     setEditTarget(row);
-    setForm({ classificationCode: row.classificationCode, classificationType: row.classificationType });
+    setForm({ classificationType: row.classificationType });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {
-        ...form,
-        createdByName: user?.name ?? '',
-        createdByEmail: user?.username ?? '',
-      };
       if (editTarget) {
-        await plantClassificationApi.update(editTarget.id, payload);
+        await plantClassificationApi.update(editTarget.id, form);
       } else {
-        await plantClassificationApi.create(payload);
+        await plantClassificationApi.create(form);
       }
       setDialogOpen(false);
       fetchAll();
@@ -99,11 +90,13 @@ export default function PlantClassificationPage() {
       setDeleteTarget(null);
       fetchAll();
     } catch {
-      setError('Failed to delete record.');
+      setError('Cannot delete — this classification has generation types linked to it. Remove those first.');
     } finally {
       setDeleting(false);
     }
   };
+
+  const isFormValid = form.classificationType.trim().length > 0;
 
   return (
     <Box>
@@ -122,7 +115,6 @@ export default function PlantClassificationPage() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Code</TableCell>
                   <TableCell>Classification Type</TableCell>
                   <TableCell>Created By</TableCell>
                   <TableCell>Created On</TableCell>
@@ -132,13 +124,13 @@ export default function PlantClassificationPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
                       <CircularProgress size={32} />
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={4} align="center" sx={{ py: 8 }}>
                       <Typography variant="body2" color="text.secondary">
                         No classifications found. Click "Add Classification" to get started.
                       </Typography>
@@ -147,9 +139,6 @@ export default function PlantClassificationPage() {
                 ) : (
                   rows.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>
-                        <Chip label={row.classificationCode} size="small" variant="outlined" />
-                      </TableCell>
                       <TableCell>
                         <Chip
                           label={row.classificationType}
@@ -164,7 +153,9 @@ export default function PlantClassificationPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {new Date(row.createdOn).toLocaleDateString('en-GB')}
+                          {new Date(row.createdOn).toLocaleDateString('en-GB', {
+                            day: '2-digit', month: 'short', year: 'numeric',
+                          })}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
@@ -193,36 +184,38 @@ export default function PlantClassificationPage() {
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editTarget ? 'Edit Classification' : 'Add Classification'}
         </DialogTitle>
-        <DialogContent sx={{ pt: '16px !important', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <TextField
-            label="Classification Code"
-            type="number"
-            value={form.classificationCode}
-            onChange={(e) => setForm({ ...form, classificationCode: Number(e.target.value) })}
-            fullWidth
-            required
-          />
+        <Divider />
+        <DialogContent sx={{ pt: '20px !important' }}>
           <TextField
             label="Classification Type"
-            placeholder="e.g. Thermal, Hydro, Solar"
+            placeholder="e.g. Thermal, Hydro, Solar, Wind"
             value={form.classificationType}
-            onChange={(e) => setForm({ ...form, classificationType: e.target.value })}
+            onChange={(e) => setForm({ classificationType: e.target.value })}
             fullWidth
             required
+            autoFocus
+            helperText={
+              editTarget
+                ? 'Classification code cannot be changed after creation.'
+                : 'A unique code will be assigned automatically.'
+            }
           />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            variant="contained"
-            disabled={saving || !form.classificationType || form.classificationCode === 0}
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
+        <Divider />
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Stack direction="row" spacing={1.5}>
+            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              variant="contained"
+              disabled={saving || !isFormValid}
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
+            >
+              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Classification'}
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
 
@@ -230,7 +223,7 @@ export default function PlantClassificationPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Classification"
-        message={`Are you sure you want to delete "${deleteTarget?.classificationType}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteTarget?.classificationType}"? This cannot be undone.`}
         confirmLabel="Delete"
         loading={deleting}
         onConfirm={handleDelete}

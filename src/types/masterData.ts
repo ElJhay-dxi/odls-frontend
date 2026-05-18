@@ -13,7 +13,6 @@ export interface PlantClassification extends AuditFields {
 }
 
 export interface PlantClassificationForm {
-  classificationCode: number;
   classificationType: string;
 }
 
