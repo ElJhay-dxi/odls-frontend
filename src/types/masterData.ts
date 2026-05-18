@@ -66,13 +66,20 @@ export interface PlantUnit extends AuditFields {
   unitName: string;
   unitCode: string;
   installedCapacity: number;
-  fuelConfiguration: string; // Single, Dual
-  fuelType: string;          // Gas, LCO, DFO
+  fuelConfiguration: string;
+  fuelType: string;
 }
 
 export interface PlantUnitForm {
-  plantName: string;
   plantCode: string;
+  unitName: string;
+  unitCode: string;
+  installedCapacity: number;
+  fuelConfiguration: string;
+  fuelType: string;
+}
+
+export interface UpdatePlantUnitForm {
   unitName: string;
   unitCode: string;
   installedCapacity: number;

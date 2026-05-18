@@ -8,18 +8,16 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, FilterList, AccountTree } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
-import { useMsal } from '@azure/msal-react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
-import type { PlantUnit, PlantUnitForm, PowerPlant } from '../../types/masterData';
+import type { PlantUnit, PlantUnitForm, UpdatePlantUnitForm, PowerPlant } from '../../types/masterData';
 
 const FUEL_CONFIGS = ['Single', 'Dual'];
 const FUEL_TYPES = ['Gas', 'LCO', 'DFO', 'Gas/LCO', 'Gas/DFO'];
 
 const emptyForm: PlantUnitForm = {
-  plantName: '',
   plantCode: '',
   unitName: '',
   unitCode: '',
@@ -28,10 +26,15 @@ const emptyForm: PlantUnitForm = {
   fuelType: '',
 };
 
-export default function PlantUnitPage() {
-  const { accounts } = useMsal();
-  const user = accounts[0];
+const emptyUpdateForm: UpdatePlantUnitForm = {
+  unitName: '',
+  unitCode: '',
+  installedCapacity: 0,
+  fuelConfiguration: '',
+  fuelType: '',
+};
 
+export default function PlantUnitPage() {
   const [rows, setRows] = useState<PlantUnit[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +47,7 @@ export default function PlantUnitPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantUnit | null>(null);
   const [form, setForm] = useState<PlantUnitForm>(emptyForm);
+  const [updateForm, setUpdateForm] = useState<UpdatePlantUnitForm>(emptyUpdateForm);
   const [saving, setSaving] = useState(false);
 
   // Delete
@@ -74,15 +78,6 @@ export default function PlantUnitPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const handlePlantChange = (plantCode: string) => {
-    const plant = plants.find((p) => p.plantCode === plantCode);
-    setForm((prev) => ({
-      ...prev,
-      plantCode,
-      plantName: plant?.plantName ?? '',
-    }));
-  };
-
   const openCreate = () => {
     setEditTarget(null);
     setForm(emptyForm);
@@ -91,9 +86,7 @@ export default function PlantUnitPage() {
 
   const openEdit = (row: PlantUnit) => {
     setEditTarget(row);
-    setForm({
-      plantName: row.plantName,
-      plantCode: row.plantCode,
+    setUpdateForm({
       unitName: row.unitName,
       unitCode: row.unitCode,
       installedCapacity: row.installedCapacity,
@@ -106,15 +99,10 @@ export default function PlantUnitPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {
-        ...form,
-        createdByName: user?.name ?? '',
-        createdByEmail: user?.username ?? '',
-      };
       if (editTarget) {
-        await plantUnitApi.update(editTarget.id, payload);
+        await plantUnitApi.update(editTarget.id, updateForm);
       } else {
-        await plantUnitApi.create(payload);
+        await plantUnitApi.create(form);
       }
       setDialogOpen(false);
       fetchAll();
@@ -133,20 +121,22 @@ export default function PlantUnitPage() {
       setDeleteTarget(null);
       fetchAll();
     } catch {
-      setError('Failed to delete record.');
+      setError('Cannot delete — this unit has systems linked to it. Remove those first.');
     } finally {
       setDeleting(false);
     }
   };
 
-  const isFormValid =
-    form.plantCode &&
-    form.unitName.trim() &&
-    form.unitCode.trim() &&
-    form.installedCapacity > 0;
+  // Use correct form based on create vs edit
+  const activeForm = editTarget ? updateForm : form;
+
+  const isFormValid = editTarget
+    ? updateForm.unitName.trim() && updateForm.unitCode.trim() && updateForm.installedCapacity > 0
+    : form.plantCode && form.unitName.trim() && form.unitCode.trim() && form.installedCapacity > 0;
 
   // Detect if selected plant is thermal (needs fuel fields)
-  const selectedPlant = plants.find((p) => p.plantCode === form.plantCode);
+  const selectedPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
+  const selectedPlant = plants.find((p) => p.plantCode === selectedPlantCode);
   const isThermal = selectedPlant?.classificationType?.toLowerCase() === 'thermal';
 
   return (
@@ -299,15 +289,14 @@ export default function PlantUnitPage() {
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
-            {/* Plant */}
+            {/* Plant — shown on create, locked/display on edit */}
             <Grid size={{ xs: 12 }}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required disabled={!!editTarget}>
                 <InputLabel>Power Plant</InputLabel>
                 <Select
                   label="Power Plant"
-                  value={form.plantCode}
-                  onChange={(e) => handlePlantChange(e.target.value)}
-                  disabled={!!editTarget}
+                  value={editTarget ? editTarget.plantCode : form.plantCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}
                 >
                   {plants.map((p) => (
                     <MenuItem key={p.id} value={p.plantCode}>
@@ -322,8 +311,11 @@ export default function PlantUnitPage() {
             <Grid size={{ xs: 12, sm: 8 }}>
               <TextField
                 label="Unit Name"
-                value={form.unitName}
-                onChange={(e) => setForm({ ...form, unitName: e.target.value })}
+                value={activeForm.unitName}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, unitName: e.target.value })
+                  : setForm({ ...form, unitName: e.target.value })
+                }
                 fullWidth required
                 placeholder="e.g. Unit 1, Turbine A"
               />
@@ -331,15 +323,14 @@ export default function PlantUnitPage() {
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 label="Unit Code"
-                value={form.unitCode}
-                onChange={(e) => setForm({ ...form, unitCode: e.target.value.toUpperCase() })}
+                value={activeForm.unitCode}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, unitCode: e.target.value.toUpperCase() })
+                  : setForm({ ...form, unitCode: e.target.value.toUpperCase() })
+                }
                 fullWidth required
                 placeholder="e.g. U1"
-                slotProps={{
-                  htmlInput: {
-                    maxLength: 20,
-                  },
-                }}
+                slotProps={{ htmlInput: { maxLength: 20 } }}
               />
             </Grid>
 
@@ -348,15 +339,13 @@ export default function PlantUnitPage() {
               <TextField
                 label="Installed Capacity (MW)"
                 type="number"
-                value={form.installedCapacity || ''}
-                onChange={(e) => setForm({ ...form, installedCapacity: Number(e.target.value) })}
+                value={activeForm.installedCapacity || ''}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, installedCapacity: Number(e.target.value) })
+                  : setForm({ ...form, installedCapacity: Number(e.target.value) })
+                }
                 fullWidth required
-                slotProps={{
-                  htmlInput: {
-                    min: 0,
-                    step: 0.01,
-                  },
-                }}
+                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               />
             </Grid>
 
@@ -368,8 +357,11 @@ export default function PlantUnitPage() {
                     <InputLabel>Fuel Configuration</InputLabel>
                     <Select
                       label="Fuel Configuration"
-                      value={form.fuelConfiguration}
-                      onChange={(e) => setForm({ ...form, fuelConfiguration: e.target.value })}
+                      value={activeForm.fuelConfiguration}
+                      onChange={(e) => editTarget
+                        ? setUpdateForm({ ...updateForm, fuelConfiguration: e.target.value })
+                        : setForm({ ...form, fuelConfiguration: e.target.value })
+                      }
                     >
                       {FUEL_CONFIGS.map((f) => (
                         <MenuItem key={f} value={f}>{f}</MenuItem>
@@ -382,8 +374,11 @@ export default function PlantUnitPage() {
                     <InputLabel>Fuel Type</InputLabel>
                     <Select
                       label="Fuel Type"
-                      value={form.fuelType}
-                      onChange={(e) => setForm({ ...form, fuelType: e.target.value })}
+                      value={activeForm.fuelType}
+                      onChange={(e) => editTarget
+                        ? setUpdateForm({ ...updateForm, fuelType: e.target.value })
+                        : setForm({ ...form, fuelType: e.target.value })
+                      }
                     >
                       {FUEL_TYPES.map((f) => (
                         <MenuItem key={f} value={f}>{f}</MenuItem>
