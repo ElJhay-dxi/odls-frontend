@@ -8,24 +8,25 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, FilterList, AccountTree } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
-import { useMsal } from '@azure/msal-react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { plantUnitSystemApi } from '../../api/masterData/plantUnitSystemApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
-import type { PlantUnitSystem, PlantUnitSystemForm, PowerPlant, PlantUnit } from '../../types/masterData';
+import type {
+  PlantUnitSystem, PlantUnitSystemForm, UpdatePlantUnitSystemForm,
+  PowerPlant, PlantUnit,
+} from '../../types/masterData';
 
 const emptyForm: PlantUnitSystemForm = {
-  plantName: '', plantCode: '',
-  unitName: '', unitCode: '',
+  plantCode: '', unitCode: '', systemName: '', systemCode: '',
+};
+
+const emptyUpdateForm: UpdatePlantUnitSystemForm = {
   systemName: '', systemCode: '',
 };
 
 export default function PlantUnitSystemPage() {
-  const { accounts } = useMsal();
-  const user = accounts[0];
-
   const [rows, setRows] = useState<PlantUnitSystem[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
@@ -33,18 +34,16 @@ export default function PlantUnitSystemPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
   const [filterPlantCode, setFilterPlantCode] = useState('');
   const [filterUnitCode, setFilterUnitCode] = useState('');
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantUnitSystem | null>(null);
   const [form, setForm] = useState<PlantUnitSystemForm>(emptyForm);
+  const [updateForm, setUpdateForm] = useState<UpdatePlantUnitSystemForm>(emptyUpdateForm);
   const [formUnits, setFormUnits] = useState<PlantUnit[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<PlantUnitSystem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -54,7 +53,6 @@ export default function PlantUnitSystemPage() {
       .catch(() => setError('Failed to load reference data.'));
   }, []);
 
-  // Sync filter units when filter plant changes
   useEffect(() => {
     setFilteredUnits(filterPlantCode ? units.filter((u) => u.plantCode === filterPlantCode) : []);
     setFilterUnitCode('');
@@ -77,17 +75,9 @@ export default function PlantUnitSystemPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Cascade plant change in form
   const handleFormPlantChange = (plantCode: string) => {
-    const plant = plants.find((p) => p.plantCode === plantCode);
-    const plantUnits = units.filter((u) => u.plantCode === plantCode);
-    setFormUnits(plantUnits);
-    setForm((prev) => ({ ...prev, plantCode, plantName: plant?.plantName ?? '', unitCode: '', unitName: '' }));
-  };
-
-  const handleFormUnitChange = (unitCode: string) => {
-    const unit = formUnits.find((u) => u.unitCode === unitCode);
-    setForm((prev) => ({ ...prev, unitCode, unitName: unit?.unitName ?? '' }));
+    setFormUnits(units.filter((u) => u.plantCode === plantCode));
+    setForm((prev) => ({ ...prev, plantCode, unitCode: '' }));
   };
 
   const openCreate = () => {
@@ -99,22 +89,18 @@ export default function PlantUnitSystemPage() {
 
   const openEdit = (row: PlantUnitSystem) => {
     setEditTarget(row);
-    setFormUnits(units.filter((u) => u.plantCode === row.plantCode));
-    setForm({
-      plantName: row.plantName, plantCode: row.plantCode,
-      unitName: row.unitName, unitCode: row.unitCode,
-      systemName: row.systemName, systemCode: row.systemCode,
-    });
+    setUpdateForm({ systemName: row.systemName, systemCode: row.systemCode });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = { ...form, createdByName: user?.name ?? '', createdByEmail: user?.username ?? '' };
-      editTarget
-        ? await plantUnitSystemApi.update(editTarget.id, payload)
-        : await plantUnitSystemApi.create(payload);
+      if (editTarget) {
+        await plantUnitSystemApi.update(editTarget.id, updateForm);
+      } else {
+        await plantUnitSystemApi.create(form);
+      }
       setDialogOpen(false);
       fetchAll();
     } catch {
@@ -132,13 +118,18 @@ export default function PlantUnitSystemPage() {
       setDeleteTarget(null);
       fetchAll();
     } catch {
-      setError('Failed to delete.');
+      setError('Cannot delete — this system has sub-systems linked to it. Remove those first.');
     } finally {
       setDeleting(false);
     }
   };
 
-  const isFormValid = form.plantCode && form.unitCode && form.systemName.trim() && form.systemCode.trim();
+  const activeSystemName = editTarget ? updateForm.systemName : form.systemName;
+  const activeSystemCode = editTarget ? updateForm.systemCode : form.systemCode;
+
+  const isFormValid = editTarget
+    ? updateForm.systemName.trim() && updateForm.systemCode.trim()
+    : form.plantCode && form.unitCode && form.systemName.trim() && form.systemCode.trim();
 
   return (
     <Box>
@@ -151,7 +142,6 @@ export default function PlantUnitSystemPage() {
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Filter Bar */}
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ py: '12px !important' }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -205,68 +195,80 @@ export default function PlantUnitSystemPage() {
                       </Box>
                     </TableCell>
                   </TableRow>
-                ) : (
-                  rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantName}</Typography>
-                        <Typography variant="caption" color="text.secondary">{row.plantCode}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.unitName}</Typography>
-                        <Typography variant="caption" color="text.secondary">{row.unitCode}</Typography>
-                      </TableCell>
-                      <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.systemName}</Typography></TableCell>
-                      <TableCell><Chip label={row.systemCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} /></TableCell>
-                      <TableCell>
-                        <Typography variant="body2">{row.createdByName}</Typography>
-                        <Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography>
-                      </TableCell>
-                      <TableCell><Typography variant="body2">{new Date(row.createdOn).toLocaleDateString('en-GB')}</Typography></TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(row)} color="primary"><Edit fontSize="small" /></IconButton></Tooltip>
-                        <Tooltip title="Delete"><IconButton size="small" onClick={() => setDeleteTarget(row)} color="error"><Delete fontSize="small" /></IconButton></Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ) : rows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantName}</Typography>
+                      <Typography variant="caption" color="text.secondary">{row.plantCode}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.unitName}</Typography>
+                      <Typography variant="caption" color="text.secondary">{row.unitCode}</Typography>
+                    </TableCell>
+                    <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.systemName}</Typography></TableCell>
+                    <TableCell><Chip label={row.systemCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} /></TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{row.createdByName}</Typography>
+                      <Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography>
+                    </TableCell>
+                    <TableCell><Typography variant="body2">{new Date(row.createdOn).toLocaleDateString('en-GB')}</Typography></TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(row)} color="primary"><Edit fontSize="small" /></IconButton></Tooltip>
+                      <Tooltip title="Delete"><IconButton size="small" onClick={() => setDeleteTarget(row)} color="error"><Delete fontSize="small" /></IconButton></Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </TableContainer>
         </CardContent>
       </Card>
 
-      {/* Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? 'Edit Unit System' : 'Add Unit System'}</DialogTitle>
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required disabled={!!editTarget}>
                 <InputLabel>Power Plant</InputLabel>
-                <Select label="Power Plant" value={form.plantCode} onChange={(e) => handleFormPlantChange(e.target.value)} disabled={!!editTarget}>
+                <Select label="Power Plant" value={editTarget ? editTarget.plantCode : form.plantCode} onChange={(e) => handleFormPlantChange(e.target.value)}>
                   {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>)}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={!form.plantCode}>
+              <FormControl fullWidth required disabled={!!editTarget || !form.plantCode}>
                 <InputLabel>Unit</InputLabel>
-                <Select label="Unit" value={form.unitCode} onChange={(e) => handleFormUnitChange(e.target.value)} disabled={!!editTarget}>
-                  {formUnits.map((u) => <MenuItem key={u.id} value={u.unitCode}>{u.unitName} ({u.unitCode})</MenuItem>)}
+                <Select label="Unit" value={editTarget ? editTarget.unitCode : form.unitCode} onChange={(e) => setForm((prev) => ({ ...prev, unitCode: e.target.value }))}>
+                  {(editTarget ? units.filter(u => u.plantCode === editTarget.plantCode) : formUnits).map((u) => (
+                    <MenuItem key={u.id} value={u.unitCode}>{u.unitName} ({u.unitCode})</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField label="System Name" value={form.systemName} onChange={(e) => setForm({ ...form, systemName: e.target.value })} fullWidth required placeholder="e.g. Cooling Water System" />
+              <TextField
+                label="System Name"
+                value={activeSystemName}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, systemName: e.target.value })
+                  : setForm({ ...form, systemName: e.target.value })
+                }
+                fullWidth required placeholder="e.g. Cooling Water System"
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-                          <TextField label="System Code" value={form.systemCode} onChange={(e) => setForm({ ...form, systemCode: e.target.value.toUpperCase() })} fullWidth required placeholder="e.g. CWS" slotProps={{
-                              htmlInput: {
-                                  maxLength: 20,
-                              },
-                          }} />
+              <TextField
+                label="System Code"
+                value={activeSystemCode}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, systemCode: e.target.value.toUpperCase() })
+                  : setForm({ ...form, systemCode: e.target.value.toUpperCase() })
+                }
+                fullWidth required placeholder="e.g. CWS"
+                slotProps={{ htmlInput: { maxLength: 20 } }}
+              />
             </Grid>
           </Grid>
         </DialogContent>
@@ -274,7 +276,8 @@ export default function PlantUnitSystemPage() {
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
             <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
-            <Button onClick={handleSave} variant="contained" disabled={saving || !isFormValid} startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+            <Button onClick={handleSave} variant="contained" disabled={saving || !isFormValid}
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
               {saving ? 'Saving...' : editTarget ? 'Update' : 'Add System'}
             </Button>
           </Stack>

@@ -98,10 +98,13 @@ export interface PlantUnitSystem extends AuditFields {
 }
 
 export interface PlantUnitSystemForm {
-  plantName: string;
   plantCode: string;
-  unitName: string;
   unitCode: string;
+  systemName: string;
+  systemCode: string;
+}
+
+export interface UpdatePlantUnitSystemForm {
   systemName: string;
   systemCode: string;
 }
@@ -119,12 +122,14 @@ export interface PlantUnitSubSystem extends AuditFields {
 }
 
 export interface PlantUnitSubSystemForm {
-  plantName: string;
   plantCode: string;
-  unitName: string;
   unitCode: string;
-  systemName: string;
   systemCode: string;
+  subSystemName: string;
+  subSystemCode: string;
+}
+
+export interface UpdatePlantUnitSubSystemForm {
   subSystemName: string;
   subSystemCode: string;
 }
@@ -145,14 +150,16 @@ export interface PlantUnitEquipment extends AuditFields {
 }
 
 export interface PlantUnitEquipmentForm {
-  plantName: string;
   plantCode: string;
-  unitName: string;
   unitCode: string;
-  systemName: string;
   systemCode: string;
-  subSystemName: string;
   subSystemCode: string;
+  equipmentName: string;
+  equipmentCode: string;
+  multiplier: number;
+}
+
+export interface UpdatePlantUnitEquipmentForm {
   equipmentName: string;
   equipmentCode: string;
   multiplier: number;

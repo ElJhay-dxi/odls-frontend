@@ -1,16 +1,26 @@
 import axiosInstance from '../axiosInstance';
-import type {
-    PlantUnitEquipment, PlantUnitEquipmentForm,
-} from '../../types/masterData';
+import type { PlantUnitEquipment, PlantUnitEquipmentForm, UpdatePlantUnitEquipmentForm } from '../../types/masterData';
 
+const BASE = '/plantunitequipments';
 
-// ─── Plant Unit Equipment ──────────────────────────────────────────────────────
 export const plantUnitEquipmentApi = {
-  getAll: () => axiosInstance.get<PlantUnitEquipment[]>('/plantunitequipments'),
+  getAll: () =>
+    axiosInstance.get<PlantUnitEquipment[]>(BASE),
+
   getBySubSystem: (plantCode: string, unitCode: string, systemCode: string, subSystemCode: string) =>
-    axiosInstance.get<PlantUnitEquipment[]>(`/plantunitequipments/subsystem/${plantCode}/${unitCode}/${systemCode}/${subSystemCode}`),
-  getById: (id: string) => axiosInstance.get<PlantUnitEquipment>(`/plantunitequipments/${id}`),
-  create: (data: PlantUnitEquipmentForm) => axiosInstance.post<PlantUnitEquipment>('/plantunitequipments', data),
-  update: (id: string, data: PlantUnitEquipmentForm) => axiosInstance.put<PlantUnitEquipment>(`/plantunitequipments/${id}`, data),
-  delete: (id: string) => axiosInstance.delete(`/plantunitequipments/${id}`),
+    axiosInstance.get<PlantUnitEquipment[]>(`${BASE}/subsystem/${plantCode}/${unitCode}/${systemCode}/${subSystemCode}`),
+
+  getById: (id: string) =>
+    axiosInstance.get<PlantUnitEquipment>(`${BASE}/${id}`),
+
+  // Backend resolves all parent names from codes
+  create: (data: PlantUnitEquipmentForm) =>
+    axiosInstance.post<PlantUnitEquipment>(BASE, data),
+
+  // Only EquipmentName, EquipmentCode and Multiplier are updatable
+  update: (id: string, data: UpdatePlantUnitEquipmentForm) =>
+    axiosInstance.put<PlantUnitEquipment>(`${BASE}/${id}`, data),
+
+  delete: (id: string) =>
+    axiosInstance.delete(`${BASE}/${id}`),
 };

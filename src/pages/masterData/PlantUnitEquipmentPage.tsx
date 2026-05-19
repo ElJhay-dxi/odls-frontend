@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, FilterList, Tune } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
-import { useMsal } from '@azure/msal-react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { plantUnitEquipmentApi } from '../../api/masterData/plantUnitEquipmentApi';
@@ -15,18 +14,21 @@ import { plantUnitSystemApi } from '../../api/masterData/plantUnitSystemApi';
 import { plantUnitSubSystemApi } from '../../api/masterData/plantUnitSubSystemApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
-import type { PlantUnitEquipment, PlantUnitEquipmentForm, PowerPlant, PlantUnit, PlantUnitSystem, PlantUnitSubSystem } from '../../types/masterData';
+import type {
+  PlantUnitEquipment, PlantUnitEquipmentForm, UpdatePlantUnitEquipmentForm,
+  PowerPlant, PlantUnit, PlantUnitSystem, PlantUnitSubSystem,
+} from '../../types/masterData';
 
 const emptyForm: PlantUnitEquipmentForm = {
-  plantName: '', plantCode: '', unitName: '', unitCode: '',
-  systemName: '', systemCode: '', subSystemName: '', subSystemCode: '',
+  plantCode: '', unitCode: '', systemCode: '', subSystemCode: '',
+  equipmentName: '', equipmentCode: '', multiplier: 1,
+};
+
+const emptyUpdateForm: UpdatePlantUnitEquipmentForm = {
   equipmentName: '', equipmentCode: '', multiplier: 1,
 };
 
 export default function PlantUnitEquipmentPage() {
-  const { accounts } = useMsal();
-  const user = accounts[0];
-
   const [rows, setRows] = useState<PlantUnitEquipment[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
@@ -39,6 +41,7 @@ export default function PlantUnitEquipmentPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantUnitEquipment | null>(null);
   const [form, setForm] = useState<PlantUnitEquipmentForm>(emptyForm);
+  const [updateForm, setUpdateForm] = useState<UpdatePlantUnitEquipmentForm>(emptyUpdateForm);
   const [formUnits, setFormUnits] = useState<PlantUnit[]>([]);
   const [formSystems, setFormSystems] = useState<PlantUnitSystem[]>([]);
   const [formSubSystems, setFormSubSystems] = useState<PlantUnitSubSystem[]>([]);
@@ -59,60 +62,86 @@ export default function PlantUnitEquipmentPage() {
       const res = await plantUnitEquipmentApi.getAll();
       const filtered = filterPlantCode ? res.data.filter((r) => r.plantCode === filterPlantCode) : res.data;
       setRows(filtered);
-    } catch { setError('Failed to load equipment.'); } finally { setLoading(false); }
+    } catch {
+      setError('Failed to load equipment.');
+    } finally {
+      setLoading(false);
+    }
   }, [filterPlantCode]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const handleFormPlantChange = (plantCode: string) => {
-    const plant = plants.find((p) => p.plantCode === plantCode);
     setFormUnits(units.filter((u) => u.plantCode === plantCode));
-    setFormSystems([]); setFormSubSystems([]);
-    setForm((prev) => ({ ...prev, plantCode, plantName: plant?.plantName ?? '', unitCode: '', unitName: '', systemCode: '', systemName: '', subSystemCode: '', subSystemName: '' }));
-  };
-  const handleFormUnitChange = (unitCode: string) => {
-    const unit = formUnits.find((u) => u.unitCode === unitCode);
-    setFormSystems(systems.filter((s) => s.plantCode === form.plantCode && s.unitCode === unitCode));
+    setFormSystems([]);
     setFormSubSystems([]);
-    setForm((prev) => ({ ...prev, unitCode, unitName: unit?.unitName ?? '', systemCode: '', systemName: '', subSystemCode: '', subSystemName: '' }));
-  };
-  const handleFormSystemChange = (systemCode: string) => {
-    const sys = formSystems.find((s) => s.systemCode === systemCode);
-    setFormSubSystems(subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.unitCode === form.unitCode && ss.systemCode === systemCode));
-    setForm((prev) => ({ ...prev, systemCode, systemName: sys?.systemName ?? '', subSystemCode: '', subSystemName: '' }));
-  };
-  const handleFormSubSystemChange = (subSystemCode: string) => {
-    const ss = formSubSystems.find((s) => s.subSystemCode === subSystemCode);
-    setForm((prev) => ({ ...prev, subSystemCode, subSystemName: ss?.subSystemName ?? '' }));
+    setForm((prev) => ({ ...prev, plantCode, unitCode: '', systemCode: '', subSystemCode: '' }));
   };
 
-  const openCreate = () => { setEditTarget(null); setForm(emptyForm); setFormUnits([]); setFormSystems([]); setFormSubSystems([]); setDialogOpen(true); };
+  const handleFormUnitChange = (unitCode: string) => {
+    setFormSystems(systems.filter((s) => s.plantCode === form.plantCode && s.unitCode === unitCode));
+    setFormSubSystems([]);
+    setForm((prev) => ({ ...prev, unitCode, systemCode: '', subSystemCode: '' }));
+  };
+
+  const handleFormSystemChange = (systemCode: string) => {
+    setFormSubSystems(subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.unitCode === form.unitCode && ss.systemCode === systemCode));
+    setForm((prev) => ({ ...prev, systemCode, subSystemCode: '' }));
+  };
+
+  const openCreate = () => {
+    setEditTarget(null);
+    setForm(emptyForm);
+    setFormUnits([]);
+    setFormSystems([]);
+    setFormSubSystems([]);
+    setDialogOpen(true);
+  };
+
   const openEdit = (row: PlantUnitEquipment) => {
     setEditTarget(row);
-    setFormUnits(units.filter((u) => u.plantCode === row.plantCode));
-    setFormSystems(systems.filter((s) => s.plantCode === row.plantCode && s.unitCode === row.unitCode));
-    setFormSubSystems(subSystems.filter((ss) => ss.plantCode === row.plantCode && ss.unitCode === row.unitCode && ss.systemCode === row.systemCode));
-    setForm({ plantName: row.plantName, plantCode: row.plantCode, unitName: row.unitName, unitCode: row.unitCode, systemName: row.systemName, systemCode: row.systemCode, subSystemName: row.subSystemName, subSystemCode: row.subSystemCode, equipmentName: row.equipmentName, equipmentCode: row.equipmentCode, multiplier: row.multiplier });
+    setUpdateForm({ equipmentName: row.equipmentName, equipmentCode: row.equipmentCode, multiplier: row.multiplier });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = { ...form, createdByName: user?.name ?? '', createdByEmail: user?.username ?? '' };
-      editTarget ? await plantUnitEquipmentApi.update(editTarget.id, payload) : await plantUnitEquipmentApi.create(payload);
-      setDialogOpen(false); fetchAll();
-    } catch { setError('Failed to save.'); } finally { setSaving(false); }
+      if (editTarget) {
+        await plantUnitEquipmentApi.update(editTarget.id, updateForm);
+      } else {
+        await plantUnitEquipmentApi.create(form);
+      }
+      setDialogOpen(false);
+      fetchAll();
+    } catch {
+      setError('Failed to save.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    try { await plantUnitEquipmentApi.delete(deleteTarget.id); setDeleteTarget(null); fetchAll(); }
-    catch { setError('Failed to delete.'); } finally { setDeleting(false); }
+    try {
+      await plantUnitEquipmentApi.delete(deleteTarget.id);
+      setDeleteTarget(null);
+      fetchAll();
+    } catch {
+      setError('Failed to delete.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
-  const isFormValid = form.plantCode && form.unitCode && form.systemCode && form.subSystemCode && form.equipmentName.trim() && form.equipmentCode.trim();
+  const activeEquipmentName = editTarget ? updateForm.equipmentName : form.equipmentName;
+  const activeEquipmentCode = editTarget ? updateForm.equipmentCode : form.equipmentCode;
+  const activeMultiplier = editTarget ? updateForm.multiplier : form.multiplier;
+
+  const isFormValid = editTarget
+    ? updateForm.equipmentName.trim() && updateForm.equipmentCode.trim()
+    : form.plantCode && form.unitCode && form.systemCode && form.subSystemCode && form.equipmentName.trim() && form.equipmentCode.trim();
 
   return (
     <Box>
@@ -136,7 +165,9 @@ export default function PlantUnitEquipmentPage() {
                 {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
               </Select>
             </FormControl>
-            {filterPlantCode && <Button size="small" variant="outlined" onClick={() => setFilterPlantCode('')}>Clear</Button>}
+            {filterPlantCode && (
+              <Button size="small" variant="outlined" onClick={() => setFilterPlantCode('')}>Clear</Button>
+            )}
           </Stack>
         </CardContent>
       </Card>
@@ -199,59 +230,85 @@ export default function PlantUnitEquipmentPage() {
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
+            {/* Hierarchy selectors — locked on edit */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required disabled={!!editTarget}>
                 <InputLabel>Plant</InputLabel>
-                <Select label="Plant" value={form.plantCode} onChange={(e) => handleFormPlantChange(e.target.value)} disabled={!!editTarget}>
+                <Select label="Plant" value={editTarget ? editTarget.plantCode : form.plantCode} onChange={(e) => handleFormPlantChange(e.target.value)}>
                   {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={!form.plantCode}>
+              <FormControl fullWidth required disabled={!!editTarget || !form.plantCode}>
                 <InputLabel>Unit</InputLabel>
-                <Select label="Unit" value={form.unitCode} onChange={(e) => handleFormUnitChange(e.target.value)} disabled={!!editTarget}>
-                  {formUnits.map((u) => <MenuItem key={u.id} value={u.unitCode}>{u.unitName}</MenuItem>)}
+                <Select label="Unit" value={editTarget ? editTarget.unitCode : form.unitCode} onChange={(e) => handleFormUnitChange(e.target.value)}>
+                  {(editTarget ? units.filter(u => u.plantCode === editTarget.plantCode) : formUnits).map((u) => (
+                    <MenuItem key={u.id} value={u.unitCode}>{u.unitName}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={!form.unitCode}>
+              <FormControl fullWidth required disabled={!!editTarget || !form.unitCode}>
                 <InputLabel>System</InputLabel>
-                <Select label="System" value={form.systemCode} onChange={(e) => handleFormSystemChange(e.target.value)} disabled={!!editTarget}>
-                  {formSystems.map((s) => <MenuItem key={s.id} value={s.systemCode}>{s.systemName}</MenuItem>)}
+                <Select label="System" value={editTarget ? editTarget.systemCode : form.systemCode} onChange={(e) => handleFormSystemChange(e.target.value)}>
+                  {(editTarget ? systems.filter(s => s.plantCode === editTarget.plantCode && s.unitCode === editTarget.unitCode) : formSystems).map((s) => (
+                    <MenuItem key={s.id} value={s.systemCode}>{s.systemName}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={!form.systemCode}>
+              <FormControl fullWidth required disabled={!!editTarget || !form.systemCode}>
                 <InputLabel>Sub-System</InputLabel>
-                <Select label="Sub-System" value={form.subSystemCode} onChange={(e) => handleFormSubSystemChange(e.target.value)} disabled={!!editTarget}>
-                  {formSubSystems.map((ss) => <MenuItem key={ss.id} value={ss.subSystemCode}>{ss.subSystemName}</MenuItem>)}
+                <Select label="Sub-System" value={editTarget ? editTarget.subSystemCode : form.subSystemCode} onChange={(e) => setForm((prev) => ({ ...prev, subSystemCode: e.target.value }))}>
+                  {(editTarget ? subSystems.filter(ss => ss.plantCode === editTarget.plantCode && ss.unitCode === editTarget.unitCode && ss.systemCode === editTarget.systemCode) : formSubSystems).map((ss) => (
+                    <MenuItem key={ss.id} value={ss.subSystemCode}>{ss.subSystemName}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
+
+            {/* Equipment fields — editable on both create and edit */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Equipment Name" value={form.equipmentName} onChange={(e) => setForm({ ...form, equipmentName: e.target.value })} fullWidth required placeholder="e.g. Discharge Valve" />
+              <TextField
+                label="Equipment Name"
+                value={activeEquipmentName}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, equipmentName: e.target.value })
+                  : setForm({ ...form, equipmentName: e.target.value })
+                }
+                fullWidth required placeholder="e.g. Discharge Valve"
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 3 }}>
-              <TextField label="Equipment Code" value={form.equipmentCode} onChange={(e) => setForm({ ...form, equipmentCode: e.target.value.toUpperCase() })} fullWidth required placeholder="e.g. DV-01" slotProps={{ htmlInput: {maxLength: 30, },}} />
+              <TextField
+                label="Equipment Code"
+                value={activeEquipmentCode}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, equipmentCode: e.target.value.toUpperCase() })
+                  : setForm({ ...form, equipmentCode: e.target.value.toUpperCase() })
+                }
+                fullWidth required placeholder="e.g. DV-01"
+                slotProps={{ htmlInput: { maxLength: 30 } }}
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 3 }}>
-                          <TextField label="Multiplier" type="number" value={form.multiplier} onChange={(e) => setForm({ ...form, multiplier: Number(e.target.value) })} fullWidth 
-                          slotProps={{
-                              htmlInput: {
-                                  min: 0,
-                                  step: 0.01,
-                              },
-                              input: {
-                                  startAdornment: (
-                                      <InputAdornment position="start">
-                                          ×
-                                      </InputAdornment>
-                                  ),
-                              },
-                          }} />
+              <TextField
+                label="Multiplier"
+                type="number"
+                value={activeMultiplier}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, multiplier: Number(e.target.value) })
+                  : setForm({ ...form, multiplier: Number(e.target.value) })
+                }
+                fullWidth
+                slotProps={{
+                  htmlInput: { min: 0, step: 0.01 },
+                  input: { startAdornment: <InputAdornment position="start">×</InputAdornment> },
+                }}
+              />
             </Grid>
           </Grid>
         </DialogContent>
@@ -259,14 +316,21 @@ export default function PlantUnitEquipmentPage() {
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
             <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
-            <Button onClick={handleSave} variant="contained" disabled={saving || !isFormValid} startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+            <Button onClick={handleSave} variant="contained" disabled={saving || !isFormValid}
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
               {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Equipment'}
             </Button>
           </Stack>
         </DialogActions>
       </Dialog>
 
-      <ConfirmDialog open={!!deleteTarget} title="Delete Equipment" message={`Delete "${deleteTarget?.equipmentName}" (${deleteTarget?.equipmentCode})?`} confirmLabel="Delete" loading={deleting} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Equipment"
+        message={`Delete "${deleteTarget?.equipmentName}" (${deleteTarget?.equipmentCode})?`}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
+      />
     </Box>
   );
 }
