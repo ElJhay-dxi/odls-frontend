@@ -107,7 +107,7 @@ interface SidebarProps {
 export default function Sidebar({ open }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [expanded, setExpanded] = useState<string[]>(['Master Data']);
+  const [expanded, setExpanded] = useState<string[]>([/*'Master Data'*/]);
 
   const toggleExpand = (label: string) => {
     setExpanded((prev) =>
