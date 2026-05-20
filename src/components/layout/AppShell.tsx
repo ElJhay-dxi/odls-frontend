@@ -5,7 +5,7 @@ import Sidebar, { DRAWER_WIDTH } from './Sidebar';
 import TopBar from './TopBar';
 
 export default function AppShell() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}>
