@@ -1,15 +1,26 @@
 import axiosInstance from '../axiosInstance';
-import type {
-    BalanceOfPlant, BalanceOfPlantForm,
-} from '../../types/masterData';
+import type { BalanceOfPlant, BalanceOfPlantForm, UpdateBalanceOfPlantForm } from '../../types/masterData';
 
-// ─── Balance of Plant ──────────────────────────────────────────────────────────
+const BASE = '/balanceofplant';
+
 export const balanceOfPlantApi = {
-  getAll: () => axiosInstance.get<BalanceOfPlant[]>('/balanceofplant'),
-  getByPlant: (plantCode: string) => axiosInstance.get<BalanceOfPlant[]>(`/balanceofplant/plant/${plantCode}`),
-  getById: (id: string) => axiosInstance.get<BalanceOfPlant>(`/balanceofplant/${id}`),
-  create: (data: BalanceOfPlantForm) => axiosInstance.post<BalanceOfPlant>('/balanceofplant', data),
-  update: (id: string, data: BalanceOfPlantForm) => axiosInstance.put<BalanceOfPlant>(`/balanceofplant/${id}`, data),
-  delete: (id: string) => axiosInstance.delete(`/balanceofplant/${id}`),
-};
+  getAll: () =>
+    axiosInstance.get<BalanceOfPlant[]>(BASE),
 
+  getByPlant: (plantCode: string) =>
+    axiosInstance.get<BalanceOfPlant[]>(`${BASE}/plant/${plantCode}`),
+
+  getById: (id: string) =>
+    axiosInstance.get<BalanceOfPlant>(`${BASE}/${id}`),
+
+  // Backend resolves PlantName from PlantCode
+  create: (data: BalanceOfPlantForm) =>
+    axiosInstance.post<BalanceOfPlant>(BASE, data),
+
+  // Only BOPName and BOPCode are updatable
+  update: (id: string, data: UpdateBalanceOfPlantForm) =>
+    axiosInstance.put<BalanceOfPlant>(`${BASE}/${id}`, data),
+
+  delete: (id: string) =>
+    axiosInstance.delete(`${BASE}/${id}`),
+};

@@ -1,15 +1,26 @@
 import axiosInstance from '../axiosInstance';
-import type {
-    BopSubSystem, BopSubSystemForm,
-} from '../../types/masterData';
+import type { BopSubSystem, BopSubSystemForm, UpdateBopSubSystemForm } from '../../types/masterData';
 
-// ─── BOP SubSystem ─────────────────────────────────────────────────────────────
+const BASE = '/bopsubsystems';
+
 export const bopSubSystemApi = {
-  getAll: () => axiosInstance.get<BopSubSystem[]>('/bopsubsystems'),
+  getAll: () =>
+    axiosInstance.get<BopSubSystem[]>(BASE),
+
   getBySystem: (plantCode: string, bopCode: string, systemCode: string) =>
-    axiosInstance.get<BopSubSystem[]>(`/bopsubsystems/system/${plantCode}/${bopCode}/${systemCode}`),
-  getById: (id: string) => axiosInstance.get<BopSubSystem>(`/bopsubsystems/${id}`),
-  create: (data: BopSubSystemForm) => axiosInstance.post<BopSubSystem>('/bopsubsystems', data),
-  update: (id: string, data: BopSubSystemForm) => axiosInstance.put<BopSubSystem>(`/bopsubsystems/${id}`, data),
-  delete: (id: string) => axiosInstance.delete(`/bopsubsystems/${id}`),
+    axiosInstance.get<BopSubSystem[]>(`${BASE}/system/${plantCode}/${bopCode}/${systemCode}`),
+
+  getById: (id: string) =>
+    axiosInstance.get<BopSubSystem>(`${BASE}/${id}`),
+
+  // Backend resolves PlantName, BOPName and SystemName from codes
+  create: (data: BopSubSystemForm) =>
+    axiosInstance.post<BopSubSystem>(BASE, data),
+
+  // Only SubSystemName and SubSystemCode are updatable
+  update: (id: string, data: UpdateBopSubSystemForm) =>
+    axiosInstance.put<BopSubSystem>(`${BASE}/${id}`, data),
+
+  delete: (id: string) =>
+    axiosInstance.delete(`${BASE}/${id}`),
 };

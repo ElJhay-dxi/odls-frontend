@@ -7,18 +7,16 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add, AccountTree } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
-import { useMsal } from '@azure/msal-react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { balanceOfPlantApi } from '../../api/masterData/balanceOfPlantApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
-import type { BalanceOfPlant, BalanceOfPlantForm, PowerPlant } from '../../types/masterData';
+import type { BalanceOfPlant, BalanceOfPlantForm, UpdateBalanceOfPlantForm, PowerPlant } from '../../types/masterData';
 
-const emptyForm: BalanceOfPlantForm = { plantName: '', plantCode: '', bopName: '', bopCode: '' };
+const emptyForm: BalanceOfPlantForm = { plantCode: '', bopName: '', bopCode: '' };
+const emptyUpdateForm: UpdateBalanceOfPlantForm = { bopName: '', bopCode: '' };
 
 export default function BalanceOfPlantPage() {
-  const { accounts } = useMsal();
-  const user = accounts[0];
   const [rows, setRows] = useState<BalanceOfPlant[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,11 +24,14 @@ export default function BalanceOfPlantPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<BalanceOfPlant | null>(null);
   const [form, setForm] = useState<BalanceOfPlantForm>(emptyForm);
+  const [updateForm, setUpdateForm] = useState<UpdateBalanceOfPlantForm>(emptyUpdateForm);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BalanceOfPlant | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => { powerPlantApi.getAll().then((r) => setPlants(r.data)).catch(() => setError('Failed to load plants.')); }, []);
+  useEffect(() => {
+    powerPlantApi.getAll().then((r) => setPlants(r.data)).catch(() => setError('Failed to load plants.'));
+  }, []);
 
   const fetchAll = useCallback(async () => {
     setLoading(true); setError(null);
@@ -40,19 +41,22 @@ export default function BalanceOfPlantPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const handlePlantChange = (plantCode: string) => {
-    const plant = plants.find((p) => p.plantCode === plantCode);
-    setForm((prev) => ({ ...prev, plantCode, plantName: plant?.plantName ?? '' }));
-  };
-
   const openCreate = () => { setEditTarget(null); setForm(emptyForm); setDialogOpen(true); };
-  const openEdit = (row: BalanceOfPlant) => { setEditTarget(row); setForm({ plantName: row.plantName, plantCode: row.plantCode, bopName: row.bopName, bopCode: row.bopCode }); setDialogOpen(true); };
+
+  const openEdit = (row: BalanceOfPlant) => {
+    setEditTarget(row);
+    setUpdateForm({ bopName: row.bopName, bopCode: row.bopCode });
+    setDialogOpen(true);
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = { ...form, createdByName: user?.name ?? '', createdByEmail: user?.username ?? '' };
-      editTarget ? await balanceOfPlantApi.update(editTarget.id, payload) : await balanceOfPlantApi.create(payload);
+      if (editTarget) {
+        await balanceOfPlantApi.update(editTarget.id, updateForm);
+      } else {
+        await balanceOfPlantApi.create(form);
+      }
       setDialogOpen(false); fetchAll();
     } catch { setError('Failed to save.'); } finally { setSaving(false); }
   };
@@ -61,10 +65,15 @@ export default function BalanceOfPlantPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try { await balanceOfPlantApi.delete(deleteTarget.id); setDeleteTarget(null); fetchAll(); }
-    catch { setError('Failed to delete.'); } finally { setDeleting(false); }
+    catch { setError('Cannot delete — this BOP has systems linked to it. Remove those first.'); } finally { setDeleting(false); }
   };
 
-  const isFormValid = form.plantCode && form.bopName.trim() && form.bopCode.trim();
+  const activeBopName = editTarget ? updateForm.bopName : form.bopName;
+  const activeBopCode = editTarget ? updateForm.bopCode : form.bopCode;
+
+  const isFormValid = editTarget
+    ? updateForm.bopName.trim() && updateForm.bopCode.trim()
+    : form.plantCode && form.bopName.trim() && form.bopCode.trim();
 
   return (
     <Box>
@@ -114,18 +123,27 @@ export default function BalanceOfPlantPage() {
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
             <Grid size={{ xs: 12 }}>
-              <FormControl fullWidth required>
+              <FormControl fullWidth required disabled={!!editTarget}>
                 <InputLabel>Power Plant</InputLabel>
-                <Select label="Power Plant" value={form.plantCode} onChange={(e) => handlePlantChange(e.target.value)} disabled={!!editTarget}>
+                <Select label="Power Plant" value={editTarget ? editTarget.plantCode : form.plantCode} onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
                   {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>)}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField label="BOP Name" value={form.bopName} onChange={(e) => setForm({ ...form, bopName: e.target.value })} fullWidth required placeholder="e.g. Common Services BOP" />
+              <TextField
+                label="BOP Name" value={activeBopName}
+                onChange={(e) => editTarget ? setUpdateForm({ ...updateForm, bopName: e.target.value }) : setForm({ ...form, bopName: e.target.value })}
+                fullWidth required placeholder="e.g. Common Services BOP"
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField label="BOP Code" value={form.bopCode} onChange={(e) => setForm({ ...form, bopCode: e.target.value.toUpperCase() })} fullWidth required placeholder="e.g. CSB" slotProps={{  htmlInput: {    maxLength: 20, },}} />
+              <TextField
+                label="BOP Code" value={activeBopCode}
+                onChange={(e) => editTarget ? setUpdateForm({ ...updateForm, bopCode: e.target.value.toUpperCase() }) : setForm({ ...form, bopCode: e.target.value.toUpperCase() })}
+                fullWidth required placeholder="e.g. CSB"
+                slotProps={{ htmlInput: { maxLength: 20 } }}
+              />
             </Grid>
           </Grid>
         </DialogContent>
