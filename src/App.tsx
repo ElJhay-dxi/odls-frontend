@@ -18,6 +18,10 @@ import BopSystemPage from './pages/masterData/BopSystemPage';
 import BopSubSystemPage from './pages/masterData/BopSubSystemPage';
 import BopEquipmentPage from './pages/masterData/BopEquipmentPage';
 
+// Hourly Readings
+import HourlyHydroReadingPage from './pages/hourly/HourlyHydroReadingPage';
+import HourlyThermalReadingPage from './pages/hourly/HourlyThermalReadingPage';
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -45,6 +49,10 @@ export default function App() {
             <Route path="master/bop-systems" element={<BopSystemPage />} />
             <Route path="master/bop-subsystems" element={<BopSubSystemPage />} />
             <Route path="master/bop-equipment" element={<BopEquipmentPage />} />
+
+            {/* Hourly Readings */}
+            <Route path="hourly/hydro-units" element={<HourlyHydroReadingPage />} />
+            <Route path="hourly/thermal-units" element={<HourlyThermalReadingPage />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

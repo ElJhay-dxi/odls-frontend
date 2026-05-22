@@ -195,7 +195,9 @@ export interface BopSystem extends AuditFields {
 }
 
 export interface BopSystemForm {
+  plantName: string;
   plantCode: string;
+  bopName: string;
   bopCode: string;
   systemName: string;
   systemCode: string;
@@ -219,8 +221,11 @@ export interface BopSubSystem extends AuditFields {
 }
 
 export interface BopSubSystemForm {
+  plantName: string;
   plantCode: string;
+  bopName: string;
   bopCode: string;
+  systemName: string;
   systemCode: string;
   subSystemName: string;
   subSystemCode: string;
@@ -247,9 +252,13 @@ export interface BopEquipment extends AuditFields {
 }
 
 export interface BopEquipmentForm {
+  plantName: string;
   plantCode: string;
+  bopName: string;
   bopCode: string;
+  systemName: string;
   systemCode: string;
+  subsystemName: string;
   subsystemCode: string;
   equipmentName: string;
   equipmentCode: string;
