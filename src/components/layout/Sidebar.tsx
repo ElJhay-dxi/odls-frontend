@@ -41,6 +41,8 @@ const navItems: NavItem[] = [
       { label: 'BOP Systems', icon: <AccountTree />, path: '/master/bop-systems' },
       { label: 'BOP Sub-Systems', icon: <AccountTree />, path: '/master/bop-subsystems' },
       { label: 'BOP Equipment', icon: <Tune />, path: '/master/bop-equipment' },
+      { label: 'Bearing Metals', icon: <Settings />, path: '/master/bearing-metals' },
+      { label: 'Bearing Drains', icon: <Settings />, path: '/master/bearing-drains' },
     ],
   },
   {
@@ -107,7 +109,7 @@ interface SidebarProps {
 export default function Sidebar({ open }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [expanded, setExpanded] = useState<string[]>([/*'Master Data'*/]);
+  const [expanded, setExpanded] = useState<string[]>(['Master Data']);
 
   const toggleExpand = (label: string) => {
     setExpanded((prev) =>

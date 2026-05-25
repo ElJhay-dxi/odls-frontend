@@ -17,6 +17,8 @@ import BalanceOfPlantPage from './pages/masterData/BalanceOfPlantPage';
 import BopSystemPage from './pages/masterData/BopSystemPage';
 import BopSubSystemPage from './pages/masterData/BopSubSystemPage';
 import BopEquipmentPage from './pages/masterData/BopEquipmentPage';
+import BearingMetalPage from './pages/masterData/BearingMetalPage';
+import BearingDrainPage from './pages/masterData/BearingDrainPage';
 
 // Hourly Readings
 import HourlyHydroReadingPage from './pages/hourly/HourlyHydroReadingPage';
@@ -49,6 +51,8 @@ export default function App() {
             <Route path="master/bop-systems" element={<BopSystemPage />} />
             <Route path="master/bop-subsystems" element={<BopSubSystemPage />} />
             <Route path="master/bop-equipment" element={<BopEquipmentPage />} />
+            <Route path="master/bearing-metals" element={<BearingMetalPage />} />
+            <Route path="master/bearing-drains" element={<BearingDrainPage />} />
 
             {/* Hourly Readings */}
             <Route path="hourly/hydro-units" element={<HourlyHydroReadingPage />} />

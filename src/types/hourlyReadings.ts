@@ -1,3 +1,5 @@
+import type { BearingMetalReadingRow, BearingDrainReadingRow } from './bearings';
+
 // ─── Shared ───────────────────────────────────────────────────────────────────
 export interface HourlyReadingAudit {
   id: string;
@@ -31,7 +33,6 @@ export interface HourlyHydroReading extends HourlyReadingAudit {
   transformerWindingTemperature?: number;
 }
 
-// All reading fields stored as strings in the form for flexible empty/null handling
 export interface CreateHourlyHydroReadingForm {
   plantCode: string;
   unitCode: string;
@@ -72,12 +73,29 @@ export interface UpdateHourlyHydroReadingForm {
   remarks: string;
 }
 
-// API payloads — numeric fields are optional numbers
 export interface CreateHourlyHydroReadingPayload {
   plantCode: string;
   unitCode: string;
   logDate: string;
   logHour: number;
+  activePowerMW?: number;
+  reactivePowerMVar?: number;
+  voltageKV?: number;
+  currentAmps?: number;
+  powerFactor?: number;
+  statorTemperature?: number;
+  generatorFieldVoltage?: number;
+  generatorFieldCurrent?: number;
+  exciterCurrent?: number;
+  gatePosition?: number;
+  turbineDischarge?: number;
+  spillwayDischarge?: number;
+  transformerOilTemperature?: number;
+  transformerWindingTemperature?: number;
+  remarks?: string;
+}
+
+export interface UpdateHourlyHydroReadingPayload {
   activePowerMW?: number;
   reactivePowerMVar?: number;
   voltageKV?: number;
@@ -104,13 +122,6 @@ export interface HourlyThermalReading extends HourlyReadingAudit {
   turbGasFuelTemp?: number; turbLiquidFuelFlow?: number; turbH2OInjFlow?: number;
   turbMaxBrgVib?: number; turbExhSprd?: number; turbAllwSprd?: number;
   turbExhstTemp?: number; turbLoadTunnTemp?: number; turbBrgHdTemp?: number;
-  brgMetal1?: number; brgMetal2?: number; brgMetal3?: number; brgMetal4?: number; brgMetal5?: number;
-  brgThrustActiveAcc?: number; brgThrustInactiveAcc?: number;
-  brgDrain1?: number; brgTempDiff1?: number;
-  brgDrain2?: number; brgTempDiff2?: number;
-  brgDrain3?: number; brgTempDiff3?: number;
-  brgDrain4?: number; brgTempDiff4?: number;
-  brgDrain5?: number; brgTempDiff5?: number;
   atomAirTemp?: number;
   ex2000FldCurr?: number; ex2000FldVolt?: number; ex2000RotorTemp?: number;
   stgMW?: number; stgMVar?: number; stgKV?: number; stgTNHRpm?: number; stgSteamFlow?: number;
@@ -123,6 +134,8 @@ export interface HourlyThermalReading extends HourlyReadingAudit {
   stgVibAmpBbmax?: number; stgProx?: number;
   stgShellExp?: number; stgAxialExp?: number; stgDiffExp?: number;
   stgEx2000FldAmp?: number; stgEx2000FldVolts?: number; stgEx2000RotorTemp?: number;
+  bearingMetalReadings: BearingMetalReadingRow[];
+  bearingDrainReadings: BearingDrainReadingRow[];
 }
 
 export interface CreateHourlyThermalReadingForm {
@@ -136,11 +149,6 @@ export interface CreateHourlyThermalReadingForm {
   turbLiquidFuelFlow: number | string; turbH2OInjFlow: number | string;
   turbMaxBrgVib: number | string; turbExhSprd: number | string; turbAllwSprd: number | string;
   turbExhstTemp: number | string; turbLoadTunnTemp: number | string; turbBrgHdTemp: number | string;
-  brgMetal1: number | string; brgMetal2: number | string; brgMetal3: number | string;
-  brgMetal4: number | string; brgMetal5: number | string;
-  brgThrustActiveAcc: number | string; brgThrustInactiveAcc: number | string;
-  brgDrain1: number | string; brgDrain2: number | string; brgDrain3: number | string;
-  brgDrain4: number | string; brgDrain5: number | string;
   atomAirTemp: number | string;
   ex2000FldCurr: number | string; ex2000FldVolt: number | string; ex2000RotorTemp: number | string;
   stgMW: number | string; stgMVar: number | string; stgKV: number | string;
@@ -159,21 +167,3 @@ export interface CreateHourlyThermalReadingForm {
 
 export type UpdateHourlyThermalReadingForm = Omit<CreateHourlyThermalReadingForm,
   'plantCode' | 'unitCode' | 'logDate' | 'logHour'>;
-
-export interface UpdateHourlyHydroReadingPayload {
-  activePowerMW?: number;
-  reactivePowerMVar?: number;
-  voltageKV?: number;
-  currentAmps?: number;
-  powerFactor?: number;
-  statorTemperature?: number;
-  generatorFieldVoltage?: number;
-  generatorFieldCurrent?: number;
-  exciterCurrent?: number;
-  gatePosition?: number;
-  turbineDischarge?: number;
-  spillwayDischarge?: number;
-  transformerOilTemperature?: number;
-  transformerWindingTemperature?: number;
-  remarks?: string;
-}
