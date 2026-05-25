@@ -9,7 +9,7 @@ import {
   Save, Search, Edit, Delete, ElectricBolt,
   ExpandMore, ExpandLess, History, Add, Remove,
 } from '@mui/icons-material';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -143,6 +143,9 @@ export default function HourlyThermalReadingPage() {
 
   const [metalRows, setMetalRows] = useState<BearingMetalReadingRow[]>([]);
   const [drainRows, setDrainRows] = useState<BearingDrainReadingRow[]>([]);
+  // Holds bearing rows to restore after master data loads on edit
+  const pendingMetalRows = useRef<BearingMetalReadingRow[] | null>(null);
+  const pendingDrainRows = useRef<BearingDrainReadingRow[] | null>(null);
 
   const [newMetalCode, setNewMetalCode] = useState<number | ''>('');
   const [newMetalTemp, setNewMetalTemp] = useState('');
@@ -182,7 +185,7 @@ export default function HourlyThermalReadingPage() {
       .catch(() => setRecordsError('Failed to load reference data.'));
   }, []);
 
-  // Reset unit/bearings only in create mode when plant changes
+  // Reset unit/bearings when plant changes
   useEffect(() => {
     setFilteredUnits(form.plantCode ? units.filter((u) => u.plantCode === form.plantCode) : []);
     if (!editTarget) {
@@ -194,7 +197,7 @@ export default function HourlyThermalReadingPage() {
     }
   }, [form.plantCode, units]);
 
-  // Load bearing master when unit is selected; populate rows when editing
+  // Load bearing master when unit is selected; restore pending rows from ref on edit
   useEffect(() => {
     const code = editTarget ? editTarget.unitCode : form.unitCode;
     const plant = editTarget ? editTarget.plantCode : form.plantCode;
@@ -205,10 +208,11 @@ export default function HourlyThermalReadingPage() {
     ]).then(([m, d]) => {
       setBearingMetals(m.data);
       setBearingDrains(d.data);
-      // Populate bearing rows after master list is ready
-      if (editTarget) {
-        setMetalRows(editTarget.bearingMetalReadings ?? []);
-        setDrainRows(editTarget.bearingDrainReadings ?? []);
+      if (pendingMetalRows.current !== null) {
+        setMetalRows(pendingMetalRows.current);
+        pendingDrainRows.current && setDrainRows(pendingDrainRows.current);
+        pendingMetalRows.current = null;
+        pendingDrainRows.current = null;
       }
     }).catch(() => {});
   }, [form.unitCode, editTarget]);
@@ -295,6 +299,9 @@ export default function HourlyThermalReadingPage() {
       populated[f] = v != null ? String(v) : '';
     });
     setUpdateForm(populated);
+    // Store bearing rows in ref — applied after master data loads
+    pendingMetalRows.current = row.bearingMetalReadings ?? [];
+    pendingDrainRows.current = row.bearingDrainReadings ?? [];
     setForm((prev) => ({
       ...prev,
       plantCode: row.plantCode,
@@ -302,7 +309,6 @@ export default function HourlyThermalReadingPage() {
       logDate: row.logDate.split('T')[0],
       logHour: row.logHour,
     }));
-    // Bearing rows are set after master data loads in the bearing master useEffect
   };
 
   const cancelEdit = () => {
@@ -310,6 +316,8 @@ export default function HourlyThermalReadingPage() {
     setUpdateForm({});
     setMetalRows([]);
     setDrainRows([]);
+    pendingMetalRows.current = null;
+    pendingDrainRows.current = null;
   };
 
   const toNum = (v: string | number | undefined) =>
@@ -320,14 +328,18 @@ export default function HourlyThermalReadingPage() {
     setSaveError(null);
     setSaveSuccess(false);
     try {
-      const bearingMetalReadings = metalRows.map((r) => ({
-        bearingCode: r.bearingCode,
-        metalTemperature: Number(r.metalTemperature),
-      }));
-      const bearingDrainReadings = drainRows.map((r) => ({
-        drainCode: r.drainCode,
-        drainTemperature: Number(r.drainTemperature),
-      }));
+      const bearingMetalReadings = metalRows
+        .filter((r) => r.metalTemperature !== '' && r.metalTemperature !== undefined && !isNaN(Number(r.metalTemperature)))
+        .map((r) => ({
+          bearingCode: r.bearingCode,
+          metalTemperature: Number(r.metalTemperature),
+        }));
+      const bearingDrainReadings = drainRows
+        .filter((r) => r.drainTemperature !== '' && r.drainTemperature !== undefined && !isNaN(Number(r.drainTemperature)))
+        .map((r) => ({
+          drainCode: r.drainCode,
+          drainTemperature: Number(r.drainTemperature),
+        }));
 
       if (editTarget) {
         const payload: Record<string, unknown> = { bearingMetalReadings, bearingDrainReadings };
@@ -612,11 +624,15 @@ export default function HourlyThermalReadingPage() {
                                       <TextField
                                         type="number" size="small" sx={{ width: 110 }}
                                         value={row.metalTemperature}
-                                        onChange={(e) => setMetalRows((prev) =>
-                                          prev.map((r) => r.bearingCode === row.bearingCode
-                                            ? { ...r, metalTemperature: e.target.value }
-                                            : r)
-                                        )}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === '') {
+                                            setMetalRows((prev) => prev.filter((r) => r.bearingCode !== row.bearingCode));
+                                          } else {
+                                            setMetalRows((prev) => prev.map((r) => r.bearingCode === row.bearingCode
+                                              ? { ...r, metalTemperature: val } : r));
+                                          }
+                                        }}
                                         slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">°C</Typography> } }}
                                       />
                                     </TableCell>
@@ -731,11 +747,15 @@ export default function HourlyThermalReadingPage() {
                                         <TextField
                                           type="number" size="small" sx={{ width: 110 }}
                                           value={row.drainTemperature}
-                                          onChange={(e) => setDrainRows((prev) =>
-                                            prev.map((r) => r.drainCode === row.drainCode
-                                              ? { ...r, drainTemperature: e.target.value }
-                                              : r)
-                                          )}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val === '') {
+                                              setDrainRows((prev) => prev.filter((r) => r.drainCode !== row.drainCode));
+                                            } else {
+                                              setDrainRows((prev) => prev.map((r) => r.drainCode === row.drainCode
+                                                ? { ...r, drainTemperature: val } : r));
+                                            }
+                                          }}
                                           slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">°C</Typography> } }}
                                         />
                                       </TableCell>

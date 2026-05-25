@@ -6,7 +6,7 @@ import {
   Typography, MenuItem, FormControl, InputLabel, Select,
   Grid, Divider, Stack,
 } from '@mui/material';
-import { Edit, Delete, Add, Settings } from '@mui/icons-material';
+import { Edit, Delete, Settings } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
