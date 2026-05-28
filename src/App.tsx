@@ -24,6 +24,7 @@ import BearingDrainPage from './pages/masterData/BearingDrainPage';
 import HourlyHydroReadingPage from './pages/hourly/HourlyHydroReadingPage';
 import HourlyThermalReadingPage from './pages/hourly/HourlyThermalReadingPage';
 import HourlySystemConditionPage from './pages/hourly/HourlySystemConditionPage';
+import HourlyExchangeGenerationPage from './pages/hourly/HourlyExchangeGenerationPage';
 
 export default function App() {
   return (
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="hourly/hydro-units" element={<HourlyHydroReadingPage />} />
             <Route path="hourly/thermal-units" element={<HourlyThermalReadingPage />} />
             <Route path="hourly/system-conditions" element={<HourlySystemConditionPage />} />
+            <Route path="hourly/exchange-generation" element={<HourlyExchangeGenerationPage />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
