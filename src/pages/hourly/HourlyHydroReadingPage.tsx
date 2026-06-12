@@ -29,6 +29,7 @@ const emptyForm: CreateHourlyHydroReadingForm = {
   unitCode: '',
   logDate: new Date().toISOString().split('T')[0],
   logHour: new Date().getHours() + 1,
+  frequency: '',
   activePowerMW: '',
   reactivePowerMVar: '',
   voltageKV: '',
@@ -47,6 +48,7 @@ const emptyForm: CreateHourlyHydroReadingForm = {
 };
 
 const emptyUpdateForm: UpdateHourlyHydroReadingForm = {
+  frequency: '',
   activePowerMW: '',
   reactivePowerMVar: '',
   voltageKV: '',
@@ -67,12 +69,12 @@ const emptyUpdateForm: UpdateHourlyHydroReadingForm = {
 type FormField = keyof CreateHourlyHydroReadingForm;
 type UpdateField = keyof UpdateHourlyHydroReadingForm;
 
-// Section config for the reading form
 const SECTIONS = [
   {
     title: 'Generator',
     color: '#1565C0',
     fields: [
+      { key: 'frequency', label: 'Frequency', unit: 'Hz' },
       { key: 'activePowerMW', label: 'Active Power', unit: 'MW' },
       { key: 'reactivePowerMVar', label: 'Reactive Power', unit: 'MVar' },
       { key: 'voltageKV', label: 'Voltage', unit: 'kV' },
@@ -108,17 +110,14 @@ export default function HourlyHydroReadingPage() {
   const [units, setUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
 
-  // Filter / search state
   const [filterPlant, setFilterPlant] = useState('');
   const [filterUnit, setFilterUnit] = useState('');
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Records for selected filter
   const [records, setRecords] = useState<HourlyHydroReading[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
-  // Form state
   const [form, setForm] = useState<CreateHourlyHydroReadingForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<UpdateHourlyHydroReadingForm>(emptyUpdateForm);
   const [editTarget, setEditTarget] = useState<HourlyHydroReading | null>(null);
@@ -126,18 +125,14 @@ export default function HourlyHydroReadingPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<HourlyHydroReading | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Section collapse
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  // Load reference data
   useEffect(() => {
     Promise.all([powerPlantApi.getAll(), plantUnitApi.getAll()])
       .then(([p, u]) => {
-        // Only hydro plants
         const hydroPlants = p.data.filter(
           (pl) => pl.classificationType?.toLowerCase() === 'hydro'
         );
@@ -147,13 +142,11 @@ export default function HourlyHydroReadingPage() {
       .catch(() => setRecordsError('Failed to load reference data.'));
   }, []);
 
-  // Filter units when plant changes in form
   useEffect(() => {
     setFilteredUnits(form.plantCode ? units.filter((u) => u.plantCode === form.plantCode) : []);
     setForm((prev) => ({ ...prev, unitCode: '' }));
   }, [form.plantCode, units]);
 
-  // Filter units when filter plant changes
   const filterPlantUnits = filterPlant ? units.filter((u) => u.plantCode === filterPlant) : [];
 
   const fetchRecords = useCallback(async () => {
@@ -174,21 +167,18 @@ export default function HourlyHydroReadingPage() {
     }
   }, [filterPlant, filterUnit, filterDate]);
 
-  // Field change helpers
   const setFormField = (key: FormField, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const setUpdateField = (key: UpdateField, value: string) =>
     setUpdateForm((prev) => ({ ...prev, [key]: value }));
 
-  /*const activeValue = (key: string): string => {
-    if (editTarget) return String((updateForm as Record<string, unknown>)[key] ?? '');
-    return String((form as Record<string, unknown>)[key] ?? '');
-  };*/
+  // ✅ Cast through unknown to avoid TS overlap error
   const activeValue = (key: string): string => {
-  if (editTarget) return String((updateForm as unknown as Record<string, unknown>)[key] ?? '');
-  return String((form as unknown as Record<string, unknown>)[key] ?? '');
-};
+    if (editTarget)
+      return String((updateForm as unknown as Record<string, unknown>)[key] ?? '');
+    return String((form as unknown as Record<string, unknown>)[key] ?? '');
+  };
 
   const handleFieldChange = (key: string, value: string) => {
     if (editTarget) setUpdateField(key as UpdateField, value);
@@ -200,6 +190,7 @@ export default function HourlyHydroReadingPage() {
     setSaveSuccess(false);
     setSaveError(null);
     setUpdateForm({
+      frequency: row.frequency ?? '',
       activePowerMW: row.activePowerMW ?? '',
       reactivePowerMVar: row.reactivePowerMVar ?? '',
       voltageKV: row.voltageKV ?? '',
@@ -216,7 +207,6 @@ export default function HourlyHydroReadingPage() {
       transformerWindingTemperature: row.transformerWindingTemperature ?? '',
       remarks: row.remarks ?? '',
     });
-    // Pre-fill identity selectors to match the record
     setForm((prev) => ({
       ...prev,
       plantCode: row.plantCode,
@@ -241,6 +231,7 @@ export default function HourlyHydroReadingPage() {
 
       if (editTarget) {
         await hourlyHydroApi.update(editTarget.id, {
+          frequency: toNum(updateForm.frequency),
           activePowerMW: toNum(updateForm.activePowerMW),
           reactivePowerMVar: toNum(updateForm.reactivePowerMVar),
           voltageKV: toNum(updateForm.voltageKV),
@@ -265,6 +256,7 @@ export default function HourlyHydroReadingPage() {
           unitCode: form.unitCode,
           logDate: form.logDate,
           logHour: Number(form.logHour),
+          frequency: toNum(form.frequency),
           activePowerMW: toNum(form.activePowerMW),
           reactivePowerMVar: toNum(form.reactivePowerMVar),
           voltageKV: toNum(form.voltageKV),
@@ -309,7 +301,7 @@ export default function HourlyHydroReadingPage() {
   };
 
   const isFormValid =
-    (editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour);
+    editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour;
 
   const toggleSection = (title: string) =>
     setCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
@@ -339,12 +331,7 @@ export default function HourlyHydroReadingPage() {
                       : 'New Reading'}
                   </Typography>
                   {editTarget && (
-                    <Chip
-                      label="Edit Mode"
-                      size="small"
-                      color="warning"
-                      onDelete={cancelEdit}
-                    />
+                    <Chip label="Edit Mode" size="small" color="warning" onDelete={cancelEdit} />
                   )}
                 </Stack>
               }
@@ -352,9 +339,7 @@ export default function HourlyHydroReadingPage() {
             <Divider />
             <CardContent>
               {saveError && (
-                <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>
-                  {saveError}
-                </Alert>
+                <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>
               )}
               {saveSuccess && (
                 <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>
@@ -362,9 +347,9 @@ export default function HourlyHydroReadingPage() {
                 </Alert>
               )}
 
-              {/* Identity fields */}
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1 , fontWeight: 700}}>
+                <Typography variant="caption" color="text.secondary"
+                  sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
                   Log Identity
                 </Typography>
                 <Grid container spacing={2}>
@@ -405,12 +390,10 @@ export default function HourlyHydroReadingPage() {
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
-                      label="Log Date"
-                      type="date"
+                      label="Log Date" type="date"
                       value={editTarget ? editTarget.logDate?.split('T')[0] : form.logDate}
                       onChange={(e) => setFormField('logDate', e.target.value)}
-                      fullWidth required
-                      disabled={!!editTarget}
+                      fullWidth required disabled={!!editTarget}
                       slotProps={{ inputLabel: { shrink: true } }}
                     />
                   </Grid>
@@ -433,30 +416,21 @@ export default function HourlyHydroReadingPage() {
                 </Grid>
               </Paper>
 
-              {/* Reading sections */}
               {SECTIONS.map((section) => (
-                <Paper
-                  key={section.title}
-                  variant="outlined"
-                  sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}
-                >
+                <Paper key={section.title} variant="outlined" sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
                   <Box
                     sx={{
                       px: 2, py: 1.2,
                       backgroundColor: `${section.color}14`,
                       borderBottom: collapsed[section.title] ? 'none' : '1px solid',
                       borderColor: 'divider',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       cursor: 'pointer',
                     }}
                     onClick={() => toggleSection(section.title)}
                   >
-                    <Typography
-                      variant="caption"
-                      sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: section.color }}
-                    >
+                    <Typography variant="caption"
+                      sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: section.color }}>
                       {section.title}
                     </Typography>
                     <IconButton size="small">
@@ -473,18 +447,16 @@ export default function HourlyHydroReadingPage() {
                               type="number"
                               value={activeValue(field.key)}
                               onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                              fullWidth
-                              size="small"
+                              fullWidth size="small"
                               slotProps={{
-                                input: field.unit
-                                  ? {
-                                      endAdornment: (
-                                        <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5, whiteSpace: 'nowrap' }}>
-                                          {field.unit}
-                                        </Typography>
-                                      ),
-                                    }
-                                  : undefined,
+                                input: field.unit ? {
+                                  endAdornment: (
+                                    <Typography variant="caption" color="text.secondary"
+                                      sx={{ ml: 0.5, whiteSpace: 'nowrap' }}>
+                                      {field.unit}
+                                    </Typography>
+                                  ),
+                                } : undefined,
                               }}
                             />
                           </Grid>
@@ -495,22 +467,17 @@ export default function HourlyHydroReadingPage() {
                 </Paper>
               ))}
 
-              {/* Remarks */}
               <TextField
                 label="Remarks"
                 value={activeValue('remarks')}
                 onChange={(e) => handleFieldChange('remarks', e.target.value)}
-                fullWidth
-                multiline
-                rows={2}
+                fullWidth multiline rows={2}
                 placeholder="Optional remarks or observations..."
               />
 
               <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
                 {editTarget && (
-                  <Button variant="outlined" onClick={cancelEdit} disabled={saving}>
-                    Cancel
-                  </Button>
+                  <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
                 )}
                 <Button
                   variant="contained"
@@ -539,15 +506,11 @@ export default function HourlyHydroReadingPage() {
             />
             <Divider />
             <CardContent>
-              {/* Filter controls */}
               <Stack spacing={1.5} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select
-                    label="Plant"
-                    value={filterPlant}
-                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }}
-                  >
+                  <Select label="Plant" value={filterPlant}
+                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }}>
                     <MenuItem value="">Select plant…</MenuItem>
                     {plants.map((p) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
@@ -565,31 +528,24 @@ export default function HourlyHydroReadingPage() {
                     </Select>
                   </FormControl>
                   <TextField
-                    label="Date"
-                    type="date"
-                    size="small"
-                    value={filterDate}
+                    label="Date" type="date" size="small" value={filterDate}
                     onChange={(e) => setFilterDate(e.target.value)}
                     sx={{ flex: 1 }}
                     slotProps={{ inputLabel: { shrink: true } }}
                   />
                 </Stack>
                 <Button
-                  variant="outlined"
+                  variant="outlined" size="small" fullWidth
                   startIcon={loadingRecords ? <CircularProgress size={14} /> : <Search />}
                   onClick={fetchRecords}
                   disabled={!filterPlant || loadingRecords}
-                  size="small"
-                  fullWidth
                 >
                   {loadingRecords ? 'Loading...' : 'Load Records'}
                 </Button>
               </Stack>
 
               {recordsError && (
-                <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>
-                  {recordsError}
-                </Alert>
+                <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>
               )}
 
               {records.length === 0 && !loadingRecords ? (
@@ -613,21 +569,14 @@ export default function HourlyHydroReadingPage() {
                     </TableHead>
                     <TableBody>
                       {records.map((row) => (
-                        <TableRow
-                          key={row.id}
-                          selected={editTarget?.id === row.id}
-                          hover
-                        >
+                        <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {row.unitCode}
-                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.unitCode}</Typography>
                           </TableCell>
                           <TableCell>
                             <Chip
                               label={`${String(row.logHour).padStart(2, '0')}:00`}
-                              size="small"
-                              variant="outlined"
+                              size="small" variant="outlined"
                               sx={{ fontFamily: 'monospace', fontWeight: 600 }}
                             />
                           </TableCell>
@@ -662,11 +611,11 @@ export default function HourlyHydroReadingPage() {
             </CardContent>
           </Card>
 
-          {/* Quick stats */}
           {records.length > 0 && (
             <Card sx={{ mt: 2 }}>
               <CardContent sx={{ py: '12px !important' }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }} color="text.secondary">
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}
+                  color="text.secondary">
                   Day Summary — {filterDate}
                 </Typography>
                 <Stack direction="row" spacing={3} sx={{ mt: 1 }}>
@@ -687,9 +636,7 @@ export default function HourlyHydroReadingPage() {
                     <Typography variant="caption" color="text.secondary">Peak MW</Typography>
                   </Box>
                   <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                      {records.length}
-                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{records.length}</Typography>
                     <Typography variant="caption" color="text.secondary">Hours Logged</Typography>
                   </Box>
                 </Stack>
@@ -703,10 +650,8 @@ export default function HourlyHydroReadingPage() {
         open={!!deleteTarget}
         title="Delete Reading"
         message={`Delete the reading for ${deleteTarget?.unitCode} on ${deleteTarget?.logDate?.split('T')[0]} hour ${deleteTarget?.logHour}?`}
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   );

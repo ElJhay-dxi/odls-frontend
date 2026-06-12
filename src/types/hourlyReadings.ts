@@ -17,6 +17,7 @@ export interface HourlyReadingAudit {
 
 // ─── Hydro ────────────────────────────────────────────────────────────────────
 export interface HourlyHydroReading extends HourlyReadingAudit {
+  frequency?: number;
   activePowerMW?: number;
   reactivePowerMVar?: number;
   voltageKV?: number;
@@ -38,6 +39,7 @@ export interface CreateHourlyHydroReadingForm {
   unitCode: string;
   logDate: string;
   logHour: number | string;
+  frequency: number | string;
   activePowerMW: number | string;
   reactivePowerMVar: number | string;
   voltageKV: number | string;
@@ -56,6 +58,7 @@ export interface CreateHourlyHydroReadingForm {
 }
 
 export interface UpdateHourlyHydroReadingForm {
+  frequency: number | string;
   activePowerMW: number | string;
   reactivePowerMVar: number | string;
   voltageKV: number | string;
@@ -78,6 +81,7 @@ export interface CreateHourlyHydroReadingPayload {
   unitCode: string;
   logDate: string;
   logHour: number;
+  frequency?: number;
   activePowerMW?: number;
   reactivePowerMVar?: number;
   voltageKV?: number;
@@ -96,6 +100,7 @@ export interface CreateHourlyHydroReadingPayload {
 }
 
 export interface UpdateHourlyHydroReadingPayload {
+  frequency?: number;
   activePowerMW?: number;
   reactivePowerMVar?: number;
   voltageKV?: number;
