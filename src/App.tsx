@@ -29,6 +29,9 @@ const HourlySystemConditionPage = lazy(() => import('./pages/hourly/HourlySystem
 const HourlyExchangeGenerationPage = lazy(() => import('./pages/hourly/HourlyExchangeGenerationPage'));
 const HourlyBusVoltagePage = lazy(() => import('./pages/hourly/HourlyBusVoltagePage'));
 
+// Daily Readings
+const DailyEnergyGenerationHydroPage = lazy(() => import('./pages/daily/DailyEnergyGenerationHydroPage'));
+
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 
@@ -78,6 +81,9 @@ export default function App() {
               <Route path="hourly/system-conditions" element={<HourlySystemConditionPage />} />
               <Route path="hourly/exchange-generation" element={<HourlyExchangeGenerationPage />} />
               <Route path="hourly/bus-voltages" element={<HourlyBusVoltagePage />} />
+
+              {/* Daily Readings */}
+            <Route path="daily/energy-generation-hydro" element={<DailyEnergyGenerationHydroPage />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
