@@ -43,6 +43,7 @@ const navItems: NavItem[] = [
       { label: 'BOP Equipment', icon: <Tune />, path: '/master/bop-equipment' },
       { label: 'Bearing Metals', icon: <Settings />, path: '/master/bearing-metals' },
       { label: 'Bearing Drains', icon: <Settings />, path: '/master/bearing-drains' },
+      { label: 'Plant Buses', icon: <Settings />, path: '/master/plant-buses' },
     ],
   },
   {
@@ -53,7 +54,7 @@ const navItems: NavItem[] = [
       { label: 'Unit Readings (Thermal)', icon: <ElectricBolt />, path: '/hourly/thermal-units' },
       { label: 'System Conditions', icon: <BarChart />, path: '/hourly/system-conditions' },
       { label: 'Exchange Generation', icon: <ElectricBolt />, path: '/hourly/exchange-generation' },
-      { label: 'Line Voltage (Hydro)', icon: <ElectricBolt />, path: '/hourly/line-voltage' },
+      { label: 'Bus Voltages', icon: <ElectricBolt />, path: '/hourly/bus-voltages' },
       { label: 'Peak Period Readings', icon: <BarChart />, path: '/hourly/peak-period' },
     ],
   },

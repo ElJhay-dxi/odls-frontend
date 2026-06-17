@@ -20,12 +20,14 @@ const BopSubSystemPage = lazy(() => import('./pages/masterData/BopSubSystemPage'
 const BopEquipmentPage = lazy(() => import('./pages/masterData/BopEquipmentPage'));
 const BearingMetalPage = lazy(() => import('./pages/masterData/BearingMetalPage'));
 const BearingDrainPage = lazy(() => import('./pages/masterData/BearingDrainPage'));
+const PlantBusPage = lazy(() => import('./pages/masterData/PlantBusPage'));
 
 // Hourly Readings
 const HourlyHydroReadingPage = lazy(() => import('./pages/hourly/HourlyHydroReadingPage'));
 const HourlyThermalReadingPage = lazy(() => import('./pages/hourly/HourlyThermalReadingPage'));
 const HourlySystemConditionPage = lazy(() => import('./pages/hourly/HourlySystemConditionPage'));
 const HourlyExchangeGenerationPage = lazy(() => import('./pages/hourly/HourlyExchangeGenerationPage'));
+const HourlyBusVoltagePage = lazy(() => import('./pages/hourly/HourlyBusVoltagePage'));
 
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
@@ -68,12 +70,14 @@ export default function App() {
               <Route path="master/bop-equipment" element={<BopEquipmentPage />} />
               <Route path="master/bearing-metals" element={<BearingMetalPage />} />
               <Route path="master/bearing-drains" element={<BearingDrainPage />} />
+              <Route path="master/plant-buses" element={<PlantBusPage />} />
 
               {/* Hourly Readings */}
               <Route path="hourly/hydro-units" element={<HourlyHydroReadingPage />} />
               <Route path="hourly/thermal-units" element={<HourlyThermalReadingPage />} />
               <Route path="hourly/system-conditions" element={<HourlySystemConditionPage />} />
               <Route path="hourly/exchange-generation" element={<HourlyExchangeGenerationPage />} />
+              <Route path="hourly/bus-voltages" element={<HourlyBusVoltagePage />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
