@@ -104,8 +104,9 @@ export default function PlantBusPage() {
       }
       closeDialog();
       fetchRows();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save.');
     } finally {
       setSaving(false);
