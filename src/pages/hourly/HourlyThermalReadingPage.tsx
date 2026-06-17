@@ -22,6 +22,22 @@ import type {
   CreateHourlyThermalReadingForm,
 } from '../../types/hourlyReadings';
 
+type FormKey = keyof CreateHourlyThermalReadingForm;
+type NumericFormKey = Exclude<FormKey, 'plantCode' | 'unitCode' | 'logDate' | 'logHour' | 'remarks'>;
+
+interface SectionField {
+  key: NumericFormKey;
+  label: string;
+  unit: string;
+}
+
+interface Section {
+  title: string;
+  color: string;
+  subtitle?: string;
+  fields: SectionField[];
+}
+
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
 const emptyForm: CreateHourlyThermalReadingForm = {
@@ -50,7 +66,7 @@ const emptyForm: CreateHourlyThermalReadingForm = {
   remarks: '',
 };
 
-const SECTIONS = [
+const SECTIONS: Section[] = [
   {
     title: 'Generator', color: '#B71C1C',
     fields: [
@@ -237,12 +253,12 @@ export default function HourlyThermalReadingPage() {
     }
   }, [filterPlant, filterUnit, filterDate]);
 
-  const activeValue = (key: string): string => {
-    if (editTarget) return String((updateForm as unknown as Record<string, unknown>)[key] ?? '');
-    return String((form as unknown as Record<string, unknown>)[key] ?? '');
+  const activeValue = (key: FormKey): string => {
+    if (editTarget) return String(updateForm[key] ?? '');
+    return String(form[key] ?? '');
   };
 
-  const handleFieldChange = (key: string, value: string) => {
+  const handleFieldChange = (key: FormKey, value: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: value }));
     else setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -290,13 +306,13 @@ export default function HourlyThermalReadingPage() {
     setEditTarget(row);
     setSaveSuccess(false);
     setSaveError(null);
-    const fields = Object.keys(emptyForm).filter(
-      (k) => !['plantCode', 'unitCode', 'logDate', 'logHour'].includes(k)
+    const fields = (Object.keys(emptyForm) as FormKey[]).filter(
+      (k) => !(['plantCode', 'unitCode', 'logDate', 'logHour'] as FormKey[]).includes(k)
     );
-    const populated: Record<string, string> = {};
+    const populated: Partial<CreateHourlyThermalReadingForm> = {};
     fields.forEach((f) => {
-      const v = (row as unknown as Record<string, unknown>)[f];
-      populated[f] = v != null ? String(v) : '';
+      const v = row[f as keyof HourlyThermalReading];
+      (populated as Record<string, string>)[f] = v != null ? String(v) : '';
     });
     setUpdateForm(populated);
     // Store bearing rows in ref — applied after master data loads
@@ -341,15 +357,16 @@ export default function HourlyThermalReadingPage() {
           drainTemperature: Number(r.drainTemperature),
         }));
 
+      const numFields = (Object.keys(emptyForm) as FormKey[]).filter(
+        (k): k is NumericFormKey => !(['plantCode', 'unitCode', 'logDate', 'logHour', 'remarks'] as FormKey[]).includes(k)
+      );
+
       if (editTarget) {
         const payload: Record<string, unknown> = { bearingMetalReadings, bearingDrainReadings };
-        const numFields = Object.keys(emptyForm).filter(
-          (k) => !['plantCode', 'unitCode', 'logDate', 'logHour', 'remarks'].includes(k)
-        );
         numFields.forEach((k) => {
-          payload[k] = toNum((updateForm as unknown as Record<string, unknown>)[k] as string);
+          payload[k] = toNum(updateForm[k] as string);
         });
-        payload.remarks = (updateForm as unknown as Record<string, unknown>).remarks || undefined;
+        payload.remarks = updateForm.remarks || undefined;
         await hourlyThermalApi.update(editTarget.id, payload);
         setEditTarget(null);
         setUpdateForm({});
@@ -362,11 +379,8 @@ export default function HourlyThermalReadingPage() {
           bearingMetalReadings,
           bearingDrainReadings,
         };
-        const numFields = Object.keys(emptyForm).filter(
-          (k) => !['plantCode', 'unitCode', 'logDate', 'logHour', 'remarks'].includes(k)
-        );
         numFields.forEach((k) => {
-          payload[k] = toNum((form as unknown as Record<string, unknown>)[k] as string);
+          payload[k] = toNum(form[k] as string);
         });
         payload.remarks = form.remarks || undefined;
         await hourlyThermalApi.create(payload);
@@ -376,8 +390,9 @@ export default function HourlyThermalReadingPage() {
       setDrainRows([]);
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);

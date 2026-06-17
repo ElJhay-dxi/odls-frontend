@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { AuthProvider } from './auth/AuthProvider';
+import ErrorBoundary from './components/shared/ErrorBoundary';
 import App from './App';
 import theme from './theme/theme';
 import '@fontsource/ibm-plex-sans/400.css';
@@ -11,11 +12,13 @@ import '@fontsource/ibm-plex-sans/700.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <App />
-      </ThemeProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <App />
+        </ThemeProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

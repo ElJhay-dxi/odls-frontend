@@ -37,9 +37,14 @@ axiosInstance.interceptors.request.use(async (config) => {
 
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      console.error('Unauthorized – redirecting to login');
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        await msalInstance.logoutRedirect({
+          postLogoutRedirectUri: import.meta.env.VITE_AZURE_REDIRECT_URI,
+        });
+      }
     }
 
     return Promise.reject(error);

@@ -1,30 +1,42 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthenticatedTemplate, UnauthenticatedTemplate } from '@azure/msal-react';
+import { Box, CircularProgress } from '@mui/material';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/auth/LoginPage';
-import DashboardPage from './pages/dashboard/DashboardPage';
 
 // Master Data
-import PlantClassificationPage from './pages/masterData/PlantClassificationPage';
-import GenerationTypePage from './pages/masterData/GenerationTypePage';
-import PowerPlantPage from './pages/masterData/PowerPlantPage';
-import PlantLocationPage from './pages/masterData/PlantLocationPage';
-import PlantUnitPage from './pages/masterData/PlantUnitPage';
-import PlantUnitSystemPage from './pages/masterData/PlantUnitSystemPage';
-import PlantUnitSubSystemPage from './pages/masterData/PlantUnitSubSystemPage';
-import PlantUnitEquipmentPage from './pages/masterData/PlantUnitEquipmentPage';
-import BalanceOfPlantPage from './pages/masterData/BalanceOfPlantPage';
-import BopSystemPage from './pages/masterData/BopSystemPage';
-import BopSubSystemPage from './pages/masterData/BopSubSystemPage';
-import BopEquipmentPage from './pages/masterData/BopEquipmentPage';
-import BearingMetalPage from './pages/masterData/BearingMetalPage';
-import BearingDrainPage from './pages/masterData/BearingDrainPage';
+const PlantClassificationPage = lazy(() => import('./pages/masterData/PlantClassificationPage'));
+const GenerationTypePage = lazy(() => import('./pages/masterData/GenerationTypePage'));
+const PowerPlantPage = lazy(() => import('./pages/masterData/PowerPlantPage'));
+const PlantLocationPage = lazy(() => import('./pages/masterData/PlantLocationPage'));
+const PlantUnitPage = lazy(() => import('./pages/masterData/PlantUnitPage'));
+const PlantUnitSystemPage = lazy(() => import('./pages/masterData/PlantUnitSystemPage'));
+const PlantUnitSubSystemPage = lazy(() => import('./pages/masterData/PlantUnitSubSystemPage'));
+const PlantUnitEquipmentPage = lazy(() => import('./pages/masterData/PlantUnitEquipmentPage'));
+const BalanceOfPlantPage = lazy(() => import('./pages/masterData/BalanceOfPlantPage'));
+const BopSystemPage = lazy(() => import('./pages/masterData/BopSystemPage'));
+const BopSubSystemPage = lazy(() => import('./pages/masterData/BopSubSystemPage'));
+const BopEquipmentPage = lazy(() => import('./pages/masterData/BopEquipmentPage'));
+const BearingMetalPage = lazy(() => import('./pages/masterData/BearingMetalPage'));
+const BearingDrainPage = lazy(() => import('./pages/masterData/BearingDrainPage'));
 
 // Hourly Readings
-import HourlyHydroReadingPage from './pages/hourly/HourlyHydroReadingPage';
-import HourlyThermalReadingPage from './pages/hourly/HourlyThermalReadingPage';
-import HourlySystemConditionPage from './pages/hourly/HourlySystemConditionPage';
-import HourlyExchangeGenerationPage from './pages/hourly/HourlyExchangeGenerationPage';
+const HourlyHydroReadingPage = lazy(() => import('./pages/hourly/HourlyHydroReadingPage'));
+const HourlyThermalReadingPage = lazy(() => import('./pages/hourly/HourlyThermalReadingPage'));
+const HourlySystemConditionPage = lazy(() => import('./pages/hourly/HourlySystemConditionPage'));
+const HourlyExchangeGenerationPage = lazy(() => import('./pages/hourly/HourlyExchangeGenerationPage'));
+
+// Dashboard
+const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
+
+function PageLoader() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <CircularProgress />
+    </Box>
+  );
+}
 
 export default function App() {
   return (
@@ -36,35 +48,37 @@ export default function App() {
       </UnauthenticatedTemplate>
 
       <AuthenticatedTemplate>
-        <Routes>
-          <Route path="/" element={<AppShell />}>
-            <Route index element={<DashboardPage />} />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<AppShell />}>
+              <Route index element={<DashboardPage />} />
 
-            {/* Master Data */}
-            <Route path="master/plant-classifications" element={<PlantClassificationPage />} />
-            <Route path="master/generation-types" element={<GenerationTypePage />} />
-            <Route path="master/plant-locations" element={<PlantLocationPage />} />
-            <Route path="master/power-plants" element={<PowerPlantPage />} />
-            <Route path="master/plant-units" element={<PlantUnitPage />} />
-            <Route path="master/unit-systems" element={<PlantUnitSystemPage />} />
-            <Route path="master/unit-subsystems" element={<PlantUnitSubSystemPage />} />
-            <Route path="master/unit-equipment" element={<PlantUnitEquipmentPage />} />
-            <Route path="master/bop" element={<BalanceOfPlantPage />} />
-            <Route path="master/bop-systems" element={<BopSystemPage />} />
-            <Route path="master/bop-subsystems" element={<BopSubSystemPage />} />
-            <Route path="master/bop-equipment" element={<BopEquipmentPage />} />
-            <Route path="master/bearing-metals" element={<BearingMetalPage />} />
-            <Route path="master/bearing-drains" element={<BearingDrainPage />} />
+              {/* Master Data */}
+              <Route path="master/plant-classifications" element={<PlantClassificationPage />} />
+              <Route path="master/generation-types" element={<GenerationTypePage />} />
+              <Route path="master/plant-locations" element={<PlantLocationPage />} />
+              <Route path="master/power-plants" element={<PowerPlantPage />} />
+              <Route path="master/plant-units" element={<PlantUnitPage />} />
+              <Route path="master/unit-systems" element={<PlantUnitSystemPage />} />
+              <Route path="master/unit-subsystems" element={<PlantUnitSubSystemPage />} />
+              <Route path="master/unit-equipment" element={<PlantUnitEquipmentPage />} />
+              <Route path="master/bop" element={<BalanceOfPlantPage />} />
+              <Route path="master/bop-systems" element={<BopSystemPage />} />
+              <Route path="master/bop-subsystems" element={<BopSubSystemPage />} />
+              <Route path="master/bop-equipment" element={<BopEquipmentPage />} />
+              <Route path="master/bearing-metals" element={<BearingMetalPage />} />
+              <Route path="master/bearing-drains" element={<BearingDrainPage />} />
 
-            {/* Hourly Readings */}
-            <Route path="hourly/hydro-units" element={<HourlyHydroReadingPage />} />
-            <Route path="hourly/thermal-units" element={<HourlyThermalReadingPage />} />
-            <Route path="hourly/system-conditions" element={<HourlySystemConditionPage />} />
-            <Route path="hourly/exchange-generation" element={<HourlyExchangeGenerationPage />} />
+              {/* Hourly Readings */}
+              <Route path="hourly/hydro-units" element={<HourlyHydroReadingPage />} />
+              <Route path="hourly/thermal-units" element={<HourlyThermalReadingPage />} />
+              <Route path="hourly/system-conditions" element={<HourlySystemConditionPage />} />
+              <Route path="hourly/exchange-generation" element={<HourlyExchangeGenerationPage />} />
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </Suspense>
       </AuthenticatedTemplate>
     </BrowserRouter>
   );
