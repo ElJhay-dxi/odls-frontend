@@ -23,6 +23,8 @@ const emptyForm: DailyEnergyGenHydroForm = {
   akosomboPeakLoadTime: '',
 };
 
+type HydroFormKey = keyof DailyEnergyGenHydroForm;
+
 const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
 
 export default function DailyEnergyGenerationHydroPage() {
@@ -88,14 +90,10 @@ export default function DailyEnergyGenerationHydroPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const activeForm = editTarget
-    ? (updateForm as unknown as Record<string, unknown>)
-    : (form as unknown as Record<string, unknown>);
-
-  const fv = (key: string) => String(activeForm[key] ?? '');
-  const setField = (key: string, val: string) => {
+  const fv = (key: HydroFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
+  const setField = (key: HydroFormKey, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val } as DailyEnergyGenHydroForm));
+    else setForm((prev) => ({ ...prev, [key]: val }));
   };
 
   // Live preview of Previous Reading / Difference / Progressive Total / Average Load
@@ -148,8 +146,9 @@ export default function DailyEnergyGenerationHydroPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
