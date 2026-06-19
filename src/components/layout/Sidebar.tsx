@@ -63,7 +63,7 @@ const navItems: NavItem[] = [
     icon: <Assignment />,
     children: [
       { label: 'Energy Generation (Hydro)', icon: <WaterDrop />, path: '/daily/energy-generation-hydro' },
-      { label: 'Energy Generation (Thermal)', icon: <ElectricBolt />, path: '/daily/energy-thermal' },
+      { label: 'Energy Generation (Thermal)', icon: <ElectricBolt />, path: '/daily/energy-generation-thermal' },
       { label: 'Reactive Power', icon: <ElectricBolt />, path: '/daily/reactive-power' },
       { label: 'LCO Readings', icon: <Tune />, path: '/daily/lco' },
       { label: 'DFO Readings', icon: <Tune />, path: '/daily/dfo' },
