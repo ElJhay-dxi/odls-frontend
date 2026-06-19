@@ -32,6 +32,7 @@ const HourlyBusVoltagePage = lazy(() => import('./pages/hourly/HourlyBusVoltageP
 // Daily Readings
 const DailyEnergyGenerationHydroPage = lazy(() => import('./pages/daily/DailyEnergyGenerationHydroPage'));
 const DailyEnergyGenerationThermalPage = lazy(() => import('./pages/daily/DailyEnergyGenerationThermalPage'));
+const DailyReactivePowerPage = lazy(() => import('./pages/daily/DailyReactivePowerPage'));
 
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
@@ -86,7 +87,7 @@ export default function App() {
               {/* Daily Readings */}
             <Route path="daily/energy-generation-hydro" element={<DailyEnergyGenerationHydroPage />} />
             <Route path="daily/energy-generation-thermal" element={<DailyEnergyGenerationThermalPage />} />
-
+            <Route path="daily/reactive-power" element={<DailyReactivePowerPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
