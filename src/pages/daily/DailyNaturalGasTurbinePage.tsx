@@ -21,7 +21,6 @@ const emptyForm: DailyNaturalGasTurbineForm = {
   logTime: '', currentReading: '', heatingValue: '',
 };
 
-const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
 const fmt = (v?: number, dec = 2) => v != null ? v.toFixed(dec) : '—';
 
 export default function DailyNaturalGasTurbinePage() {
