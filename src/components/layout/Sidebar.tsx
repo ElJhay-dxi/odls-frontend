@@ -68,7 +68,7 @@ const navItems: NavItem[] = [
       { label: 'LCO Readings', icon: <Tune />, path: '/daily/lco-readings' },
       { label: 'DFO Readings', icon: <Tune />, path: '/daily/dfo-readings' },
       { label: 'Natural Gas (Turbine)', icon: <Tune />, path: '/daily/natural-gas-turbine' },
-      { label: 'Natural Gas (Chromatograph)', icon: <Tune />, path: '/daily/gas-chromatograph' },
+      { label: 'Natural Gas (Chromatograph)', icon: <Tune />, path: '/daily/natural-gas-chromatograph' },
       { label: 'Station Consumption', icon: <ElectricBolt />, path: '/daily/station-consumption' },
       { label: 'Plant Availability', icon: <BarChart />, path: '/daily/availability' },
       { label: 'Plant Trips', icon: <Assignment />, path: '/daily/trips' },
