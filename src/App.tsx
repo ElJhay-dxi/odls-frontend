@@ -28,6 +28,7 @@ const HourlyThermalReadingPage = lazy(() => import('./pages/hourly/HourlyThermal
 const HourlySystemConditionPage = lazy(() => import('./pages/hourly/HourlySystemConditionPage'));
 const HourlyExchangeGenerationPage = lazy(() => import('./pages/hourly/HourlyExchangeGenerationPage'));
 const HourlyBusVoltagePage = lazy(() => import('./pages/hourly/HourlyBusVoltagePage'));
+const PeakPeriodPage = lazy(() => import('./pages/hourly/PeakPeriodPage'));
 
 // Daily Readings
 const DailyEnergyGenerationHydroPage = lazy(() => import('./pages/daily/DailyEnergyGenerationHydroPage'));
@@ -85,7 +86,7 @@ export default function App() {
               <Route path="hourly/system-conditions" element={<HourlySystemConditionPage />} />
               <Route path="hourly/exchange-generation" element={<HourlyExchangeGenerationPage />} />
               <Route path="hourly/bus-voltages" element={<HourlyBusVoltagePage />} />
-
+              <Route path="hourly/peak-period" element={<PeakPeriodPage />} />
               {/* Daily Readings */}
             <Route path="daily/energy-generation-hydro" element={<DailyEnergyGenerationHydroPage />} />
             <Route path="daily/energy-generation-thermal" element={<DailyEnergyGenerationThermalPage />} />
