@@ -27,6 +27,7 @@ export default function DailyLcoReadingPage() {
   const [updateForm, setUpdateForm] = useState<{ currentReading: number | string }>({ currentReading: '' });
   const [editTarget, setEditTarget] = useState<DailyLcoReading | null>(null);
 
+  const [manualPreviousReading, setManualPreviousReading] = useState('');
   const [priorRecord, setPriorRecord] = useState<DailyLcoReading | null>(null);
   const [loadingPrior, setLoadingPrior] = useState(false);
 
@@ -60,6 +61,7 @@ export default function DailyLcoReadingPage() {
           .filter((r) => r.logDate.split('T')[0] < form.logDate)
           .sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
         setPriorRecord(prior ?? null);
+        if (prior) setManualPreviousReading('');
       })
       .catch(() => setPriorRecord(null))
       .finally(() => setLoadingPrior(false));
@@ -81,7 +83,12 @@ export default function DailyLcoReadingPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const previewPreviousReading = editTarget ? editTarget.previousReading : (priorRecord?.currentReading ?? 0);
+  const isFirstEntry = !editTarget && !priorRecord && !loadingPrior;
+  const previewPreviousReading = editTarget
+    ? editTarget.previousReading
+    : priorRecord
+    ? priorRecord.currentReading
+    : Number(manualPreviousReading) || 0;
   const previewPriorProgressiveTotal = editTarget
     ? editTarget.progressiveTotal - editTarget.difference
     : (priorRecord?.progressiveTotal ?? 0);
@@ -112,9 +119,11 @@ export default function DailyLcoReadingPage() {
         await dailyLcoReadingApi.create({
           plantCode: form.plantCode,
           logDate: form.logDate,
+          previousReading: isFirstEntry ? Number(manualPreviousReading) : undefined,
           currentReading: Number(form.currentReading),
         });
         setForm(emptyForm);
+        setManualPreviousReading('');
       }
       setSaveSuccess(true);
       fetchRecords();

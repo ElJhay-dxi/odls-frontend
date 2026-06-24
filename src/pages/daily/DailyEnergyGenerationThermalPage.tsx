@@ -33,6 +33,7 @@ export default function DailyEnergyGenerationThermalPage() {
   const [updateForm, setUpdateForm] = useState<{ currentReading: number | string }>({ currentReading: '' });
   const [editTarget, setEditTarget] = useState<DailyEnergyGenerationThermal | null>(null);
 
+  const [manualPreviousReading, setManualPreviousReading] = useState('');
   const [priorRecord, setPriorRecord] = useState<DailyEnergyGenerationThermal | null>(null);
   const [loadingPrior, setLoadingPrior] = useState(false);
 
@@ -68,6 +69,7 @@ export default function DailyEnergyGenerationThermalPage() {
           .filter((r) => r.logDate.split('T')[0] < form.logDate)
           .sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
         setPriorRecord(prior ?? null);
+        if (prior) setManualPreviousReading('');
       })
       .catch(() => setPriorRecord(null))
       .finally(() => setLoadingPrior(false));
@@ -92,7 +94,12 @@ export default function DailyEnergyGenerationThermalPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const previewPreviousReading = editTarget ? editTarget.previousReading : (priorRecord?.currentReading ?? 0);
+  const isFirstEntry = !editTarget && !priorRecord && !loadingPrior;
+  const previewPreviousReading = editTarget
+    ? editTarget.previousReading
+    : priorRecord
+    ? priorRecord.currentReading
+    : Number(manualPreviousReading) || 0;
   const previewPriorProgressiveTotal = editTarget
     ? editTarget.progressiveTotal - editTarget.difference
     : (priorRecord?.progressiveTotal ?? 0);
@@ -125,15 +132,16 @@ export default function DailyEnergyGenerationThermalPage() {
           plantCode: form.plantCode,
           fuelType: form.fuelType,
           logDate: form.logDate,
+          previousReading: isFirstEntry ? Number(manualPreviousReading) : undefined,
           currentReading: Number(form.currentReading),
         });
         setForm(emptyForm);
+        setManualPreviousReading('');
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -252,9 +260,12 @@ export default function DailyEnergyGenerationThermalPage() {
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
-                      label="Previous Reading" fullWidth disabled
-                      value={loadingPrior ? '…' : previewPreviousReading.toFixed(2)}
-                      helperText="Auto-carried from prior day (same plant + fuel type)"
+                      label="Previous Reading" fullWidth
+                      type={isFirstEntry ? "number" : "text"}
+                      disabled={!isFirstEntry}
+                      value={isFirstEntry ? manualPreviousReading : loadingPrior ? '…' : previewPreviousReading.toFixed(2)}
+                      onChange={(e) => isFirstEntry && setManualPreviousReading(e.target.value)}
+                      helperText={isFirstEntry ? "Enter the prior meter reading (first entry only)" : "Auto-carried from prior day (same plant + fuel type)"}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>

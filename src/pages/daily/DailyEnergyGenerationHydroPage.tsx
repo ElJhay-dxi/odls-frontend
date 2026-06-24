@@ -23,8 +23,6 @@ const emptyForm: DailyEnergyGenHydroForm = {
   akosomboPeakLoadTime: '',
 };
 
-type HydroFormKey = keyof DailyEnergyGenHydroForm;
-
 const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
 
 export default function DailyEnergyGenerationHydroPage() {
@@ -35,6 +33,7 @@ export default function DailyEnergyGenerationHydroPage() {
   const [editTarget, setEditTarget] = useState<DailyEnergyGenerationHydro | null>(null);
 
   // Most recent prior record for the selected plant — used to preview Previous Reading & Progressive Total
+  const [manualPreviousReading, setManualPreviousReading] = useState('');
   const [priorRecord, setPriorRecord] = useState<DailyEnergyGenerationHydro | null>(null);
   const [loadingPrior, setLoadingPrior] = useState(false);
 
@@ -69,6 +68,7 @@ export default function DailyEnergyGenerationHydroPage() {
           .filter((r) => r.logDate.split('T')[0] < form.logDate)
           .sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
         setPriorRecord(prior ?? null);
+        if (prior) setManualPreviousReading('');
       })
       .catch(() => setPriorRecord(null))
       .finally(() => setLoadingPrior(false));
@@ -90,14 +90,23 @@ export default function DailyEnergyGenerationHydroPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const fv = (key: HydroFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
-  const setField = (key: HydroFormKey, val: string) => {
+  const activeForm = editTarget
+    ? (updateForm as unknown as Record<string, unknown>)
+    : (form as unknown as Record<string, unknown>);
+
+  const fv = (key: string) => String(activeForm[key] ?? '');
+  const setField = (key: string, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val }));
+    else setForm((prev) => ({ ...prev, [key]: val } as DailyEnergyGenHydroForm));
   };
 
   // Live preview of Previous Reading / Difference / Progressive Total / Average Load
-  const previewPreviousReading = editTarget ? editTarget.previousReading : (priorRecord?.currentReading ?? 0);
+  const isFirstEntry = !editTarget && !priorRecord && !loadingPrior;
+  const previewPreviousReading = editTarget
+    ? editTarget.previousReading
+    : priorRecord
+    ? priorRecord.currentReading
+    : Number(manualPreviousReading) || 0;
   const previewPriorProgressiveTotal = editTarget
     ? editTarget.progressiveTotal - editTarget.difference // back out current diff to get prior total
     : (priorRecord?.progressiveTotal ?? 0);
@@ -137,18 +146,19 @@ export default function DailyEnergyGenerationHydroPage() {
         await dailyEnergyGenerationHydroApi.create({
           plantCode: form.plantCode,
           logDate: form.logDate,
+          previousReading: isFirstEntry ? Number(manualPreviousReading) : undefined,
           currentReading: Number(form.currentReading),
           averagePowerFactor: toNum(form.averagePowerFactor),
           akosomboPeakLoadMW: toNum(form.akosomboPeakLoadMW),
           akosomboPeakLoadTime: form.akosomboPeakLoadTime || undefined,
         });
         setForm(emptyForm);
+        setManualPreviousReading('');
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
