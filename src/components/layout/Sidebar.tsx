@@ -74,6 +74,7 @@ const navItems: NavItem[] = [
       { label: 'Plant Availability', icon: <BarChart />, path: '/daily/plant-availability' },
       { label: 'Plant Trips', icon: <Assignment />, path: '/daily/plant-trips' },
       { label: 'Reliability Metrics', icon: <BarChart />, path: '/daily/plant-reliability' },
+      { label: 'Plant Load Factor', icon: <BarChart />, path: '/daily/plant-load-factor' },
       { label: 'Water System', icon: <WaterDrop />, path: '/daily/water-system' },
     ],
   },
