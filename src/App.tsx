@@ -41,6 +41,7 @@ const DailyNaturalGasChromatographPage = lazy(() => import('./pages/daily/DailyN
 const DailyStationEnergyConsumptionPage = lazy(() => import('./pages/daily/DailyStationEnergyConsumptionPage'));
 const DailySccReadingPage = lazy(() => import('./pages/daily/DailySccReadingPage'));
 const DailyPlantAvailabilityPage = lazy(() => import('./pages/daily/DailyPlantAvailabilityPage'));
+const DailyPlantTripPage = lazy(() => import('./pages/daily/DailyPlantTripPage'));
 
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
@@ -104,6 +105,7 @@ export default function App() {
             <Route path="daily/station-energy-consumption" element={<DailyStationEnergyConsumptionPage />} />
             <Route path="daily/scc-readings" element={<DailySccReadingPage />} />
             <Route path="daily/plant-availability" element={<DailyPlantAvailabilityPage />} />
+            <Route path="daily/plant-trips" element={<DailyPlantTripPage />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

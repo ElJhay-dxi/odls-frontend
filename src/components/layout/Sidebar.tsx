@@ -73,7 +73,7 @@ const navItems: NavItem[] = [
       { label: 'SCC System Readings', icon: <Tune />, path: '/daily/scc-readings' },
       //{ label: 'Station Consumption', icon: <ElectricBolt />, path: '/daily/station-consumption' },
       { label: 'Plant Availability', icon: <BarChart />, path: '/daily/plant-availability' },
-      { label: 'Plant Trips', icon: <Assignment />, path: '/daily/trips' },
+      { label: 'Plant Trips', icon: <Assignment />, path: '/daily/plant-trips' },
       { label: 'Reliability Metrics', icon: <BarChart />, path: '/daily/reliability' },
       { label: 'Water System', icon: <WaterDrop />, path: '/daily/water-system' },
     ],
