@@ -37,6 +37,8 @@ const THERMAL_FIELDS = [
   { key: 'protectiveLoadSheddingTrip', label: 'Protective Load Shedding Trip' },
 ];
 
+type TripFormKey = keyof DailyPlantTripForm;
+
 const toInt = (v: unknown) => v === '' || v === undefined || v === null ? 0 : Number(v);
 
 export default function DailyPlantTripPage() {
@@ -78,14 +80,10 @@ export default function DailyPlantTripPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const activeForm = editTarget
-    ? (updateForm as unknown as Record<string, unknown>)
-    : (form as unknown as Record<string, unknown>);
-
-  const fv = (key: string) => String(activeForm[key] ?? '');
-  const setField = (key: string, val: string) => {
+  const fv = (key: TripFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
+  const setField = (key: TripFormKey, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val } as DailyPlantTripForm));
+    else setForm((prev) => ({ ...prev, [key]: val }));
   };
 
   const selectedPlantType = editTarget
@@ -137,8 +135,9 @@ export default function DailyPlantTripPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -161,9 +160,11 @@ export default function DailyPlantTripPage() {
 
   const isFormValid = editTarget ? true : form.plantCode && form.logDate;
 
+  const currentForm = editTarget ? updateForm : form;
+
   // Total trips for quick summary
-  const totalTrips = COMMON_FIELDS.reduce((sum, f) => sum + toInt(activeForm[f.key]), 0)
-    + (isThermal ? THERMAL_FIELDS.reduce((sum, f) => sum + toInt(activeForm[f.key]), 0) : 0);
+  const totalTrips = COMMON_FIELDS.reduce((sum, f) => sum + toInt(currentForm[f.key as TripFormKey]), 0)
+    + (isThermal ? THERMAL_FIELDS.reduce((sum, f) => sum + toInt(currentForm[f.key as TripFormKey]), 0) : 0);
 
   return (
     <Box>
@@ -250,7 +251,7 @@ export default function DailyPlantTripPage() {
                   {COMMON_FIELDS.map(({ key, label }) => (
                     <Grid key={key} size={{ xs: 12, sm: 6 }}>
                       <TextField label={label} type="number" fullWidth size="small"
-                        value={fv(key)} onChange={(e) => setField(key, e.target.value)}
+                        value={fv(key as TripFormKey)} onChange={(e) => setField(key as TripFormKey, e.target.value)}
                         slotProps={{ input: { inputProps: { min: 0 } } }}
                       />
                     </Grid>
@@ -267,7 +268,7 @@ export default function DailyPlantTripPage() {
                       {THERMAL_FIELDS.map(({ key, label }) => (
                         <Grid key={key} size={{ xs: 12, sm: 6 }}>
                           <TextField label={label} type="number" fullWidth size="small"
-                            value={fv(key)} onChange={(e) => setField(key, e.target.value)}
+                            value={fv(key as TripFormKey)} onChange={(e) => setField(key as TripFormKey, e.target.value)}
                             slotProps={{ input: { inputProps: { min: 0 } } }}
                           />
                         </Grid>

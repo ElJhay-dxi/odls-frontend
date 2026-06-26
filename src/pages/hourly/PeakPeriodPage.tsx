@@ -5,7 +5,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, IconButton, Tooltip,
 } from '@mui/material';
-import { Save, Search, Edit, Delete, ShowChart, Add, Check, Close } from '@mui/icons-material';
+import { Search, Edit, Delete, ShowChart, Add, Check, Close } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
@@ -106,8 +106,9 @@ export default function PeakPeriodPage() {
       setNewMW('');
       setNewMVar('');
       setNewVoltage('');
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setIntervalError(msg ?? 'Failed to save interval.');
     } finally {
       setSavingInterval(false);
@@ -136,8 +137,9 @@ export default function PeakPeriodPage() {
       });
       setRecord(updated.data);
       cancelEditInterval();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setIntervalError(msg ?? 'Failed to update interval.');
     } finally {
       setSavingEdit(false);

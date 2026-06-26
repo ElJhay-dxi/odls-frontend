@@ -26,6 +26,8 @@ const emptyForm: DailyPlantAvailabilityForm = {
   plannedOutage: '', extendedPlannedOutage: '', plannedOutageOutsideMgmt: '',
 };
 
+type AvailabilityFormKey = keyof DailyPlantAvailabilityForm;
+
 const toN = (v: unknown) => Number(v) || 0;
 const pct = (v?: number) => v != null ? `${v.toFixed(2)}%` : '—';
 
@@ -101,28 +103,25 @@ export default function DailyPlantAvailabilityPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const activeForm = editTarget
-    ? (updateForm as unknown as Record<string, unknown>)
-    : (form as unknown as Record<string, unknown>);
-
-  const fv = (key: string) => String(activeForm[key] ?? '');
-  const setField = (key: string, val: string) => {
+  const fv = (key: AvailabilityFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
+  const setField = (key: AvailabilityFormKey, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val } as DailyPlantAvailabilityForm));
+    else setForm((prev) => ({ ...prev, [key]: val }));
   };
 
   // Live preview computations
   const period = 24;
-  const forcedHrs = toN(activeForm.forcedOutageU1) + toN(activeForm.forcedOutageU2) +
-    toN(activeForm.forcedOutageU3) + toN(activeForm.startingFailure) + toN(activeForm.forcedOutageOutsideMgmt);
-  const maintHrs = toN(activeForm.maintenanceOutage) + toN(activeForm.extendedMaintenanceOutage) +
-    toN(activeForm.maintenanceOutageOutsideMgmt);
-  const plannedHrs = toN(activeForm.plannedOutage) + toN(activeForm.extendedPlannedOutage) +
-    toN(activeForm.plannedOutageOutsideMgmt);
+  const currentForm = editTarget ? updateForm : form;
+  const forcedHrs = toN(currentForm.forcedOutageU1) + toN(currentForm.forcedOutageU2) +
+    toN(currentForm.forcedOutageU3) + toN(currentForm.startingFailure) + toN(currentForm.forcedOutageOutsideMgmt);
+  const maintHrs = toN(currentForm.maintenanceOutage) + toN(currentForm.extendedMaintenanceOutage) +
+    toN(currentForm.maintenanceOutageOutsideMgmt);
+  const plannedHrs = toN(currentForm.plannedOutage) + toN(currentForm.extendedPlannedOutage) +
+    toN(currentForm.plannedOutageOutsideMgmt);
   const unavailHrs = forcedHrs + maintHrs + plannedHrs;
   const availHrs = period - unavailHrs;
-  const serviceHrs = toN(activeForm.serviceHours);
-  const runHrs = toN(activeForm.runHours);
+  const serviceHrs = toN(currentForm.serviceHours);
+  const runHrs = toN(currentForm.runHours);
 
   const liveAF  = (availHrs / period) * 100;
   const liveFOF = (forcedHrs / period) * 100;
@@ -186,8 +185,9 @@ export default function DailyPlantAvailabilityPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -294,7 +294,7 @@ export default function DailyPlantAvailabilityPage() {
                   ].map(({ key, label }) => (
                     <Grid key={key} size={{ xs: 12, sm: 4 }}>
                       <TextField label={label} type="number" fullWidth size="small"
-                        value={fv(key)} onChange={(e) => setField(key, e.target.value)}
+                        value={fv(key as AvailabilityFormKey)} onChange={(e) => setField(key as AvailabilityFormKey, e.target.value)}
                         slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">hrs</Typography> } }}
                       />
                     </Grid>
@@ -324,7 +324,7 @@ export default function DailyPlantAvailabilityPage() {
                         {section.fields.map(({ key, label }) => (
                           <Grid key={key} size={{ xs: 12, sm: 4 }}>
                             <TextField label={label} type="number" fullWidth size="small"
-                              value={fv(key)} onChange={(e) => setField(key, e.target.value)}
+                              value={fv(key as AvailabilityFormKey)} onChange={(e) => setField(key as AvailabilityFormKey, e.target.value)}
                               slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">hrs</Typography> } }}
                             />
                           </Grid>

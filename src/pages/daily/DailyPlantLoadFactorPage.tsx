@@ -23,6 +23,8 @@ const emptyForm: DailyPlantLoadFactorForm = {
   associatedTime: '',
 };
 
+type LoadFactorFormKey = keyof DailyPlantLoadFactorForm;
+
 export default function DailyPlantLoadFactorPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
@@ -83,14 +85,10 @@ export default function DailyPlantLoadFactorPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const fv = (key: string) => String(
-    editTarget
-      ? (updateForm as unknown as Record<string, unknown>)[key] ?? ''
-      : (form as unknown as Record<string, unknown>)[key] ?? ''
-  );
-  const setField = (key: string, val: string) => {
+  const fv = (key: LoadFactorFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
+  const setField = (key: LoadFactorFormKey, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val } as DailyPlantLoadFactorForm));
+    else setForm((prev) => ({ ...prev, [key]: val }));
   };
 
   // Live preview
@@ -133,8 +131,9 @@ export default function DailyPlantLoadFactorPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);

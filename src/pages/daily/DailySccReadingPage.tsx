@@ -21,6 +21,8 @@ const emptyForm: DailySccReadingForm = {
   stationServiceKwh: '',
 };
 
+type SccFormKey = keyof DailySccReadingForm;
+
 export default function DailySccReadingPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
@@ -62,14 +64,10 @@ export default function DailySccReadingPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const fv = (key: string) => String(
-    editTarget
-      ? (updateForm as unknown as Record<string, unknown>)[key] ?? ''
-      : (form as unknown as Record<string, unknown>)[key] ?? ''
-  );
-  const setField = (key: string, val: string) => {
+  const fv = (key: SccFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
+  const setField = (key: SccFormKey, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val } as DailySccReadingForm));
+    else setForm((prev) => ({ ...prev, [key]: val }));
   };
 
   // Live preview of Net Generation
@@ -111,8 +109,9 @@ export default function DailySccReadingPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);

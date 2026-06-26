@@ -24,6 +24,8 @@ const emptyForm: DailyNaturalGasChromatographForm = {
   logTime: '', readingMMscf: '', heatingValue: '',
 };
 
+type ChromatographFormKey = keyof DailyNaturalGasChromatographForm;
+
 const fmt = (v?: number, dec = 2) => v != null ? v.toFixed(dec) : '—';
 
 export default function DailyNaturalGasChromatographPage() {
@@ -113,14 +115,10 @@ export default function DailyNaturalGasChromatographPage() {
   const previewProgressive = previewPriorTotal + readingVal;
   const previewMMBtu = readingVal * hvVal;
 
-  const fv = (key: string) => String(
-    editTarget
-      ? (updateForm as unknown as Record<string, unknown>)[key] ?? ''
-      : (form as unknown as Record<string, unknown>)[key] ?? ''
-  );
-  const setField = (key: string, val: string) => {
+  const fv = (key: ChromatographFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
+  const setField = (key: ChromatographFormKey, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val } as DailyNaturalGasChromatographForm));
+    else setForm((prev) => ({ ...prev, [key]: val }));
   };
 
   const openEdit = (row: DailyNaturalGasChromatograph) => {
@@ -159,8 +157,9 @@ export default function DailyNaturalGasChromatographPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);

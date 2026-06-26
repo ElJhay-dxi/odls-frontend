@@ -20,6 +20,8 @@ const emptyForm: DailyPlantReliabilityForm = {
   mtbf: '', successfulStarts: '', unsuccessfulStarts: '',
 };
 
+type ReliabilityFormKey = keyof DailyPlantReliabilityForm;
+
 export default function DailyPlantReliabilityPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
@@ -59,14 +61,10 @@ export default function DailyPlantReliabilityPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const activeForm = editTarget
-    ? (updateForm as unknown as Record<string, unknown>)
-    : (form as unknown as Record<string, unknown>);
-
-  const fv = (key: string) => String(activeForm[key] ?? '');
-  const setField = (key: string, val: string) => {
+  const fv = (key: ReliabilityFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
+  const setField = (key: ReliabilityFormKey, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val } as DailyPlantReliabilityForm));
+    else setForm((prev) => ({ ...prev, [key]: val }));
   };
 
   // Live preview
@@ -111,8 +109,9 @@ export default function DailyPlantReliabilityPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
