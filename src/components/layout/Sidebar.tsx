@@ -76,6 +76,7 @@ const navItems: NavItem[] = [
       { label: 'Reliability Metrics', icon: <BarChart />, path: '/daily/plant-reliability' },
       { label: 'Plant Load Factor', icon: <BarChart />, path: '/daily/plant-load-factor' },
       { label: 'Water System', icon: <WaterDrop />, path: '/daily/water-system' },
+      { label: 'Hydrology', icon: <WaterDrop />, path: '/hydrology' },
     ],
   },
   {

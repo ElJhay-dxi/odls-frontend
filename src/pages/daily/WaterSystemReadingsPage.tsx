@@ -12,24 +12,19 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import {
   freshwaterInflowApi, freshwaterTotalizerApi, freshwaterTankLevelApi,
   deminWaterTankLevelApi, gtCo2LevelApi, desalinatedWaterApi,
-  hydroWaterLevelApi, hydroWaterDischargeApi,
 } from '../../api/daily/waterSystemApi';
 import type { PowerPlant } from '../../types/masterData';
 import type {
   WaterMeterReading, DeminWaterTankLevel,
 } from '../../types/waterSystem';
-
 const TABS = [
-  { label: 'FW Inflow', key: 'fwInflow' },
-  { label: 'FW Totalizer', key: 'fwTotalizer' },
-  { label: 'FW Tank Level', key: 'fwTankLevel' },
-  { label: 'Demin Water', key: 'deminWater' },
-  { label: 'GT CO₂', key: 'gtCo2' },
-  { label: 'Desalinated', key: 'desalinated' },
-  { label: 'Hydro Levels', key: 'hydroLevel' },
-  { label: 'Hydro Discharge', key: 'hydroDischarge' },
+  { label: 'a) FW Inflow', key: 'fwInflow' },
+  { label: 'b) FW Totalizer', key: 'fwTotalizer' },
+  { label: 'c) FW Tank Level', key: 'fwTankLevel' },
+  { label: 'd) Demin Water', key: 'deminWater' },
+  { label: 'e) GT CO₂', key: 'gtCo2' },
+  { label: 'f) Desalinated', key: 'desalinated' },
 ];
-
 // Helper: Meter Reading sub-form (used by a, b, d, f)
 interface MeterSubFormProps {
   plantCode: string; logDate: string;
@@ -41,7 +36,6 @@ interface MeterSubFormProps {
   unit: string;
   manualPrev: string; setManualPrev: (v: string) => void;
 }
-
 function MeterSubForm({ priorRecord, loadingPrior, editTarget, currentReading,
   setCurrentReading, showProgressive, unit, manualPrev, setManualPrev }: MeterSubFormProps) {
   const isFirstEntry = !editTarget && !priorRecord && !loadingPrior;
@@ -52,7 +46,6 @@ function MeterSubForm({ priorRecord, loadingPrior, editTarget, currentReading,
   const priorTotal = editTarget
     ? (Number(editTarget.progressiveTotal) || 0) - (Number(editTarget.difference) || 0)
     : (priorRecord as WaterMeterReading)?.progressiveTotal ?? 0;
-
   return (
     <Stack spacing={2}>
       <TextField label="Previous Reading" fullWidth
@@ -83,52 +76,35 @@ function MeterSubForm({ priorRecord, loadingPrior, editTarget, currentReading,
     </Stack>
   );
 }
-
 export default function WaterSystemReadingsPage() {
   const [tabIndex, setTabIndex] = useState(0);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
-  const [hydroPlants, setHydroPlants] = useState<PowerPlant[]>([]);
-
   // Shared form state
   const [plantCode, setPlantCode] = useState('');
   const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
   const [manualPrev, setManualPrev] = useState('');
-
   // Tab-specific fields
   const [currentReading, setCurrentReading] = useState('');
   const [levelPct, setLevelPct] = useState('');
   const [pressure, setPressure] = useState('');
   const [co2Pct, setCo2Pct] = useState('');
-  const [headWaterLevel, setHeadWaterLevel] = useState('');
-  const [tailWaterLevel, setTailWaterLevel] = useState('');
-  const [unitDischarge, setUnitDischarge] = useState('');
-  const [spillwayDischarge, setSpillwayDischarge] = useState('');
-  const [effKwCfs, setEffKwCfs] = useState('');
-  const [effKwMcs, setEffKwMcs] = useState('');
-
   // Prior record for meter tabs
   const [priorRecord, setPriorRecord] = useState<WaterMeterReading | DeminWaterTankLevel | null>(null);
   const [loadingPrior, setLoadingPrior] = useState(false);
-
   const [editTarget, setEditTarget] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-
   // Records panel
   const [filterPlant, setFilterPlant] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [recordsError, setRecordsError] = useState<string | null>(null);
-
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
-
   const tabKey = TABS[tabIndex].key;
   const isMeterTab = ['fwInflow', 'fwTotalizer', 'deminWater', 'desalinated'].includes(tabKey);
-  const isHydroTab = ['hydroLevel', 'hydroDischarge'].includes(tabKey);
-
   const getApi = useCallback(() => {
     switch (tabKey) {
       case 'fwInflow': return freshwaterInflowApi;
@@ -137,29 +113,21 @@ export default function WaterSystemReadingsPage() {
       case 'deminWater': return deminWaterTankLevelApi;
       case 'gtCo2': return gtCo2LevelApi;
       case 'desalinated': return desalinatedWaterApi;
-      case 'hydroLevel': return hydroWaterLevelApi;
-      case 'hydroDischarge': return hydroWaterDischargeApi;
       default: return freshwaterInflowApi;
     }
   }, [tabKey]);
-
   useEffect(() => {
     powerPlantApi.getAll().then((res) => {
-      setPlants(res.data);
-      setHydroPlants(res.data.filter((p) => p.classificationType === 'Hydro'));
+      setPlants(res.data.filter((p) => p.classificationType === 'Thermal'));
     });
   }, []);
-
   // Reset form on tab change
   useEffect(() => {
     setPlantCode(''); setLogDate(new Date().toISOString().split('T')[0]);
     setCurrentReading(''); setLevelPct(''); setPressure(''); setCo2Pct('');
-    setHeadWaterLevel(''); setTailWaterLevel(''); setUnitDischarge('');
-    setSpillwayDischarge(''); setEffKwCfs(''); setEffKwMcs('');
     setManualPrev(''); setPriorRecord(null); setEditTarget(null);
     setSaveError(null); setSaveSuccess(false); setRecords([]);
   }, [tabIndex]);
-
   // Load prior record for meter tabs
   useEffect(() => {
     if (!isMeterTab || !plantCode || !logDate || editTarget) { setPriorRecord(null); return; }
@@ -174,7 +142,6 @@ export default function WaterSystemReadingsPage() {
       .catch(() => setPriorRecord(null))
       .finally(() => setLoadingPrior(false));
   }, [plantCode, logDate, tabKey, editTarget, isMeterTab, getApi]);
-
   const fetchRecords = useCallback(async () => {
     if (!filterPlant) return;
     setLoadingRecords(true);
@@ -190,14 +157,10 @@ export default function WaterSystemReadingsPage() {
       setLoadingRecords(false);
     }
   }, [filterPlant, filterDate, getApi]);
-
   const resetForm = () => {
     setCurrentReading(''); setLevelPct(''); setPressure(''); setCo2Pct('');
-    setHeadWaterLevel(''); setTailWaterLevel(''); setUnitDischarge('');
-    setSpillwayDischarge(''); setEffKwCfs(''); setEffKwMcs('');
     setManualPrev(''); setPriorRecord(null); setEditTarget(null);
   };
-
   const openEdit = (row: Record<string, unknown>) => {
     setEditTarget(row);
     setSaveError(null); setSaveSuccess(false);
@@ -207,14 +170,7 @@ export default function WaterSystemReadingsPage() {
     setCurrentReading(String(r.currentReading ?? r.levelPct ?? ''));
     setPressure(String(r.pressure ?? ''));
     setCo2Pct(String(r.co2Pct ?? ''));
-    setHeadWaterLevel(String(r.headWaterLevel ?? ''));
-    setTailWaterLevel(String(r.tailWaterLevel ?? ''));
-    setUnitDischarge(String(r.unitDischarge ?? ''));
-    setSpillwayDischarge(String(r.spillwayDischarge ?? ''));
-    setEffKwCfs(String(r.efficiencyKwCfs ?? ''));
-    setEffKwMcs(String(r.efficiencyKwMcs ?? ''));
   };
-
   const buildPayload = () => {
     const base = { plantCode, logDate };
     const isFirst = !editTarget && !priorRecord && !loadingPrior;
@@ -233,18 +189,9 @@ export default function WaterSystemReadingsPage() {
         return editTarget
           ? { pressure: Number(pressure), co2Pct: Number(co2Pct) }
           : { ...base, pressure: Number(pressure), co2Pct: Number(co2Pct) };
-      case 'hydroLevel':
-        return editTarget
-          ? { headWaterLevel: Number(headWaterLevel), tailWaterLevel: Number(tailWaterLevel) }
-          : { ...base, headWaterLevel: Number(headWaterLevel), tailWaterLevel: Number(tailWaterLevel) };
-      case 'hydroDischarge':
-        return editTarget
-          ? { unitDischarge: Number(unitDischarge), spillwayDischarge: Number(spillwayDischarge), efficiencyKwCfs: Number(effKwCfs), efficiencyKwMcs: Number(effKwMcs) }
-          : { ...base, unitDischarge: Number(unitDischarge), spillwayDischarge: Number(spillwayDischarge), efficiencyKwCfs: Number(effKwCfs), efficiencyKwMcs: Number(effKwMcs) };
       default: return base;
     }
   };
-
   const handleSave = async () => {
     setSaving(true); setSaveError(null); setSaveSuccess(false);
     try {
@@ -257,15 +204,13 @@ export default function WaterSystemReadingsPage() {
       setSaveSuccess(true);
       resetForm();
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
   };
-
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -279,9 +224,7 @@ export default function WaterSystemReadingsPage() {
       setDeleting(false);
     }
   };
-
-  const plantList = isHydroTab ? hydroPlants : plants;
-
+  const plantList = plants;
   const renderForm = () => (
     <Stack spacing={2}>
       <Grid container spacing={2}>
@@ -302,7 +245,6 @@ export default function WaterSystemReadingsPage() {
           />
         </Grid>
       </Grid>
-
       {/* Tab-specific inputs */}
       {['fwInflow', 'fwTotalizer', 'desalinated'].includes(tabKey) && (
         <MeterSubForm plantCode={plantCode} logDate={logDate}
@@ -312,7 +254,6 @@ export default function WaterSystemReadingsPage() {
           manualPrev={manualPrev} setManualPrev={setManualPrev}
         />
       )}
-
       {tabKey === 'deminWater' && (
         <MeterSubForm plantCode={plantCode} logDate={logDate}
           currentReading={currentReading} setCurrentReading={setCurrentReading}
@@ -321,14 +262,12 @@ export default function WaterSystemReadingsPage() {
           manualPrev={manualPrev} setManualPrev={setManualPrev}
         />
       )}
-
       {tabKey === 'fwTankLevel' && (
         <TextField label="Tank Level" type="number" fullWidth required
           value={levelPct} onChange={(e) => setLevelPct(e.target.value)}
           slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">%</Typography> } }}
         />
       )}
-
       {tabKey === 'gtCo2' && (
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6 }}>
@@ -343,53 +282,8 @@ export default function WaterSystemReadingsPage() {
           </Grid>
         </Grid>
       )}
-
-      {tabKey === 'hydroLevel' && (
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Head Water Level" type="number" fullWidth required
-              value={headWaterLevel} onChange={(e) => setHeadWaterLevel(e.target.value)} />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Tail Water Level" type="number" fullWidth required
-              value={tailWaterLevel} onChange={(e) => setTailWaterLevel(e.target.value)} />
-          </Grid>
-          {(headWaterLevel || tailWaterLevel) && (
-            <Grid size={{ xs: 12 }}>
-              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'action.hover' }}>
-                <Typography variant="caption" color="text.secondary">Net Head</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  {((Number(headWaterLevel) || 0) - (Number(tailWaterLevel) || 0)).toFixed(2)}
-                </Typography>
-              </Paper>
-            </Grid>
-          )}
-        </Grid>
-      )}
-
-      {tabKey === 'hydroDischarge' && (
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Unit Discharge" type="number" fullWidth required
-              value={unitDischarge} onChange={(e) => setUnitDischarge(e.target.value)} />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Spillway Discharge" type="number" fullWidth required
-              value={spillwayDischarge} onChange={(e) => setSpillwayDischarge(e.target.value)} />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Efficiency (kW/cfs)" type="number" fullWidth required
-              value={effKwCfs} onChange={(e) => setEffKwCfs(e.target.value)} />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Efficiency (kW/mcs)" type="number" fullWidth required
-              value={effKwMcs} onChange={(e) => setEffKwMcs(e.target.value)} />
-          </Grid>
-        </Grid>
-      )}
     </Stack>
   );
-
   const renderRow = (row: Record<string, unknown>, idx: number) => {
     const r = row;
     const date = (r.logDate as string)?.split('T')[0];
@@ -402,8 +296,6 @@ export default function WaterSystemReadingsPage() {
           )}
           {tabKey === 'fwTankLevel' && <Typography variant="body2">{Number(r.levelPct).toFixed(1)}%</Typography>}
           {tabKey === 'gtCo2' && <Typography variant="body2">{Number(r.pressure)} / {Number(r.co2Pct)}%</Typography>}
-          {tabKey === 'hydroLevel' && <Typography variant="body2">Net Head: {Number(r.netHead).toFixed(2)}</Typography>}
-          {tabKey === 'hydroDischarge' && <Typography variant="body2">U: {Number(r.unitDischarge)} / S: {Number(r.spillwayDischarge)}</Typography>}
         </TableCell>
         {['fwInflow','fwTotalizer','desalinated'].includes(tabKey) && (
           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{Number(r.progressiveTotal).toFixed(2)}</Typography></TableCell>
@@ -427,22 +319,19 @@ export default function WaterSystemReadingsPage() {
       </TableRow>
     );
   };
-
   return (
     <Box>
       <PageHeader
         title="Water System Readings"
-        subtitle="Daily water system readings for power plants"
+        subtitle="Daily water system readings for thermal plants — sections a through f"
         breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Water System' }]}
       />
-
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabIndex} onChange={(_: SyntheticEvent, v: number) => setTabIndex(v)}
           variant="scrollable" scrollButtons="auto">
           {TABS.map((t, i) => <Tab key={t.key} label={t.label} value={i} />)}
         </Tabs>
       </Box>
-
       <Grid container spacing={3}>
         {/* ── Left: Entry form ── */}
         <Grid size={{ xs: 12, lg: 6 }}>
@@ -475,7 +364,6 @@ export default function WaterSystemReadingsPage() {
             </CardContent>
           </Card>
         </Grid>
-
         {/* ── Right: Records ── */}
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card>
@@ -535,7 +423,6 @@ export default function WaterSystemReadingsPage() {
           </Card>
         </Grid>
       </Grid>
-
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Reading"
