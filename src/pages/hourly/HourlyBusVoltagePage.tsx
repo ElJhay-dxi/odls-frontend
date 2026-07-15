@@ -15,10 +15,12 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { hourlyBusVoltageApi, plantBusApi } from '../../api/hourly/hourlyBusVoltageApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { PlantBus, BusVoltageReadingRow, HourlyBusVoltage } from '../../types/plantBus';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
 export default function HourlyBusVoltagePage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.bus_voltages');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [plantBuses, setPlantBuses] = useState<PlantBus[]>([]);
 
@@ -51,7 +53,6 @@ export default function HourlyBusVoltagePage() {
     powerPlantApi.getAll().then((res) => setPlants(res.data));
   }, []);
 
-  // Reset bus state when plant changes (create mode only)
   useEffect(() => {
     if (!editTarget) {
       setPlantBuses([]);
@@ -59,7 +60,6 @@ export default function HourlyBusVoltagePage() {
     }
   }, [plantCode, editTarget]);
 
-  // Load bus master when plant is selected; restore pending rows on edit
   useEffect(() => {
     const code = editTarget ? editTarget.plantCode : plantCode;
     if (!code) return;
@@ -143,8 +143,7 @@ export default function HourlyBusVoltagePage() {
       fetchRecords();
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
-      setSaveError(msg ?? 'Failed to save. Please try again.');
+      setSaveError(axiosErr.response?.data?.message ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -166,11 +165,7 @@ export default function HourlyBusVoltagePage() {
 
   const originalBusCount = editTarget?.busReadings?.length ?? 0;
   const busRowsValid = originalBusCount === 0 || busRows.length > 0;
-
-  const isFormValid = editTarget
-    ? busRowsValid
-    : plantCode && logDate && logHour;
-
+  const isFormValid = editTarget ? busRowsValid : plantCode && logDate && logHour;
   const availableBuses = plantBuses.filter((b) => !busRows.some((r) => r.busCode === b.busCode));
   const currentPlantCode = editTarget ? editTarget.plantCode : plantCode;
 
@@ -183,7 +178,6 @@ export default function HourlyBusVoltagePage() {
       />
 
       <Grid container spacing={3}>
-        {/* ── Left: Entry form ── */}
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card>
             <CardHeader
@@ -203,14 +197,8 @@ export default function HourlyBusVoltagePage() {
             />
             <Divider />
             <CardContent>
-              {saveError && (
-                <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>
-              )}
-              {saveSuccess && (
-                <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>
-                  Reading saved successfully.
-                </Alert>
-              )}
+              {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
+              {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>Reading saved successfully.</Alert>}
 
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary"
@@ -230,8 +218,7 @@ export default function HourlyBusVoltagePage() {
                     </FormControl>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      label="Log Date" type="date" fullWidth required
+                    <TextField label="Log Date" type="date" fullWidth required
                       value={editTarget ? editTarget.logDate?.split('T')[0] : logDate}
                       onChange={(e) => setLogDate(e.target.value)}
                       disabled={!!editTarget}
@@ -252,7 +239,6 @@ export default function HourlyBusVoltagePage() {
                 </Grid>
               </Paper>
 
-              {/* Bus voltage rows */}
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Stack direction="row" sx={{ alignItems: 'center', mb: 1.5 }} spacing={1}>
                   <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1565C0' }}>
@@ -332,11 +318,9 @@ export default function HourlyBusVoltagePage() {
                           onChange={(e) => setNewBusVoltage(e.target.value)}
                           slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">kV</Typography> } }}
                         />
-                        <Button
-                          variant="outlined" size="small" startIcon={<Add />}
+                        <Button variant="outlined" size="small" startIcon={<Add />}
                           onClick={addBusRow}
-                          disabled={newBusCode === '' || newBusVoltage === ''}
-                        >
+                          disabled={newBusCode === '' || newBusVoltage === ''}>
                           Add
                         </Button>
                       </Stack>
@@ -354,18 +338,15 @@ export default function HourlyBusVoltagePage() {
               />
 
               <Stack direction="row" sx={{ mt: 2.5, alignItems: 'center' }} spacing={1.5}>
-                {editTarget && (
-                  <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
+                {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !isFormValid}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
+                  </Button>
                 )}
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={saving || !isFormValid}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}
-                >
-                  {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                </Button>
                 {editTarget && !busRowsValid && (
                   <Typography variant="caption" color="error">Bus voltage readings required</Typography>
                 )}
@@ -374,7 +355,6 @@ export default function HourlyBusVoltagePage() {
           </Card>
         </Grid>
 
-        {/* ── Right: Records ── */}
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card>
             <CardHeader
@@ -398,26 +378,19 @@ export default function HourlyBusVoltagePage() {
                   </Select>
                 </FormControl>
                 <Stack direction="row" spacing={1}>
-                  <TextField
-                    label="Date" type="date" size="small" value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    sx={{ flex: 1 }}
+                  <TextField label="Date" type="date" size="small" value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)} sx={{ flex: 1 }}
                     slotProps={{ inputLabel: { shrink: true } }}
                   />
-                  <Button
-                    variant="outlined" size="small"
+                  <Button variant="outlined" size="small"
                     startIcon={loadingRecords ? <CircularProgress size={14} /> : <Search />}
-                    onClick={fetchRecords}
-                    disabled={!filterPlant || loadingRecords}
-                  >
+                    onClick={fetchRecords} disabled={!filterPlant || loadingRecords}>
                     {loadingRecords ? 'Loading...' : 'Load'}
                   </Button>
                 </Stack>
               </Stack>
 
-              {recordsError && (
-                <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>
-              )}
+              {recordsError && <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>}
 
               {records.length === 0 && !loadingRecords ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -440,11 +413,9 @@ export default function HourlyBusVoltagePage() {
                       {records.map((row) => (
                         <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
-                            <Chip
-                              label={`${String(row.logHour).padStart(2, '0')}:00`}
+                            <Chip label={`${String(row.logHour).padStart(2, '0')}:00`}
                               size="small" variant="outlined"
-                              sx={{ fontFamily: 'monospace', fontWeight: 600 }}
-                            />
+                              sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                           </TableCell>
                           <TableCell>
                             <Typography variant="caption" color="text.secondary">
@@ -452,16 +423,20 @@ export default function HourlyBusVoltagePage() {
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

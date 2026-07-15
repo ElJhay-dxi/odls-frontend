@@ -17,26 +17,14 @@ import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { hourlyThermalApi, bearingMetalApi, bearingDrainApi } from '../../api/hourly/hourlyThermalApi';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { BearingMetal, BearingDrain, BearingMetalReadingRow, BearingDrainReadingRow } from '../../types/bearings';
-import type {
-  HourlyThermalReading,
-  CreateHourlyThermalReadingForm,
-} from '../../types/hourlyReadings';
+import type { HourlyThermalReading, CreateHourlyThermalReadingForm } from '../../types/hourlyReadings';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 type FormKey = keyof CreateHourlyThermalReadingForm;
 type NumericFormKey = Exclude<FormKey, 'plantCode' | 'unitCode' | 'logDate' | 'logHour' | 'remarks'>;
 
-interface SectionField {
-  key: NumericFormKey;
-  label: string;
-  unit: string;
-}
-
-interface Section {
-  title: string;
-  color: string;
-  subtitle?: string;
-  fields: SectionField[];
-}
+interface SectionField { key: NumericFormKey; label: string; unit: string; }
+interface Section { title: string; color: string; subtitle?: string; fields: SectionField[]; }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
@@ -150,16 +138,15 @@ const SECTIONS: Section[] = [
 ];
 
 export default function HourlyThermalReadingPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.thermal_units');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
 
   const [bearingMetals, setBearingMetals] = useState<BearingMetal[]>([]);
   const [bearingDrains, setBearingDrains] = useState<BearingDrain[]>([]);
-
   const [metalRows, setMetalRows] = useState<BearingMetalReadingRow[]>([]);
   const [drainRows, setDrainRows] = useState<BearingDrainReadingRow[]>([]);
-  // Holds bearing rows to restore after master data loads on edit
   const pendingMetalRows = useRef<BearingMetalReadingRow[] | null>(null);
   const pendingDrainRows = useRef<BearingDrainReadingRow[] | null>(null);
 
@@ -201,56 +188,42 @@ export default function HourlyThermalReadingPage() {
       .catch(() => setRecordsError('Failed to load reference data.'));
   }, []);
 
-  // Reset unit/bearings when plant changes
   useEffect(() => {
     setFilteredUnits(form.plantCode ? units.filter((u) => u.plantCode === form.plantCode) : []);
     if (!editTarget) {
       setForm((prev) => ({ ...prev, unitCode: '' }));
-      setBearingMetals([]);
-      setBearingDrains([]);
-      setMetalRows([]);
-      setDrainRows([]);
+      setBearingMetals([]); setBearingDrains([]);
+      setMetalRows([]); setDrainRows([]);
     }
   }, [form.plantCode, units]);
 
-  // Load bearing master when unit is selected; restore pending rows from ref on edit
   useEffect(() => {
     const code = editTarget ? editTarget.unitCode : form.unitCode;
     const plant = editTarget ? editTarget.plantCode : form.plantCode;
     if (!plant || !code) return;
-    Promise.all([
-      bearingMetalApi.getAll(plant, code),
-      bearingDrainApi.getAll(plant, code),
-    ]).then(([m, d]) => {
-      setBearingMetals(m.data);
-      setBearingDrains(d.data);
-      if (pendingMetalRows.current !== null) {
-        setMetalRows(pendingMetalRows.current);
-        pendingDrainRows.current && setDrainRows(pendingDrainRows.current);
-        pendingMetalRows.current = null;
-        pendingDrainRows.current = null;
-      }
-    }).catch(() => {});
+    Promise.all([bearingMetalApi.getAll(plant, code), bearingDrainApi.getAll(plant, code)])
+      .then(([m, d]) => {
+        setBearingMetals(m.data); setBearingDrains(d.data);
+        if (pendingMetalRows.current !== null) {
+          setMetalRows(pendingMetalRows.current);
+          pendingDrainRows.current && setDrainRows(pendingDrainRows.current);
+          pendingMetalRows.current = null; pendingDrainRows.current = null;
+        }
+      }).catch(() => {});
   }, [form.unitCode, editTarget]);
 
   const filterPlantUnits = filterPlant ? units.filter((u) => u.plantCode === filterPlant) : [];
 
   const fetchRecords = useCallback(async () => {
     if (!filterPlant) return;
-    setLoadingRecords(true);
-    setRecordsError(null);
+    setLoadingRecords(true); setRecordsError(null);
     try {
       const res = await hourlyThermalApi.getAll({
-        plantCode: filterPlant,
-        unitCode: filterUnit || undefined,
-        date: filterDate || undefined,
+        plantCode: filterPlant, unitCode: filterUnit || undefined, date: filterDate || undefined,
       });
       setRecords(res.data);
-    } catch {
-      setRecordsError('Failed to load records.');
-    } finally {
-      setLoadingRecords(false);
-    }
+    } catch { setRecordsError('Failed to load records.'); }
+    finally { setLoadingRecords(false); }
   }, [filterPlant, filterUnit, filterDate]);
 
   const activeValue = (key: FormKey): string => {
@@ -266,46 +239,27 @@ export default function HourlyThermalReadingPage() {
   const addMetalRow = () => {
     if (newMetalCode === '' || newMetalTemp === '') return;
     const bearing = bearingMetals.find((b) => b.bearingCode === newMetalCode);
-    if (!bearing) return;
-    if (metalRows.some((r) => r.bearingCode === newMetalCode)) return;
-    setMetalRows((prev) => [...prev, {
-      bearingCode: newMetalCode,
-      bearingName: bearing.bearingName,
-      metalTemperature: newMetalTemp,
-    }]);
-    setNewMetalCode('');
-    setNewMetalTemp('');
+    if (!bearing || metalRows.some((r) => r.bearingCode === newMetalCode)) return;
+    setMetalRows((prev) => [...prev, { bearingCode: newMetalCode, bearingName: bearing.bearingName, metalTemperature: newMetalTemp }]);
+    setNewMetalCode(''); setNewMetalTemp('');
   };
 
-  const removeMetalRow = (code: number) =>
-    setMetalRows((prev) => prev.filter((r) => r.bearingCode !== code));
+  const removeMetalRow = (code: number) => setMetalRows((prev) => prev.filter((r) => r.bearingCode !== code));
 
   const addDrainRow = () => {
     if (newDrainCode === '' || newDrainTemp === '') return;
     const drain = bearingDrains.find((d) => d.drainCode === newDrainCode);
-    if (!drain) return;
-    if (drainRows.some((r) => r.drainCode === newDrainCode)) return;
+    if (!drain || drainRows.some((r) => r.drainCode === newDrainCode)) return;
     const matchingMetal = metalRows.find((r) => r.bearingCode === newDrainCode);
-    const tempDiff = matchingMetal
-      ? Number(matchingMetal.metalTemperature) - Number(newDrainTemp)
-      : null;
-    setDrainRows((prev) => [...prev, {
-      drainCode: newDrainCode,
-      drainName: drain.drainName,
-      drainTemperature: newDrainTemp,
-      tempDiff,
-    }]);
-    setNewDrainCode('');
-    setNewDrainTemp('');
+    const tempDiff = matchingMetal ? Number(matchingMetal.metalTemperature) - Number(newDrainTemp) : null;
+    setDrainRows((prev) => [...prev, { drainCode: newDrainCode, drainName: drain.drainName, drainTemperature: newDrainTemp, tempDiff }]);
+    setNewDrainCode(''); setNewDrainTemp('');
   };
 
-  const removeDrainRow = (code: number) =>
-    setDrainRows((prev) => prev.filter((r) => r.drainCode !== code));
+  const removeDrainRow = (code: number) => setDrainRows((prev) => prev.filter((r) => r.drainCode !== code));
 
   const openEdit = (row: HourlyThermalReading) => {
-    setEditTarget(row);
-    setSaveSuccess(false);
-    setSaveError(null);
+    setEditTarget(row); setSaveSuccess(false); setSaveError(null);
     const fields = (Object.keys(emptyForm) as FormKey[]).filter(
       (k) => !(['plantCode', 'unitCode', 'logDate', 'logHour'] as FormKey[]).includes(k)
     );
@@ -315,47 +269,31 @@ export default function HourlyThermalReadingPage() {
       (populated as Record<string, string>)[f] = v != null ? String(v) : '';
     });
     setUpdateForm(populated);
-    // Store bearing rows in ref — applied after master data loads
     pendingMetalRows.current = row.bearingMetalReadings ?? [];
     pendingDrainRows.current = row.bearingDrainReadings ?? [];
     setForm((prev) => ({
-      ...prev,
-      plantCode: row.plantCode,
-      unitCode: row.unitCode,
-      logDate: row.logDate.split('T')[0],
-      logHour: row.logHour,
+      ...prev, plantCode: row.plantCode, unitCode: row.unitCode,
+      logDate: row.logDate.split('T')[0], logHour: row.logHour,
     }));
   };
 
   const cancelEdit = () => {
-    setEditTarget(null);
-    setUpdateForm({});
-    setMetalRows([]);
-    setDrainRows([]);
-    pendingMetalRows.current = null;
-    pendingDrainRows.current = null;
+    setEditTarget(null); setUpdateForm({});
+    setMetalRows([]); setDrainRows([]);
+    pendingMetalRows.current = null; pendingDrainRows.current = null;
   };
 
-  const toNum = (v: string | number | undefined) =>
-    v === '' || v === undefined ? undefined : Number(v);
+  const toNum = (v: string | number | undefined) => v === '' || v === undefined ? undefined : Number(v);
 
   const handleSave = async () => {
-    setSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
+    setSaving(true); setSaveError(null); setSaveSuccess(false);
     try {
       const bearingMetalReadings = metalRows
-        .filter((r) => r.metalTemperature !== '' && r.metalTemperature !== undefined && !isNaN(Number(r.metalTemperature)))
-        .map((r) => ({
-          bearingCode: r.bearingCode,
-          metalTemperature: Number(r.metalTemperature),
-        }));
+        .filter((r) => r.metalTemperature !== '' && !isNaN(Number(r.metalTemperature)))
+        .map((r) => ({ bearingCode: r.bearingCode, metalTemperature: Number(r.metalTemperature) }));
       const bearingDrainReadings = drainRows
-        .filter((r) => r.drainTemperature !== '' && r.drainTemperature !== undefined && !isNaN(Number(r.drainTemperature)))
-        .map((r) => ({
-          drainCode: r.drainCode,
-          drainTemperature: Number(r.drainTemperature),
-        }));
+        .filter((r) => r.drainTemperature !== '' && !isNaN(Number(r.drainTemperature)))
+        .map((r) => ({ drainCode: r.drainCode, drainTemperature: Number(r.drainTemperature) }));
 
       const numFields = (Object.keys(emptyForm) as FormKey[]).filter(
         (k): k is NumericFormKey => !(['plantCode', 'unitCode', 'logDate', 'logHour', 'remarks'] as FormKey[]).includes(k)
@@ -363,40 +301,28 @@ export default function HourlyThermalReadingPage() {
 
       if (editTarget) {
         const payload: Record<string, unknown> = { bearingMetalReadings, bearingDrainReadings };
-        numFields.forEach((k) => {
-          payload[k] = toNum(updateForm[k] as string);
-        });
+        numFields.forEach((k) => { payload[k] = toNum(updateForm[k] as string); });
         payload.remarks = updateForm.remarks || undefined;
         await hourlyThermalApi.update(editTarget.id, payload);
-        setEditTarget(null);
-        setUpdateForm({});
+        setEditTarget(null); setUpdateForm({});
       } else {
         const payload: Record<string, unknown> = {
-          plantCode: form.plantCode,
-          unitCode: form.unitCode,
-          logDate: form.logDate,
-          logHour: Number(form.logHour),
-          bearingMetalReadings,
-          bearingDrainReadings,
+          plantCode: form.plantCode, unitCode: form.unitCode,
+          logDate: form.logDate, logHour: Number(form.logHour),
+          bearingMetalReadings, bearingDrainReadings,
         };
-        numFields.forEach((k) => {
-          payload[k] = toNum(form[k] as string);
-        });
+        numFields.forEach((k) => { payload[k] = toNum(form[k] as string); });
         payload.remarks = form.remarks || undefined;
         await hourlyThermalApi.create(payload);
         setForm(emptyForm);
       }
-      setMetalRows([]);
-      setDrainRows([]);
+      setMetalRows([]); setDrainRows([]);
       setSaveSuccess(true);
       fetchRecords();
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
-      setSaveError(msg ?? 'Failed to save. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+      setSaveError(axiosErr.response?.data?.message ?? 'Failed to save. Please try again.');
+    } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -404,29 +330,16 @@ export default function HourlyThermalReadingPage() {
     setDeleting(true);
     try {
       await hourlyThermalApi.delete(deleteTarget.id);
-      setDeleteTarget(null);
-      fetchRecords();
-    } catch {
-      setRecordsError('Failed to delete record.');
-    } finally {
-      setDeleting(false);
-    }
+      setDeleteTarget(null); fetchRecords();
+    } catch { setRecordsError('Failed to delete record.'); }
+    finally { setDeleting(false); }
   };
 
-  const isFormValid = editTarget
-    ? true
-    : form.plantCode && form.unitCode && form.logDate && form.logHour;
-
-  const toggleSection = (title: string) =>
-    setCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
-
+  const isFormValid = editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour;
+  const toggleSection = (title: string) => setCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
   const currentUnitCode = editTarget ? editTarget.unitCode : form.unitCode;
-  const availableMetals = bearingMetals.filter(
-    (b) => !metalRows.some((r) => r.bearingCode === b.bearingCode)
-  );
-  const availableDrains = bearingDrains.filter(
-    (d) => !drainRows.some((r) => r.drainCode === d.drainCode)
-  );
+  const availableMetals = bearingMetals.filter((b) => !metalRows.some((r) => r.bearingCode === b.bearingCode));
+  const availableDrains = bearingDrains.filter((d) => !drainRows.some((r) => r.drainCode === d.drainCode));
 
   return (
     <Box>
@@ -437,7 +350,6 @@ export default function HourlyThermalReadingPage() {
       />
 
       <Grid container spacing={3}>
-        {/* ── Left: Entry Form ── */}
         <Grid size={{ xs: 12, lg: 7 }}>
           <Card>
             <CardHeader
@@ -449,24 +361,15 @@ export default function HourlyThermalReadingPage() {
                       ? `Editing: ${editTarget.unitName} — ${editTarget.logDate?.split('T')[0]} Hour ${editTarget.logHour}`
                       : 'New Reading'}
                   </Typography>
-                  {editTarget && (
-                    <Chip label="Edit Mode" size="small" color="warning" onDelete={cancelEdit} />
-                  )}
+                  {editTarget && <Chip label="Edit Mode" size="small" color="warning" onDelete={cancelEdit} />}
                 </Stack>
               }
             />
             <Divider />
             <CardContent>
-              {saveError && (
-                <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>
-              )}
-              {saveSuccess && (
-                <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>
-                  Reading saved successfully.
-                </Alert>
-              )}
+              {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
+              {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>Reading saved successfully.</Alert>}
 
-              {/* Identity */}
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary"
                   sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
@@ -476,11 +379,9 @@ export default function HourlyThermalReadingPage() {
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth required disabled={!!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
-                      <Select
-                        label="Power Plant"
+                      <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
-                        onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}
-                      >
+                        onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
                         {plants.map((p) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
@@ -490,23 +391,17 @@ export default function HourlyThermalReadingPage() {
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth required disabled={!!editTarget || !form.plantCode}>
                       <InputLabel>Unit</InputLabel>
-                      <Select
-                        label="Unit"
+                      <Select label="Unit"
                         value={editTarget ? editTarget.unitCode : form.unitCode}
-                        onChange={(e) => setForm((prev) => ({ ...prev, unitCode: e.target.value }))}
-                      >
-                        {(editTarget
-                          ? units.filter((u) => u.plantCode === editTarget.plantCode)
-                          : filteredUnits
-                        ).map((u) => (
+                        onChange={(e) => setForm((prev) => ({ ...prev, unitCode: e.target.value }))}>
+                        {(editTarget ? units.filter((u) => u.plantCode === editTarget.plantCode) : filteredUnits).map((u) => (
                           <MenuItem key={u.id} value={u.unitCode}>{u.unitName} ({u.unitCode})</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      label="Log Date" type="date"
+                    <TextField label="Log Date" type="date"
                       value={editTarget ? editTarget.logDate?.split('T')[0] : form.logDate}
                       onChange={(e) => setForm((prev) => ({ ...prev, logDate: e.target.value }))}
                       fullWidth required disabled={!!editTarget}
@@ -516,11 +411,9 @@ export default function HourlyThermalReadingPage() {
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth required disabled={!!editTarget}>
                       <InputLabel>Hour</InputLabel>
-                      <Select
-                        label="Hour"
+                      <Select label="Hour"
                         value={editTarget ? editTarget.logHour : form.logHour}
-                        onChange={(e) => setForm((prev) => ({ ...prev, logHour: Number(e.target.value) }))}
-                      >
+                        onChange={(e) => setForm((prev) => ({ ...prev, logHour: Number(e.target.value) }))}>
                         {HOURS.map((h) => (
                           <MenuItem key={h} value={h}>{String(h).padStart(2, '0')}:00</MenuItem>
                         ))}
@@ -530,28 +423,20 @@ export default function HourlyThermalReadingPage() {
                 </Grid>
               </Paper>
 
-              {/* Numeric reading sections */}
               {SECTIONS.map((section) => (
                 <Paper key={section.title} variant="outlined" sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
-                  <Box
-                    sx={{
-                      px: 2, py: 1.2,
-                      backgroundColor: `${section.color}14`,
-                      borderBottom: collapsed[section.title] ? 'none' : '1px solid',
-                      borderColor: 'divider',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => toggleSection(section.title)}
-                  >
+                  <Box sx={{
+                    px: 2, py: 1.2, backgroundColor: `${section.color}14`,
+                    borderBottom: collapsed[section.title] ? 'none' : '1px solid',
+                    borderColor: 'divider',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+                  }} onClick={() => toggleSection(section.title)}>
                     <Box>
                       <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: section.color }}>
                         {section.title}
                       </Typography>
                       {'subtitle' in section && section.subtitle && (
-                        <Typography variant="caption" color="text.disabled" sx={{ ml: 1 }}>
-                          — {section.subtitle}
-                        </Typography>
+                        <Typography variant="caption" color="text.disabled" sx={{ ml: 1 }}>— {section.subtitle}</Typography>
                       )}
                     </Box>
                     <IconButton size="small">
@@ -563,19 +448,10 @@ export default function HourlyThermalReadingPage() {
                       <Grid container spacing={2}>
                         {section.fields.map((field) => (
                           <Grid key={field.key} size={{ xs: 12, sm: 6, md: 4 }}>
-                            <TextField
-                              label={field.label} type="number" size="small" fullWidth
+                            <TextField label={field.label} type="number" size="small" fullWidth
                               value={activeValue(field.key)}
                               onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                              slotProps={{
-                                input: field.unit ? {
-                                  endAdornment: (
-                                    <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5, whiteSpace: 'nowrap' }}>
-                                      {field.unit}
-                                    </Typography>
-                                  ),
-                                } : undefined,
-                              }}
+                              slotProps={{ input: field.unit ? { endAdornment: <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5, whiteSpace: 'nowrap' }}>{field.unit}</Typography> } : undefined }}
                             />
                           </Grid>
                         ))}
@@ -585,18 +461,14 @@ export default function HourlyThermalReadingPage() {
                 </Paper>
               ))}
 
-              {/* ── Bearing Metal Temperatures ── */}
+              {/* Bearing Metal Temperatures */}
               <Paper variant="outlined" sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
-                <Box
-                  sx={{
-                    px: 2, py: 1.2, backgroundColor: '#4A148C14',
-                    borderBottom: collapsed['Bearing Metal Temperatures'] ? 'none' : '1px solid',
-                    borderColor: 'divider',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => toggleSection('Bearing Metal Temperatures')}
-                >
+                <Box sx={{
+                  px: 2, py: 1.2, backgroundColor: '#4A148C14',
+                  borderBottom: collapsed['Bearing Metal Temperatures'] ? 'none' : '1px solid',
+                  borderColor: 'divider',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+                }} onClick={() => toggleSection('Bearing Metal Temperatures')}>
                   <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
                     <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#4A148C' }}>
                       Bearing Metal Temperatures
@@ -631,22 +503,15 @@ export default function HourlyThermalReadingPage() {
                                 {metalRows.map((row) => (
                                   <TableRow key={row.bearingCode}>
                                     <TableCell>
-                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                        #{row.bearingCode} — {row.bearingName}
-                                      </Typography>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>#{row.bearingCode} — {row.bearingName}</Typography>
                                     </TableCell>
                                     <TableCell>
-                                      <TextField
-                                        type="number" size="small" sx={{ width: 110 }}
+                                      <TextField type="number" size="small" sx={{ width: 110 }}
                                         value={row.metalTemperature}
                                         onChange={(e) => {
                                           const val = e.target.value;
-                                          if (val === '') {
-                                            setMetalRows((prev) => prev.filter((r) => r.bearingCode !== row.bearingCode));
-                                          } else {
-                                            setMetalRows((prev) => prev.map((r) => r.bearingCode === row.bearingCode
-                                              ? { ...r, metalTemperature: val } : r));
-                                          }
+                                          if (val === '') setMetalRows((prev) => prev.filter((r) => r.bearingCode !== row.bearingCode));
+                                          else setMetalRows((prev) => prev.map((r) => r.bearingCode === row.bearingCode ? { ...r, metalTemperature: val } : r));
                                         }}
                                         slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">°C</Typography> } }}
                                       />
@@ -666,31 +531,19 @@ export default function HourlyThermalReadingPage() {
                           <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
                             <FormControl size="small" sx={{ minWidth: 200 }}>
                               <InputLabel>Select bearing</InputLabel>
-                              <Select
-                                label="Select bearing"
-                                value={newMetalCode}
-                                onChange={(e) => setNewMetalCode(Number(e.target.value))}
-                              >
+                              <Select label="Select bearing" value={newMetalCode}
+                                onChange={(e) => setNewMetalCode(Number(e.target.value))}>
                                 {availableMetals.map((b) => (
-                                  <MenuItem key={b.bearingCode} value={b.bearingCode}>
-                                    #{b.bearingCode} — {b.bearingName}
-                                  </MenuItem>
+                                  <MenuItem key={b.bearingCode} value={b.bearingCode}>#{b.bearingCode} — {b.bearingName}</MenuItem>
                                 ))}
                               </Select>
                             </FormControl>
-                            <TextField
-                              label="Temp" type="number" size="small" sx={{ width: 110 }}
-                              value={newMetalTemp}
-                              onChange={(e) => setNewMetalTemp(e.target.value)}
+                            <TextField label="Temp" type="number" size="small" sx={{ width: 110 }}
+                              value={newMetalTemp} onChange={(e) => setNewMetalTemp(e.target.value)}
                               slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">°C</Typography> } }}
                             />
-                            <Button
-                              variant="outlined" size="small" startIcon={<Add />}
-                              onClick={addMetalRow}
-                              disabled={newMetalCode === '' || newMetalTemp === ''}
-                            >
-                              Add
-                            </Button>
+                            <Button variant="outlined" size="small" startIcon={<Add />}
+                              onClick={addMetalRow} disabled={newMetalCode === '' || newMetalTemp === ''}>Add</Button>
                           </Stack>
                         )}
                         {availableMetals.length === 0 && metalRows.length > 0 && (
@@ -702,18 +555,14 @@ export default function HourlyThermalReadingPage() {
                 </Collapse>
               </Paper>
 
-              {/* ── Bearing Drain Temperatures ── */}
+              {/* Bearing Drain Temperatures */}
               <Paper variant="outlined" sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
-                <Box
-                  sx={{
-                    px: 2, py: 1.2, backgroundColor: '#00606414',
-                    borderBottom: collapsed['Bearing Drain Temperatures'] ? 'none' : '1px solid',
-                    borderColor: 'divider',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => toggleSection('Bearing Drain Temperatures')}
-                >
+                <Box sx={{
+                  px: 2, py: 1.2, backgroundColor: '#00606414',
+                  borderBottom: collapsed['Bearing Drain Temperatures'] ? 'none' : '1px solid',
+                  borderColor: 'divider',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
+                }} onClick={() => toggleSection('Bearing Drain Temperatures')}>
                   <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
                     <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#006064' }}>
                       Bearing Drain Temperatures
@@ -748,40 +597,27 @@ export default function HourlyThermalReadingPage() {
                               <TableBody>
                                 {drainRows.map((row) => {
                                   const matchingMetal = metalRows.find((m) => m.bearingCode === row.drainCode);
-                                  const diff = matchingMetal
-                                    ? Number(matchingMetal.metalTemperature) - Number(row.drainTemperature)
-                                    : null;
+                                  const diff = matchingMetal ? Number(matchingMetal.metalTemperature) - Number(row.drainTemperature) : null;
                                   return (
                                     <TableRow key={row.drainCode}>
                                       <TableCell>
-                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                          #{row.drainCode} — {row.drainName}
-                                        </Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>#{row.drainCode} — {row.drainName}</Typography>
                                       </TableCell>
                                       <TableCell>
-                                        <TextField
-                                          type="number" size="small" sx={{ width: 110 }}
+                                        <TextField type="number" size="small" sx={{ width: 110 }}
                                           value={row.drainTemperature}
                                           onChange={(e) => {
                                             const val = e.target.value;
-                                            if (val === '') {
-                                              setDrainRows((prev) => prev.filter((r) => r.drainCode !== row.drainCode));
-                                            } else {
-                                              setDrainRows((prev) => prev.map((r) => r.drainCode === row.drainCode
-                                                ? { ...r, drainTemperature: val } : r));
-                                            }
+                                            if (val === '') setDrainRows((prev) => prev.filter((r) => r.drainCode !== row.drainCode));
+                                            else setDrainRows((prev) => prev.map((r) => r.drainCode === row.drainCode ? { ...r, drainTemperature: val } : r));
                                           }}
                                           slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">°C</Typography> } }}
                                         />
                                       </TableCell>
                                       <TableCell>
                                         {diff != null ? (
-                                          <Chip
-                                            label={`${diff >= 0 ? '+' : ''}${diff.toFixed(1)} °C`}
-                                            size="small"
-                                            color={diff > 10 ? 'error' : diff > 5 ? 'warning' : 'success'}
-                                            variant="outlined"
-                                          />
+                                          <Chip label={`${diff >= 0 ? '+' : ''}${diff.toFixed(1)} °C`} size="small"
+                                            color={diff > 10 ? 'error' : diff > 5 ? 'warning' : 'success'} variant="outlined" />
                                         ) : (
                                           <Typography variant="caption" color="text.disabled">— no metal</Typography>
                                         )}
@@ -802,31 +638,19 @@ export default function HourlyThermalReadingPage() {
                           <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
                             <FormControl size="small" sx={{ minWidth: 200 }}>
                               <InputLabel>Select drain</InputLabel>
-                              <Select
-                                label="Select drain"
-                                value={newDrainCode}
-                                onChange={(e) => setNewDrainCode(Number(e.target.value))}
-                              >
+                              <Select label="Select drain" value={newDrainCode}
+                                onChange={(e) => setNewDrainCode(Number(e.target.value))}>
                                 {availableDrains.map((d) => (
-                                  <MenuItem key={d.drainCode} value={d.drainCode}>
-                                    #{d.drainCode} — {d.drainName}
-                                  </MenuItem>
+                                  <MenuItem key={d.drainCode} value={d.drainCode}>#{d.drainCode} — {d.drainName}</MenuItem>
                                 ))}
                               </Select>
                             </FormControl>
-                            <TextField
-                              label="Temp" type="number" size="small" sx={{ width: 110 }}
-                              value={newDrainTemp}
-                              onChange={(e) => setNewDrainTemp(e.target.value)}
+                            <TextField label="Temp" type="number" size="small" sx={{ width: 110 }}
+                              value={newDrainTemp} onChange={(e) => setNewDrainTemp(e.target.value)}
                               slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">°C</Typography> } }}
                             />
-                            <Button
-                              variant="outlined" size="small" startIcon={<Add />}
-                              onClick={addDrainRow}
-                              disabled={newDrainCode === '' || newDrainTemp === ''}
-                            >
-                              Add
-                            </Button>
+                            <Button variant="outlined" size="small" startIcon={<Add />}
+                              onClick={addDrainRow} disabled={newDrainCode === '' || newDrainTemp === ''}>Add</Button>
                           </Stack>
                         )}
                         {availableDrains.length === 0 && drainRows.length > 0 && (
@@ -838,34 +662,25 @@ export default function HourlyThermalReadingPage() {
                 </Collapse>
               </Paper>
 
-              {/* Remarks */}
-              <TextField
-                label="Remarks"
-                value={activeValue('remarks')}
+              <TextField label="Remarks" value={activeValue('remarks')}
                 onChange={(e) => handleFieldChange('remarks', e.target.value)}
-                fullWidth multiline rows={2}
-                placeholder="Optional remarks or observations..."
-              />
+                fullWidth multiline rows={2} placeholder="Optional remarks or observations..." />
 
               <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
-                {editTarget && (
-                  <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
+                {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !isFormValid}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
+                  </Button>
                 )}
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={saving || !isFormValid}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}
-                >
-                  {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                </Button>
               </Stack>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* ── Right: Records ── */}
         <Grid size={{ xs: 12, lg: 5 }}>
           <Card>
             <CardHeader
@@ -884,9 +699,7 @@ export default function HourlyThermalReadingPage() {
                   <Select label="Plant" value={filterPlant}
                     onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
-                      <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
-                    ))}
+                    {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <Stack direction="row" spacing={1}>
@@ -894,31 +707,22 @@ export default function HourlyThermalReadingPage() {
                     <InputLabel>Unit</InputLabel>
                     <Select label="Unit" value={filterUnit} onChange={(e) => setFilterUnit(e.target.value)}>
                       <MenuItem value="">All Units</MenuItem>
-                      {filterPlantUnits.map((u) => (
-                        <MenuItem key={u.id} value={u.unitCode}>{u.unitName}</MenuItem>
-                      ))}
+                      {filterPlantUnits.map((u) => <MenuItem key={u.id} value={u.unitCode}>{u.unitName}</MenuItem>)}
                     </Select>
                   </FormControl>
-                  <TextField
-                    label="Date" type="date" size="small" value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    sx={{ flex: 1 }}
+                  <TextField label="Date" type="date" size="small" value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)} sx={{ flex: 1 }}
                     slotProps={{ inputLabel: { shrink: true } }}
                   />
                 </Stack>
-                <Button
-                  variant="outlined" size="small" fullWidth
+                <Button variant="outlined" size="small" fullWidth
                   startIcon={loadingRecords ? <CircularProgress size={14} /> : <Search />}
-                  onClick={fetchRecords}
-                  disabled={!filterPlant || loadingRecords}
-                >
+                  onClick={fetchRecords} disabled={!filterPlant || loadingRecords}>
                   {loadingRecords ? 'Loading...' : 'Load Records'}
                 </Button>
               </Stack>
 
-              {recordsError && (
-                <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>
-              )}
+              {recordsError && <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>}
 
               {records.length === 0 && !loadingRecords ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -942,35 +746,32 @@ export default function HourlyThermalReadingPage() {
                     <TableBody>
                       {records.map((row) => (
                         <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
+                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.unitCode}</Typography></TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.unitCode}</Typography>
+                            <Chip label={`${String(row.logHour).padStart(2, '0')}:00`} size="small" variant="outlined"
+                              sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                           </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={`${String(row.logHour).padStart(2, '0')}:00`}
-                              size="small" variant="outlined"
-                              sx={{ fontFamily: 'monospace', fontWeight: 600 }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">{row.genMW ?? '—'}</Typography>
-                          </TableCell>
+                          <TableCell><Typography variant="body2">{row.genMW ?? '—'}</Typography></TableCell>
                           <TableCell>
                             <Typography variant="caption" color="text.secondary">
                               {row.bearingMetalReadings?.length ?? 0}M / {row.bearingDrainReadings?.length ?? 0}D
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

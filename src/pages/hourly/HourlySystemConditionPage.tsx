@@ -5,18 +5,16 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, IconButton, Tooltip,
 } from '@mui/material';
-import {
-  Save, Search, Edit, Delete, BarChart, History,
-} from '@mui/icons-material';
+import { Save, Search, Edit, Delete, BarChart, History } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { hourlySystemConditionApi } from '../../api/hourly/hourlySystemConditionApi';
 import type { HourlySystemCondition, SystemConditionForm } from '../../types/hourlySystemCondition';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
-// Station config — category used for colour coding only
 const HYDRO_COLOR = '#1565C0';
 const THERMAL_COLOR = '#B71C1C';
 const SOLAR_COLOR = '#F9A825';
@@ -24,11 +22,9 @@ const LOAD_COLOR = '#6A1B9A';
 const CIE_COLOR = '#37474F';
 
 const STATIONS = [
-  // Hydro
   { key: 'a1Gs', label: 'A1GS', category: 'Hydro', color: HYDRO_COLOR, mvarEnabled: true },
   { key: 'z19Gs', label: 'Z19GS', category: 'Hydro', color: HYDRO_COLOR, mvarEnabled: true },
   { key: 'bu54', label: 'BU54', category: 'Hydro', color: HYDRO_COLOR, mvarEnabled: true },
-  // Thermal
   { key: 'tt32Tapco', label: 'TT32–TAPCO', category: 'Thermal', color: THERMAL_COLOR, mvarEnabled: true },
   { key: 'tt32Tico', label: 'TT32–TICO', category: 'Thermal', color: THERMAL_COLOR, mvarEnabled: true },
   { key: 'tp47', label: 'TP47', category: 'Thermal', color: THERMAL_COLOR, mvarEnabled: true },
@@ -39,11 +35,8 @@ const STATIONS = [
   { key: 'ka77', label: 'KA77', category: 'Thermal', color: THERMAL_COLOR, mvarEnabled: true },
   { key: 'cp76', label: 'CP76', category: 'Thermal', color: THERMAL_COLOR, mvarEnabled: true },
   { key: 'ak79', label: 'AK79', category: 'Thermal', color: THERMAL_COLOR, mvarEnabled: true },
-  // Solar
   { key: 'buiSolar', label: 'BUI Solar', category: 'Solar', color: SOLAR_COLOR, mvarEnabled: true },
-  // Customer load
   { key: 'valco', label: 'VALCO', category: 'Load', color: LOAD_COLOR, mvarEnabled: false },
-  // CIE
   { key: 'cie', label: 'CIE', category: 'CIE', color: CIE_COLOR, mvarEnabled: true },
 ];
 
@@ -51,22 +44,14 @@ const emptyForm: SystemConditionForm = {
   logDate: new Date().toISOString().split('T')[0],
   logHour: new Date().getHours() + 1,
   frequency: '',
-  a1GsMW: '', a1GsMVar: '',
-  z19GsMW: '', z19GsMVar: '',
-  bu54MW: '', bu54MVar: '',
-  tt32TapcoMW: '', tt32TapcoMVar: '',
-  tt32TicoMW: '', tt32TicoMVar: '',
-  tp47MW: '', tp47MVar: '',
-  cenitMW: '', cenitMVar: '',
-  am84MW: '', am84MVar: '',
-  asgliSg51MW: '', asgliSg51MVar: '',
-  at91MW: '', at91MVar: '',
-  ka77MW: '', ka77MVar: '',
-  cp76MW: '', cp76MVar: '',
-  ak79MW: '', ak79MVar: '',
-  buiSolarMW: '', buiSolarMVar: '',
-  valcoMW: '',
-  cieMW: '', cieMVar: '',
+  a1GsMW: '', a1GsMVar: '', z19GsMW: '', z19GsMVar: '',
+  bu54MW: '', bu54MVar: '', tt32TapcoMW: '', tt32TapcoMVar: '',
+  tt32TicoMW: '', tt32TicoMVar: '', tp47MW: '', tp47MVar: '',
+  cenitMW: '', cenitMVar: '', am84MW: '', am84MVar: '',
+  asgliSg51MW: '', asgliSg51MVar: '', at91MW: '', at91MVar: '',
+  ka77MW: '', ka77MVar: '', cp76MW: '', cp76MVar: '',
+  ak79MW: '', ak79MVar: '', buiSolarMW: '', buiSolarMVar: '',
+  valcoMW: '', cieMW: '', cieMVar: '',
 };
 
 const toNum = (v: string | number | undefined) =>
@@ -76,6 +61,7 @@ const sum = (...vals: unknown[]) =>
   vals.reduce<number>((acc, v) => acc + (Number(v) || 0), 0);
 
 export default function HourlySystemConditionPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.system_conditions');
   const [form, setForm] = useState<SystemConditionForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<Partial<SystemConditionForm>>({});
   const [editTarget, setEditTarget] = useState<HourlySystemCondition | null>(null);
@@ -101,7 +87,6 @@ export default function HourlySystemConditionPage() {
     else setForm((prev) => ({ ...prev, [key]: val } as SystemConditionForm));
   };
 
-  // Live-compute totals from current form values
   const liveHydroMW   = sum(activeForm.a1GsMW, activeForm.z19GsMW, activeForm.bu54MW);
   const liveHydroMVar = sum(activeForm.a1GsMVar, activeForm.z19GsMVar, activeForm.bu54MVar);
   const liveSolarMW   = sum(activeForm.buiSolarMW);
@@ -138,8 +123,7 @@ export default function HourlySystemConditionPage() {
 
   const openEdit = (row: HourlySystemCondition) => {
     setEditTarget(row);
-    setSaveError(null);
-    setSaveSuccess(false);
+    setSaveError(null); setSaveSuccess(false);
     setUpdateForm({
       frequency: row.frequency ?? '',
       a1GsMW: row.a1GsMW ?? '', a1GsMVar: row.a1GsMVar ?? '',
@@ -184,17 +168,14 @@ export default function HourlySystemConditionPage() {
   });
 
   const handleSave = async () => {
-    setSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
+    setSaving(true); setSaveError(null); setSaveSuccess(false);
     try {
       if (editTarget) {
         await hourlySystemConditionApi.update(editTarget.id, buildPayload(updateForm as Record<string, unknown>));
         cancelEdit();
       } else {
         await hourlySystemConditionApi.create({
-          logDate: form.logDate,
-          logHour: Number(form.logHour),
+          logDate: form.logDate, logHour: Number(form.logHour),
           ...buildPayload(form as unknown as Record<string, unknown>),
         });
         setForm(emptyForm);
@@ -230,12 +211,8 @@ export default function HourlySystemConditionPage() {
   }) => (
     <TableRow sx={{ backgroundColor: bold ? 'action.hover' : undefined }}>
       <TableCell sx={{ fontWeight: bold ? 700 : 400, color, fontSize: '0.8rem' }}>{label}</TableCell>
-      <TableCell sx={{ fontWeight: bold ? 700 : 400, color, fontSize: '0.8rem', textAlign: 'right' }}>
-        {mw.toFixed(1)}
-      </TableCell>
-      <TableCell sx={{ fontWeight: bold ? 700 : 400, color, fontSize: '0.8rem', textAlign: 'right' }}>
-        {mvar.toFixed(1)}
-      </TableCell>
+      <TableCell sx={{ fontWeight: bold ? 700 : 400, color, fontSize: '0.8rem', textAlign: 'right' }}>{mw.toFixed(1)}</TableCell>
+      <TableCell sx={{ fontWeight: bold ? 700 : 400, color, fontSize: '0.8rem', textAlign: 'right' }}>{mvar.toFixed(1)}</TableCell>
     </TableRow>
   );
 
@@ -248,7 +225,6 @@ export default function HourlySystemConditionPage() {
       />
 
       <Grid container spacing={3}>
-        {/* ── Left: Entry form ── */}
         <Grid size={{ xs: 12, lg: 7 }}>
           <Card>
             <CardHeader
@@ -268,16 +244,9 @@ export default function HourlySystemConditionPage() {
             />
             <Divider />
             <CardContent>
-              {saveError && (
-                <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>
-              )}
-              {saveSuccess && (
-                <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>
-                  Reading saved successfully.
-                </Alert>
-              )}
+              {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
+              {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>Reading saved successfully.</Alert>}
 
-              {/* Identity */}
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary"
                   sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
@@ -285,8 +254,7 @@ export default function HourlySystemConditionPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField
-                      label="Log Date" type="date" fullWidth required
+                    <TextField label="Log Date" type="date" fullWidth required
                       value={editTarget ? editTarget.logDate?.split('T')[0] : form.logDate}
                       onChange={(e) => setForm((prev) => ({ ...prev, logDate: e.target.value }))}
                       disabled={!!editTarget}
@@ -296,11 +264,9 @@ export default function HourlySystemConditionPage() {
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <FormControl fullWidth required disabled={!!editTarget}>
                       <InputLabel>Hour</InputLabel>
-                      <Select
-                        label="Hour"
+                      <Select label="Hour"
                         value={editTarget ? editTarget.logHour : form.logHour}
-                        onChange={(e) => setForm((prev) => ({ ...prev, logHour: Number(e.target.value) }))}
-                      >
+                        onChange={(e) => setForm((prev) => ({ ...prev, logHour: Number(e.target.value) }))}>
                         {HOURS.map((h) => (
                           <MenuItem key={h} value={h}>{String(h).padStart(2, '0')}:00</MenuItem>
                         ))}
@@ -308,8 +274,7 @@ export default function HourlySystemConditionPage() {
                     </FormControl>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField
-                      label="Frequency" type="number" fullWidth
+                    <TextField label="Frequency" type="number" fullWidth
                       value={fv('frequency')}
                       onChange={(e) => setField('frequency', e.target.value)}
                       slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">Hz</Typography> } }}
@@ -318,7 +283,6 @@ export default function HourlySystemConditionPage() {
                 </Grid>
               </Paper>
 
-              {/* Station readings table */}
               <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
                 <Table size="small">
                   <TableHead>
@@ -344,8 +308,7 @@ export default function HourlySystemConditionPage() {
                             </Stack>
                           </TableCell>
                           <TableCell>
-                            <TextField
-                              type="number" size="small" fullWidth
+                            <TextField type="number" size="small" fullWidth
                               value={fv(mwKey)}
                               onChange={(e) => setField(mwKey, e.target.value)}
                               slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>MW</Typography> } }}
@@ -354,8 +317,7 @@ export default function HourlySystemConditionPage() {
                           </TableCell>
                           <TableCell>
                             {s.mvarEnabled ? (
-                              <TextField
-                                type="number" size="small" fullWidth
+                              <TextField type="number" size="small" fullWidth
                                 value={fv(mvarKey)}
                                 onChange={(e) => setField(mvarKey, e.target.value)}
                                 slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>MVar</Typography> } }}
@@ -373,31 +335,23 @@ export default function HourlySystemConditionPage() {
               </TableContainer>
 
               <Stack direction="row" sx={{ mt: 2.5, alignItems: 'center' }} spacing={1.5}>
-                {editTarget && (
-                  <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
+                {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !isFormValid}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
+                  </Button>
                 )}
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={saving || !isFormValid}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}
-                >
-                  {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                </Button>
               </Stack>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* ── Right: Live totals + records ── */}
         <Grid size={{ xs: 12, lg: 5 }}>
-          {/* Live totals */}
           <Card sx={{ mb: 2 }}>
-            <CardHeader
-              title={<Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Live Totals</Typography>}
-              sx={{ pb: 0 }}
-            />
+            <CardHeader title={<Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Live Totals</Typography>} sx={{ pb: 0 }} />
             <Divider />
             <CardContent sx={{ pt: 1 }}>
               <TableContainer>
@@ -422,7 +376,6 @@ export default function HourlySystemConditionPage() {
             </CardContent>
           </Card>
 
-          {/* Records */}
           <Card>
             <CardHeader
               title={
@@ -435,25 +388,18 @@ export default function HourlySystemConditionPage() {
             <Divider />
             <CardContent>
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                <TextField
-                  label="Date" type="date" size="small" value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value)}
-                  sx={{ flex: 1 }}
+                <TextField label="Date" type="date" size="small" value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)} sx={{ flex: 1 }}
                   slotProps={{ inputLabel: { shrink: true } }}
                 />
-                <Button
-                  variant="outlined" size="small"
+                <Button variant="outlined" size="small"
                   startIcon={loadingRecords ? <CircularProgress size={14} /> : <Search />}
-                  onClick={fetchRecords}
-                  disabled={loadingRecords}
-                >
+                  onClick={fetchRecords} disabled={loadingRecords}>
                   {loadingRecords ? 'Loading...' : 'Load'}
                 </Button>
               </Stack>
 
-              {recordsError && (
-                <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>
-              )}
+              {recordsError && <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>}
 
               {records.length === 0 && !loadingRecords ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -476,15 +422,11 @@ export default function HourlySystemConditionPage() {
                       {records.map((row) => (
                         <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
-                            <Chip
-                              label={`${String(row.logHour).padStart(2, '0')}:00`}
+                            <Chip label={`${String(row.logHour).padStart(2, '0')}:00`}
                               size="small" variant="outlined"
-                              sx={{ fontFamily: 'monospace', fontWeight: 600 }}
-                            />
+                              sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                           </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">{row.frequency ?? '—'}</Typography>
-                          </TableCell>
+                          <TableCell><Typography variant="body2">{row.frequency ?? '—'}</Typography></TableCell>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
                               {row.totalSystemMW?.toFixed(1) ?? '—'}
@@ -496,16 +438,20 @@ export default function HourlySystemConditionPage() {
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

@@ -15,12 +15,13 @@ import { peakPeriodApi } from '../../api/hourly/peakPeriodApi';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { PeakPeriodReading, PeakPeriodInterval } from '../../types/peakPeriod';
 import { PEAK_INTERVALS } from '../../types/peakPeriod';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 export default function PeakPeriodPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.peak_period');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [allUnits, setAllUnits] = useState<PlantUnit[]>([]);
 
-  // Filter / Load state
   const [filterPlant, setFilterPlant] = useState('');
   const [filterUnit, setFilterUnit] = useState('');
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
@@ -30,7 +31,6 @@ export default function PeakPeriodPage() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // New interval entry state
   const [newTime, setNewTime] = useState('');
   const [newMW, setNewMW] = useState('');
   const [newMVar, setNewMVar] = useState('');
@@ -38,7 +38,6 @@ export default function PeakPeriodPage() {
   const [savingInterval, setSavingInterval] = useState(false);
   const [intervalError, setIntervalError] = useState<string | null>(null);
 
-  // Inline edit state for existing intervals
   const [editIntervalId, setEditIntervalId] = useState<string | null>(null);
   const [editMW, setEditMW] = useState('');
   const [editMVar, setEditMVar] = useState('');
@@ -76,7 +75,6 @@ export default function PeakPeriodPage() {
     }
   }, [filterPlant, filterUnit, filterDate]);
 
-  // The times already logged for this record
   const loggedTimes = record?.intervals.map((i) => i.intervalTime) ?? [];
   const availableTimes = PEAK_INTERVALS.filter((t) => !loggedTimes.includes(t));
 
@@ -88,28 +86,21 @@ export default function PeakPeriodPage() {
     setIntervalError(null);
     try {
       let currentRecord = record;
-
-      // Auto-create header if it doesn't exist yet
       if (!currentRecord) {
         const created = await peakPeriodApi.create({
           plantCode: filterPlant, unitCode: filterUnit, logDate: filterDate,
         });
         currentRecord = created.data;
       }
-
       const updated = await peakPeriodApi.addInterval(currentRecord.id, {
         intervalTime: newTime,
         mW: toNum(newMW), mVar: toNum(newMVar), voltage: toNum(newVoltage),
       });
       setRecord(updated.data);
-      setNewTime('');
-      setNewMW('');
-      setNewMVar('');
-      setNewVoltage('');
+      setNewTime(''); setNewMW(''); setNewMVar(''); setNewVoltage('');
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
-      setIntervalError(msg ?? 'Failed to save interval.');
+      setIntervalError(axiosErr.response?.data?.message ?? 'Failed to save interval.');
     } finally {
       setSavingInterval(false);
     }
@@ -139,8 +130,7 @@ export default function PeakPeriodPage() {
       cancelEditInterval();
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
-      setIntervalError(msg ?? 'Failed to update interval.');
+      setIntervalError(axiosErr.response?.data?.message ?? 'Failed to update interval.');
     } finally {
       setSavingEdit(false);
     }
@@ -242,12 +232,14 @@ export default function PeakPeriodPage() {
                         color={record.intervals.length === 9 ? 'success' : 'default'}
                         variant="outlined"
                       />
-                      <Tooltip title="Delete entire record">
-                        <IconButton size="small" color="error"
-                          onClick={() => setDeleteTarget({ type: 'record', id: record.id, label: `${record.unitCode} on ${record.logDate.split('T')[0]}` })}>
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      {canDelete && (
+                        <Tooltip title="Delete entire record">
+                          <IconButton size="small" color="error"
+                            onClick={() => setDeleteTarget({ type: 'record', id: record.id, label: `${record.unitCode} on ${record.logDate.split('T')[0]}` })}>
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </Stack>
                   </Stack>
                 </Paper>
@@ -292,14 +284,16 @@ export default function PeakPeriodPage() {
                       onChange={(e) => setNewVoltage(e.target.value)}
                       slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">kV</Typography> } }}
                     />
-                    <Button
-                      variant="contained" fullWidth
-                      startIcon={savingInterval ? <CircularProgress size={16} color="inherit" /> : <Add />}
-                      onClick={handleAddInterval}
-                      disabled={!newTime || savingInterval}
-                    >
-                      {savingInterval ? 'Saving...' : 'Add Interval'}
-                    </Button>
+                    {canCreate && (
+                      <Button
+                        variant="contained" fullWidth
+                        startIcon={savingInterval ? <CircularProgress size={16} color="inherit" /> : <Add />}
+                        onClick={handleAddInterval}
+                        disabled={!newTime || savingInterval}
+                      >
+                        {savingInterval ? 'Saving...' : 'Add Interval'}
+                      </Button>
+                    )}
                   </Stack>
                 )}
               </CardContent>
@@ -405,21 +399,25 @@ export default function PeakPeriodPage() {
                                   <Typography variant="body2">{interval.voltage ?? '—'}</Typography>
                                 </TableCell>
                                 <TableCell align="right">
-                                  <Tooltip title="Edit">
-                                    <IconButton size="small" color="primary"
-                                      onClick={() => openEditInterval(interval)}>
-                                      <Edit fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Delete interval">
-                                    <IconButton size="small" color="error"
-                                      onClick={() => setDeleteTarget({
-                                        type: 'interval', id: interval.id!,
-                                        label: `interval ${interval.intervalTime}`,
-                                      })}>
-                                      <Delete fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
+                                  {canEdit && (
+                                    <Tooltip title="Edit">
+                                      <IconButton size="small" color="primary"
+                                        onClick={() => openEditInterval(interval)}>
+                                        <Edit fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                  {canDelete && (
+                                    <Tooltip title="Delete interval">
+                                      <IconButton size="small" color="error"
+                                        onClick={() => setDeleteTarget({
+                                          type: 'interval', id: interval.id!,
+                                          label: `interval ${interval.intervalTime}`,
+                                        })}>
+                                        <Delete fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
                                 </TableCell>
                               </>
                             )}

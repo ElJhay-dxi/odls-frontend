@@ -11,6 +11,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { hourlyExchangeGenerationApi } from '../../api/hourly/hourlyExchangeGenerationApi';
 import type { HourlyExchangeGeneration, ExchangeGenerationForm } from '../../types/hourlyExchangeGeneration';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
@@ -34,6 +35,7 @@ const emptyForm: ExchangeGenerationForm = {
 const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
 
 export default function HourlyExchangeGenerationPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.exchange_generation');
   const [form, setForm] = useState<ExchangeGenerationForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<Partial<ExchangeGenerationForm>>({});
   const [editTarget, setEditTarget] = useState<HourlyExchangeGeneration | null>(null);
@@ -144,7 +146,6 @@ export default function HourlyExchangeGenerationPage() {
       />
 
       <Grid container spacing={3}>
-        {/* ── Left: Entry form ── */}
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card>
             <CardHeader
@@ -164,16 +165,9 @@ export default function HourlyExchangeGenerationPage() {
             />
             <Divider />
             <CardContent>
-              {saveError && (
-                <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>
-              )}
-              {saveSuccess && (
-                <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>
-                  Reading saved successfully.
-                </Alert>
-              )}
+              {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
+              {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>Reading saved successfully.</Alert>}
 
-              {/* Identity */}
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary"
                   sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
@@ -181,8 +175,7 @@ export default function HourlyExchangeGenerationPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      label="Log Date" type="date" fullWidth required
+                    <TextField label="Log Date" type="date" fullWidth required
                       value={editTarget ? editTarget.logDate?.split('T')[0] : form.logDate}
                       onChange={(e) => setForm((prev) => ({ ...prev, logDate: e.target.value }))}
                       disabled={!!editTarget}
@@ -192,11 +185,9 @@ export default function HourlyExchangeGenerationPage() {
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth required disabled={!!editTarget}>
                       <InputLabel>Hour</InputLabel>
-                      <Select
-                        label="Hour"
+                      <Select label="Hour"
                         value={editTarget ? editTarget.logHour : form.logHour}
-                        onChange={(e) => setForm((prev) => ({ ...prev, logHour: Number(e.target.value) }))}
-                      >
+                        onChange={(e) => setForm((prev) => ({ ...prev, logHour: Number(e.target.value) }))}>
                         {HOURS.map((h) => (
                           <MenuItem key={h} value={h}>{String(h).padStart(2, '0')}:00</MenuItem>
                         ))}
@@ -206,7 +197,6 @@ export default function HourlyExchangeGenerationPage() {
                 </Grid>
               </Paper>
 
-              {/* Utility readings */}
               <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
                 <Table size="small">
                   <TableHead>
@@ -225,8 +215,7 @@ export default function HourlyExchangeGenerationPage() {
                           </Stack>
                         </TableCell>
                         <TableCell>
-                          <TextField
-                            type="number" size="small" fullWidth
+                          <TextField type="number" size="small" fullWidth
                             value={fv(u.key)}
                             onChange={(e) => setField(u.key, e.target.value)}
                             slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MW</Typography> } }}
@@ -240,24 +229,20 @@ export default function HourlyExchangeGenerationPage() {
               </TableContainer>
 
               <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
-                {editTarget && (
-                  <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
+                {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !isFormValid}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
+                  </Button>
                 )}
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={saving || !isFormValid}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}
-                >
-                  {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                </Button>
               </Stack>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* ── Right: Records ── */}
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card>
             <CardHeader
@@ -271,25 +256,18 @@ export default function HourlyExchangeGenerationPage() {
             <Divider />
             <CardContent>
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                <TextField
-                  label="Date" type="date" size="small" value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value)}
-                  sx={{ flex: 1 }}
+                <TextField label="Date" type="date" size="small" value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)} sx={{ flex: 1 }}
                   slotProps={{ inputLabel: { shrink: true } }}
                 />
-                <Button
-                  variant="outlined" size="small"
+                <Button variant="outlined" size="small"
                   startIcon={loadingRecords ? <CircularProgress size={14} /> : <Search />}
-                  onClick={fetchRecords}
-                  disabled={loadingRecords}
-                >
+                  onClick={fetchRecords} disabled={loadingRecords}>
                   {loadingRecords ? 'Loading...' : 'Load'}
                 </Button>
               </Stack>
 
-              {recordsError && (
-                <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>
-              )}
+              {recordsError && <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>}
 
               {records.length === 0 && !loadingRecords ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -312,11 +290,9 @@ export default function HourlyExchangeGenerationPage() {
                       {records.map((row) => (
                         <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
-                            <Chip
-                              label={`${String(row.logHour).padStart(2, '0')}:00`}
+                            <Chip label={`${String(row.logHour).padStart(2, '0')}:00`}
                               size="small" variant="outlined"
-                              sx={{ fontFamily: 'monospace', fontWeight: 600 }}
-                            />
+                              sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                           </TableCell>
                           {UTILITIES.map((u) => (
                             <TableCell key={u.key}>
@@ -328,16 +304,20 @@ export default function HourlyExchangeGenerationPage() {
                             </TableCell>
                           ))}
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

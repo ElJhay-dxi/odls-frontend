@@ -21,48 +21,30 @@ import type {
   CreateHourlyHydroReadingForm,
   UpdateHourlyHydroReadingForm,
 } from '../../types/hourlyReadings';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
 const emptyForm: CreateHourlyHydroReadingForm = {
-  plantCode: '',
-  unitCode: '',
+  plantCode: '', unitCode: '',
   logDate: new Date().toISOString().split('T')[0],
   logHour: new Date().getHours() + 1,
-  frequency: '',
-  activePowerMW: '',
-  reactivePowerMVar: '',
-  voltageKV: '',
-  currentAmps: '',
-  powerFactor: '',
-  statorTemperature: '',
-  generatorFieldVoltage: '',
-  generatorFieldCurrent: '',
-  exciterCurrent: '',
-  gatePosition: '',
-  turbineDischarge: '',
-  spillwayDischarge: '',
-  transformerOilTemperature: '',
-  transformerWindingTemperature: '',
+  frequency: '', activePowerMW: '', reactivePowerMVar: '',
+  voltageKV: '', currentAmps: '', powerFactor: '',
+  statorTemperature: '', generatorFieldVoltage: '',
+  generatorFieldCurrent: '', exciterCurrent: '',
+  gatePosition: '', turbineDischarge: '', spillwayDischarge: '',
+  transformerOilTemperature: '', transformerWindingTemperature: '',
   remarks: '',
 };
 
 const emptyUpdateForm: UpdateHourlyHydroReadingForm = {
-  frequency: '',
-  activePowerMW: '',
-  reactivePowerMVar: '',
-  voltageKV: '',
-  currentAmps: '',
-  powerFactor: '',
-  statorTemperature: '',
-  generatorFieldVoltage: '',
-  generatorFieldCurrent: '',
-  exciterCurrent: '',
-  gatePosition: '',
-  turbineDischarge: '',
-  spillwayDischarge: '',
-  transformerOilTemperature: '',
-  transformerWindingTemperature: '',
+  frequency: '', activePowerMW: '', reactivePowerMVar: '',
+  voltageKV: '', currentAmps: '', powerFactor: '',
+  statorTemperature: '', generatorFieldVoltage: '',
+  generatorFieldCurrent: '', exciterCurrent: '',
+  gatePosition: '', turbineDischarge: '', spillwayDischarge: '',
+  transformerOilTemperature: '', transformerWindingTemperature: '',
   remarks: '',
 };
 
@@ -71,8 +53,7 @@ type UpdateField = keyof UpdateHourlyHydroReadingForm;
 
 const SECTIONS = [
   {
-    title: 'Generator',
-    color: '#1565C0',
+    title: 'Generator', color: '#1565C0',
     fields: [
       { key: 'frequency', label: 'Frequency', unit: 'Hz' },
       { key: 'activePowerMW', label: 'Active Power', unit: 'MW' },
@@ -87,8 +68,7 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Turbine',
-    color: '#1B5E20',
+    title: 'Turbine', color: '#1B5E20',
     fields: [
       { key: 'gatePosition', label: 'Gate Position', unit: '%' },
       { key: 'turbineDischarge', label: 'Turbine Discharge', unit: 'm³/s' },
@@ -96,8 +76,7 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Transformer',
-    color: '#4A148C',
+    title: 'Transformer', color: '#4A148C',
     fields: [
       { key: 'transformerOilTemperature', label: 'Oil Temperature', unit: '°C' },
       { key: 'transformerWindingTemperature', label: 'Winding Temperature', unit: '°C' },
@@ -106,6 +85,7 @@ const SECTIONS = [
 ];
 
 export default function HourlyHydroReadingPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.hydro_units');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
@@ -127,16 +107,12 @@ export default function HourlyHydroReadingPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<HourlyHydroReading | null>(null);
   const [deleting, setDeleting] = useState(false);
-
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     Promise.all([powerPlantApi.getAll(), plantUnitApi.getAll()])
       .then(([p, u]) => {
-        const hydroPlants = p.data.filter(
-          (pl) => pl.classificationType?.toLowerCase() === 'hydro'
-        );
-        setPlants(hydroPlants);
+        setPlants(p.data.filter((pl) => pl.classificationType?.toLowerCase() === 'hydro'));
         setUnits(u.data);
       })
       .catch(() => setRecordsError('Failed to load reference data.'));
@@ -173,10 +149,8 @@ export default function HourlyHydroReadingPage() {
   const setUpdateField = (key: UpdateField, value: string) =>
     setUpdateForm((prev) => ({ ...prev, [key]: value }));
 
-  // ✅ Cast through unknown to avoid TS overlap error
   const activeValue = (key: string): string => {
-    if (editTarget)
-      return String((updateForm as unknown as Record<string, unknown>)[key] ?? '');
+    if (editTarget) return String((updateForm as unknown as Record<string, unknown>)[key] ?? '');
     return String((form as unknown as Record<string, unknown>)[key] ?? '');
   };
 
@@ -190,41 +164,28 @@ export default function HourlyHydroReadingPage() {
     setSaveSuccess(false);
     setSaveError(null);
     setUpdateForm({
-      frequency: row.frequency ?? '',
-      activePowerMW: row.activePowerMW ?? '',
-      reactivePowerMVar: row.reactivePowerMVar ?? '',
-      voltageKV: row.voltageKV ?? '',
-      currentAmps: row.currentAmps ?? '',
-      powerFactor: row.powerFactor ?? '',
+      frequency: row.frequency ?? '', activePowerMW: row.activePowerMW ?? '',
+      reactivePowerMVar: row.reactivePowerMVar ?? '', voltageKV: row.voltageKV ?? '',
+      currentAmps: row.currentAmps ?? '', powerFactor: row.powerFactor ?? '',
       statorTemperature: row.statorTemperature ?? '',
       generatorFieldVoltage: row.generatorFieldVoltage ?? '',
       generatorFieldCurrent: row.generatorFieldCurrent ?? '',
-      exciterCurrent: row.exciterCurrent ?? '',
-      gatePosition: row.gatePosition ?? '',
-      turbineDischarge: row.turbineDischarge ?? '',
-      spillwayDischarge: row.spillwayDischarge ?? '',
+      exciterCurrent: row.exciterCurrent ?? '', gatePosition: row.gatePosition ?? '',
+      turbineDischarge: row.turbineDischarge ?? '', spillwayDischarge: row.spillwayDischarge ?? '',
       transformerOilTemperature: row.transformerOilTemperature ?? '',
       transformerWindingTemperature: row.transformerWindingTemperature ?? '',
       remarks: row.remarks ?? '',
     });
     setForm((prev) => ({
-      ...prev,
-      plantCode: row.plantCode,
-      unitCode: row.unitCode,
-      logDate: row.logDate.split('T')[0],
-      logHour: row.logHour,
+      ...prev, plantCode: row.plantCode, unitCode: row.unitCode,
+      logDate: row.logDate.split('T')[0], logHour: row.logHour,
     }));
   };
 
-  const cancelEdit = () => {
-    setEditTarget(null);
-    setUpdateForm(emptyUpdateForm);
-  };
+  const cancelEdit = () => { setEditTarget(null); setUpdateForm(emptyUpdateForm); };
 
   const handleSave = async () => {
-    setSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
+    setSaving(true); setSaveError(null); setSaveSuccess(false);
     try {
       const toNum = (v: string | number | undefined) =>
         v === '' || v === undefined ? undefined : Number(v);
@@ -248,19 +209,15 @@ export default function HourlyHydroReadingPage() {
           transformerWindingTemperature: toNum(updateForm.transformerWindingTemperature),
           remarks: updateForm.remarks || undefined,
         });
-        setEditTarget(null);
-        setUpdateForm(emptyUpdateForm);
+        setEditTarget(null); setUpdateForm(emptyUpdateForm);
       } else {
         await hourlyHydroApi.create({
-          plantCode: form.plantCode,
-          unitCode: form.unitCode,
-          logDate: form.logDate,
-          logHour: Number(form.logHour),
+          plantCode: form.plantCode, unitCode: form.unitCode,
+          logDate: form.logDate, logHour: Number(form.logHour),
           frequency: toNum(form.frequency),
           activePowerMW: toNum(form.activePowerMW),
           reactivePowerMVar: toNum(form.reactivePowerMVar),
-          voltageKV: toNum(form.voltageKV),
-          currentAmps: toNum(form.currentAmps),
+          voltageKV: toNum(form.voltageKV), currentAmps: toNum(form.currentAmps),
           powerFactor: toNum(form.powerFactor),
           statorTemperature: toNum(form.statorTemperature),
           generatorFieldVoltage: toNum(form.generatorFieldVoltage),
@@ -278,8 +235,7 @@ export default function HourlyHydroReadingPage() {
       setSaveSuccess(true);
       fetchRecords();
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -300,9 +256,7 @@ export default function HourlyHydroReadingPage() {
     }
   };
 
-  const isFormValid =
-    editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour;
-
+  const isFormValid = editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour;
   const toggleSection = (title: string) =>
     setCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
 
@@ -311,14 +265,10 @@ export default function HourlyHydroReadingPage() {
       <PageHeader
         title="Hourly Unit Readings — Hydro"
         subtitle="Record hourly operational parameters for hydro generating units"
-        breadcrumbs={[
-          { label: 'Hourly Readings' },
-          { label: 'Unit Readings (Hydro)' },
-        ]}
+        breadcrumbs={[{ label: 'Hourly Readings' }, { label: 'Unit Readings (Hydro)' }]}
       />
 
       <Grid container spacing={3}>
-        {/* ── Left: Entry Form ── */}
         <Grid size={{ xs: 12, lg: 7 }}>
           <Card>
             <CardHeader
@@ -338,14 +288,8 @@ export default function HourlyHydroReadingPage() {
             />
             <Divider />
             <CardContent>
-              {saveError && (
-                <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>
-              )}
-              {saveSuccess && (
-                <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>
-                  Reading saved successfully.
-                </Alert>
-              )}
+              {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
+              {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>Reading saved successfully.</Alert>}
 
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary"
@@ -356,15 +300,11 @@ export default function HourlyHydroReadingPage() {
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth required disabled={!!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
-                      <Select
-                        label="Power Plant"
+                      <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
-                        onChange={(e) => setFormField('plantCode', e.target.value)}
-                      >
+                        onChange={(e) => setFormField('plantCode', e.target.value)}>
                         {plants.map((p) => (
-                          <MenuItem key={p.id} value={p.plantCode}>
-                            {p.plantName} ({p.plantCode})
-                          </MenuItem>
+                          <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -372,25 +312,20 @@ export default function HourlyHydroReadingPage() {
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth required disabled={!!editTarget || !form.plantCode}>
                       <InputLabel>Unit</InputLabel>
-                      <Select
-                        label="Unit"
+                      <Select label="Unit"
                         value={editTarget ? editTarget.unitCode : form.unitCode}
-                        onChange={(e) => setFormField('unitCode', e.target.value)}
-                      >
+                        onChange={(e) => setFormField('unitCode', e.target.value)}>
                         {(editTarget
                           ? units.filter((u) => u.plantCode === editTarget.plantCode)
                           : filteredUnits
                         ).map((u) => (
-                          <MenuItem key={u.id} value={u.unitCode}>
-                            {u.unitName} ({u.unitCode})
-                          </MenuItem>
+                          <MenuItem key={u.id} value={u.unitCode}>{u.unitName} ({u.unitCode})</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      label="Log Date" type="date"
+                    <TextField label="Log Date" type="date"
                       value={editTarget ? editTarget.logDate?.split('T')[0] : form.logDate}
                       onChange={(e) => setFormField('logDate', e.target.value)}
                       fullWidth required disabled={!!editTarget}
@@ -400,15 +335,11 @@ export default function HourlyHydroReadingPage() {
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <FormControl fullWidth required disabled={!!editTarget}>
                       <InputLabel>Hour</InputLabel>
-                      <Select
-                        label="Hour"
+                      <Select label="Hour"
                         value={editTarget ? editTarget.logHour : form.logHour}
-                        onChange={(e) => setFormField('logHour', String(e.target.value))}
-                      >
+                        onChange={(e) => setFormField('logHour', String(e.target.value))}>
                         {HOURS.map((h) => (
-                          <MenuItem key={h} value={h}>
-                            {String(h).padStart(2, '0')}:00
-                          </MenuItem>
+                          <MenuItem key={h} value={h}>{String(h).padStart(2, '0')}:00</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -418,17 +349,15 @@ export default function HourlyHydroReadingPage() {
 
               {SECTIONS.map((section) => (
                 <Paper key={section.title} variant="outlined" sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
-                  <Box
-                    sx={{
-                      px: 2, py: 1.2,
-                      backgroundColor: `${section.color}14`,
-                      borderBottom: collapsed[section.title] ? 'none' : '1px solid',
-                      borderColor: 'divider',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => toggleSection(section.title)}
-                  >
+                  <Box sx={{
+                    px: 2, py: 1.2,
+                    backgroundColor: `${section.color}14`,
+                    borderBottom: collapsed[section.title] ? 'none' : '1px solid',
+                    borderColor: 'divider',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    cursor: 'pointer',
+                  }}
+                    onClick={() => toggleSection(section.title)}>
                     <Typography variant="caption"
                       sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: section.color }}>
                       {section.title}
@@ -442,17 +371,14 @@ export default function HourlyHydroReadingPage() {
                       <Grid container spacing={2}>
                         {section.fields.map((field) => (
                           <Grid key={field.key} size={{ xs: 12, sm: 6, md: 4 }}>
-                            <TextField
-                              label={field.label}
-                              type="number"
+                            <TextField label={field.label} type="number"
                               value={activeValue(field.key)}
                               onChange={(e) => handleFieldChange(field.key, e.target.value)}
                               fullWidth size="small"
                               slotProps={{
                                 input: field.unit ? {
                                   endAdornment: (
-                                    <Typography variant="caption" color="text.secondary"
-                                      sx={{ ml: 0.5, whiteSpace: 'nowrap' }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5, whiteSpace: 'nowrap' }}>
                                       {field.unit}
                                     </Typography>
                                   ),
@@ -467,8 +393,7 @@ export default function HourlyHydroReadingPage() {
                 </Paper>
               ))}
 
-              <TextField
-                label="Remarks"
+              <TextField label="Remarks"
                 value={activeValue('remarks')}
                 onChange={(e) => handleFieldChange('remarks', e.target.value)}
                 fullWidth multiline rows={2}
@@ -476,24 +401,20 @@ export default function HourlyHydroReadingPage() {
               />
 
               <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
-                {editTarget && (
-                  <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
+                {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !isFormValid}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
+                  </Button>
                 )}
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={saving || !isFormValid}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}
-                >
-                  {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                </Button>
               </Stack>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* ── Right: Records ── */}
         <Grid size={{ xs: 12, lg: 5 }}>
           <Card>
             <CardHeader
@@ -527,26 +448,19 @@ export default function HourlyHydroReadingPage() {
                       ))}
                     </Select>
                   </FormControl>
-                  <TextField
-                    label="Date" type="date" size="small" value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    sx={{ flex: 1 }}
+                  <TextField label="Date" type="date" size="small" value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)} sx={{ flex: 1 }}
                     slotProps={{ inputLabel: { shrink: true } }}
                   />
                 </Stack>
-                <Button
-                  variant="outlined" size="small" fullWidth
+                <Button variant="outlined" size="small" fullWidth
                   startIcon={loadingRecords ? <CircularProgress size={14} /> : <Search />}
-                  onClick={fetchRecords}
-                  disabled={!filterPlant || loadingRecords}
-                >
+                  onClick={fetchRecords} disabled={!filterPlant || loadingRecords}>
                   {loadingRecords ? 'Loading...' : 'Load Records'}
                 </Button>
               </Stack>
 
-              {recordsError && (
-                <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>
-              )}
+              {recordsError && <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>}
 
               {records.length === 0 && !loadingRecords ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -574,33 +488,31 @@ export default function HourlyHydroReadingPage() {
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.unitCode}</Typography>
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              label={`${String(row.logHour).padStart(2, '0')}:00`}
+                            <Chip label={`${String(row.logHour).padStart(2, '0')}:00`}
                               size="small" variant="outlined"
-                              sx={{ fontFamily: 'monospace', fontWeight: 600 }}
-                            />
+                              sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2">
-                              {row.activePowerMW != null ? row.activePowerMW : '—'}
-                            </Typography>
+                            <Typography variant="body2">{row.activePowerMW != null ? row.activePowerMW : '—'}</Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2">
-                              {row.reactivePowerMVar != null ? row.reactivePowerMVar : '—'}
-                            </Typography>
+                            <Typography variant="body2">{row.reactivePowerMVar != null ? row.reactivePowerMVar : '—'}</Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -622,7 +534,8 @@ export default function HourlyHydroReadingPage() {
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 700 }} color="primary">
                       {records.filter((r) => r.activePowerMW != null).length > 0
-                        ? (records.reduce((s, r) => s + (r.activePowerMW ?? 0), 0) / records.filter(r => r.activePowerMW != null).length).toFixed(1)
+                        ? (records.reduce((s, r) => s + (r.activePowerMW ?? 0), 0) /
+                          records.filter(r => r.activePowerMW != null).length).toFixed(1)
                         : '—'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">Avg MW</Typography>
