@@ -14,6 +14,7 @@ import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { dailyNaturalGasTurbineApi } from '../../api/daily/dailyNaturalGasTurbineApi';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { DailyNaturalGasTurbine, DailyNaturalGasTurbineForm } from '../../types/dailyNaturalGasTurbine';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyNaturalGasTurbineForm = {
   plantCode: '', unitCode: '',
@@ -21,11 +22,11 @@ const emptyForm: DailyNaturalGasTurbineForm = {
   logTime: '', currentReading: '', heatingValue: '',
 };
 
-type TurbineFormKey = keyof DailyNaturalGasTurbineForm;
-
+const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
 const fmt = (v?: number, dec = 2) => v != null ? v.toFixed(dec) : '—';
 
 export default function DailyNaturalGasTurbinePage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.gas_turbine');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [allUnits, setAllUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
@@ -122,10 +123,14 @@ export default function DailyNaturalGasTurbinePage() {
   const previewHhvBtu = previewLhvBtu ? previewLhvBtu * 1.1 : null;
   const previewHhvKj = previewLhvKj ? previewLhvKj * 1.1 : null;
 
-  const fv = (key: TurbineFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
-  const setField = (key: TurbineFormKey, val: string) => {
+  const fv = (key: string) => String(
+    editTarget
+      ? (updateForm as unknown as Record<string, unknown>)[key] ?? ''
+      : (form as unknown as Record<string, unknown>)[key] ?? ''
+  );
+  const setField = (key: string, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val }));
+    else setForm((prev) => ({ ...prev, [key]: val } as DailyNaturalGasTurbineForm));
   };
 
   const openEdit = (row: DailyNaturalGasTurbine) => {
@@ -164,9 +169,8 @@ export default function DailyNaturalGasTurbinePage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -333,12 +337,14 @@ export default function DailyNaturalGasTurbinePage() {
 
               <Stack direction="row" spacing={1.5}>
                 {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
                 <Button variant="contained" onClick={handleSave}
                   disabled={saving || !isFormValid}
                   startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                   sx={{ minWidth: 140 }}>
                   {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
                 </Button>
+              )}
               </Stack>
             </CardContent>
           </Card>
@@ -427,16 +433,20 @@ export default function DailyNaturalGasTurbinePage() {
                             <Typography variant="body2">{row.heatRateLhvBtuKwh != null ? row.heatRateLhvBtuKwh.toFixed(0) : '—'}</Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
+                            {canEdit && (
+                              <Tooltip title="Edit">
                               <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Delete">
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
                               <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

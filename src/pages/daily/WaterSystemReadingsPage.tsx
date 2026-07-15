@@ -14,9 +14,9 @@ import {
   deminWaterTankLevelApi, gtCo2LevelApi, desalinatedWaterApi,
 } from '../../api/daily/waterSystemApi';
 import type { PowerPlant } from '../../types/masterData';
-import type {
-  WaterMeterReading, DeminWaterTankLevel,
-} from '../../types/waterSystem';
+import type { WaterMeterReading, DeminWaterTankLevel } from '../../types/waterSystem';
+import { useSectionPermissions } from '../../hooks/usePermission';
+
 const TABS = [
   { label: 'a) FW Inflow', key: 'fwInflow' },
   { label: 'b) FW Totalizer', key: 'fwTotalizer' },
@@ -25,7 +25,7 @@ const TABS = [
   { label: 'e) GT CO₂', key: 'gtCo2' },
   { label: 'f) Desalinated', key: 'desalinated' },
 ];
-// Helper: Meter Reading sub-form (used by a, b, d, f)
+
 interface MeterSubFormProps {
   plantCode: string; logDate: string;
   currentReading: string; setCurrentReading: (v: string) => void;
@@ -36,6 +36,7 @@ interface MeterSubFormProps {
   unit: string;
   manualPrev: string; setManualPrev: (v: string) => void;
 }
+
 function MeterSubForm({ priorRecord, loadingPrior, editTarget, currentReading,
   setCurrentReading, showProgressive, unit, manualPrev, setManualPrev }: MeterSubFormProps) {
   const isFirstEntry = !editTarget && !priorRecord && !loadingPrior;
@@ -76,26 +77,26 @@ function MeterSubForm({ priorRecord, loadingPrior, editTarget, currentReading,
     </Stack>
   );
 }
+
 export default function WaterSystemReadingsPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.water_system');
   const [tabIndex, setTabIndex] = useState(0);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
-  // Shared form state
+
   const [plantCode, setPlantCode] = useState('');
   const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
   const [manualPrev, setManualPrev] = useState('');
-  // Tab-specific fields
   const [currentReading, setCurrentReading] = useState('');
   const [levelPct, setLevelPct] = useState('');
   const [pressure, setPressure] = useState('');
   const [co2Pct, setCo2Pct] = useState('');
-  // Prior record for meter tabs
   const [priorRecord, setPriorRecord] = useState<WaterMeterReading | DeminWaterTankLevel | null>(null);
   const [loadingPrior, setLoadingPrior] = useState(false);
   const [editTarget, setEditTarget] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  // Records panel
+
   const [filterPlant, setFilterPlant] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
@@ -103,8 +104,10 @@ export default function WaterSystemReadingsPage() {
   const [recordsError, setRecordsError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
   const tabKey = TABS[tabIndex].key;
   const isMeterTab = ['fwInflow', 'fwTotalizer', 'deminWater', 'desalinated'].includes(tabKey);
+
   const getApi = useCallback(() => {
     switch (tabKey) {
       case 'fwInflow': return freshwaterInflowApi;
@@ -116,19 +119,20 @@ export default function WaterSystemReadingsPage() {
       default: return freshwaterInflowApi;
     }
   }, [tabKey]);
+
   useEffect(() => {
     powerPlantApi.getAll().then((res) => {
       setPlants(res.data.filter((p) => p.classificationType === 'Thermal'));
     });
   }, []);
-  // Reset form on tab change
+
   useEffect(() => {
     setPlantCode(''); setLogDate(new Date().toISOString().split('T')[0]);
     setCurrentReading(''); setLevelPct(''); setPressure(''); setCo2Pct('');
     setManualPrev(''); setPriorRecord(null); setEditTarget(null);
     setSaveError(null); setSaveSuccess(false); setRecords([]);
   }, [tabIndex]);
-  // Load prior record for meter tabs
+
   useEffect(() => {
     if (!isMeterTab || !plantCode || !logDate || editTarget) { setPriorRecord(null); return; }
     setLoadingPrior(true);
@@ -142,6 +146,7 @@ export default function WaterSystemReadingsPage() {
       .catch(() => setPriorRecord(null))
       .finally(() => setLoadingPrior(false));
   }, [plantCode, logDate, tabKey, editTarget, isMeterTab, getApi]);
+
   const fetchRecords = useCallback(async () => {
     if (!filterPlant) return;
     setLoadingRecords(true);
@@ -157,20 +162,22 @@ export default function WaterSystemReadingsPage() {
       setLoadingRecords(false);
     }
   }, [filterPlant, filterDate, getApi]);
+
   const resetForm = () => {
     setCurrentReading(''); setLevelPct(''); setPressure(''); setCo2Pct('');
     setManualPrev(''); setPriorRecord(null); setEditTarget(null);
   };
+
   const openEdit = (row: Record<string, unknown>) => {
     setEditTarget(row);
     setSaveError(null); setSaveSuccess(false);
-    const r = row;
-    setPlantCode(r.plantCode as string);
-    setLogDate((r.logDate as string).split('T')[0]);
-    setCurrentReading(String(r.currentReading ?? r.levelPct ?? ''));
-    setPressure(String(r.pressure ?? ''));
-    setCo2Pct(String(r.co2Pct ?? ''));
+    setPlantCode(row.plantCode as string);
+    setLogDate((row.logDate as string).split('T')[0]);
+    setCurrentReading(String(row.currentReading ?? row.levelPct ?? ''));
+    setPressure(String(row.pressure ?? ''));
+    setCo2Pct(String(row.co2Pct ?? ''));
   };
+
   const buildPayload = () => {
     const base = { plantCode, logDate };
     const isFirst = !editTarget && !priorRecord && !loadingPrior;
@@ -192,12 +199,13 @@ export default function WaterSystemReadingsPage() {
       default: return base;
     }
   };
+
   const handleSave = async () => {
     setSaving(true); setSaveError(null); setSaveSuccess(false);
     try {
       const api = getApi();
       if (editTarget) {
-        await api.update(editTarget!.id as string, buildPayload());
+        await api.update(editTarget.id as string, buildPayload());
       } else {
         await api.create(buildPayload());
       }
@@ -211,6 +219,7 @@ export default function WaterSystemReadingsPage() {
       setSaving(false);
     }
   };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -224,7 +233,7 @@ export default function WaterSystemReadingsPage() {
       setDeleting(false);
     }
   };
-  const plantList = plants;
+
   const renderForm = () => (
     <Stack spacing={2}>
       <Grid container spacing={2}>
@@ -232,7 +241,7 @@ export default function WaterSystemReadingsPage() {
           <FormControl fullWidth required disabled={!!editTarget}>
             <InputLabel>Power Plant</InputLabel>
             <Select label="Power Plant" value={plantCode} onChange={(e) => setPlantCode(e.target.value)}>
-              {plantList.map((p) => (
+              {plants.map((p) => (
                 <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
               ))}
             </Select>
@@ -245,7 +254,6 @@ export default function WaterSystemReadingsPage() {
           />
         </Grid>
       </Grid>
-      {/* Tab-specific inputs */}
       {['fwInflow', 'fwTotalizer', 'desalinated'].includes(tabKey) && (
         <MeterSubForm plantCode={plantCode} logDate={logDate}
           currentReading={currentReading} setCurrentReading={setCurrentReading}
@@ -284,6 +292,7 @@ export default function WaterSystemReadingsPage() {
       )}
     </Stack>
   );
+
   const renderRow = (row: Record<string, unknown>, idx: number) => {
     const r = row;
     const date = (r.logDate as string)?.split('T')[0];
@@ -291,34 +300,39 @@ export default function WaterSystemReadingsPage() {
       <TableRow key={idx} hover>
         <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{date}</Typography></TableCell>
         <TableCell>
-          {['fwInflow','fwTotalizer','desalinated','deminWater'].includes(tabKey) && (
+          {['fwInflow', 'fwTotalizer', 'desalinated', 'deminWater'].includes(tabKey) && (
             <Typography variant="body2">{Number(r.currentReading).toFixed(2)}</Typography>
           )}
           {tabKey === 'fwTankLevel' && <Typography variant="body2">{Number(r.levelPct).toFixed(1)}%</Typography>}
           {tabKey === 'gtCo2' && <Typography variant="body2">{Number(r.pressure)} / {Number(r.co2Pct)}%</Typography>}
         </TableCell>
-        {['fwInflow','fwTotalizer','desalinated'].includes(tabKey) && (
+        {['fwInflow', 'fwTotalizer', 'desalinated'].includes(tabKey) && (
           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{Number(r.progressiveTotal).toFixed(2)}</Typography></TableCell>
         )}
         {tabKey === 'deminWater' && (
           <TableCell><Typography variant="body2">{Number(r.difference).toFixed(2)}</Typography></TableCell>
         )}
         <TableCell align="right">
-          <Tooltip title="Edit">
-            <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-              <Edit fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete">
-            <IconButton size="small" color="error"
-              onClick={() => setDeleteTarget({ id: String(r.id), label: `${r.plantCode} on ${date}` })}>
-              <Delete fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          {canEdit && (
+            <Tooltip title="Edit">
+              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                <Edit fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          {canDelete && (
+            <Tooltip title="Delete">
+              <IconButton size="small" color="error"
+                onClick={() => setDeleteTarget({ id: String(r.id), label: `${r.plantCode} on ${date}` })}>
+                <Delete fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </TableCell>
       </TableRow>
     );
   };
+
   return (
     <Box>
       <PageHeader
@@ -354,16 +368,19 @@ export default function WaterSystemReadingsPage() {
               {renderForm()}
               <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
                 {editTarget && <Button variant="outlined" onClick={resetForm} disabled={saving}>Cancel</Button>}
-                <Button variant="contained" onClick={handleSave}
-                  disabled={saving || !plantCode || !logDate}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}>
-                  {saving ? 'Saving...' : editTarget ? 'Update' : 'Save Reading'}
-                </Button>
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !plantCode || !logDate}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update' : 'Save Reading'}
+                  </Button>
+                )}
               </Stack>
             </CardContent>
           </Card>
         </Grid>
+
         {/* ── Right: Records ── */}
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card>
@@ -380,7 +397,7 @@ export default function WaterSystemReadingsPage() {
                   <InputLabel>Plant</InputLabel>
                   <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plantList.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
+                    {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <Stack direction="row" spacing={1}>
@@ -410,7 +427,7 @@ export default function WaterSystemReadingsPage() {
                       <TableRow>
                         <TableCell>Date</TableCell>
                         <TableCell>Reading</TableCell>
-                        {['fwInflow','fwTotalizer','desalinated'].includes(tabKey) && <TableCell>Progressive</TableCell>}
+                        {['fwInflow', 'fwTotalizer', 'desalinated'].includes(tabKey) && <TableCell>Progressive</TableCell>}
                         {tabKey === 'deminWater' && <TableCell>Diff</TableCell>}
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>

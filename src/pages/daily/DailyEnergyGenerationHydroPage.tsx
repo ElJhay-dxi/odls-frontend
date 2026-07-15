@@ -13,6 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyEnergyGenerationHydroApi } from '../../api/daily/dailyEnergyGenerationHydroApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyEnergyGenerationHydro, DailyEnergyGenHydroForm } from '../../types/dailyEnergyGenerationHydro';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyEnergyGenHydroForm = {
   plantCode: '',
@@ -26,6 +27,7 @@ const emptyForm: DailyEnergyGenHydroForm = {
 const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
 
 export default function DailyEnergyGenerationHydroPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.energy_hydro');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailyEnergyGenHydroForm>(emptyForm);
@@ -338,6 +340,7 @@ export default function DailyEnergyGenerationHydroPage() {
                 {editTarget && (
                   <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
                 )}
+                {(editTarget ? canEdit : canCreate) && (
                 <Button
                   variant="contained"
                   onClick={handleSave}
@@ -347,6 +350,7 @@ export default function DailyEnergyGenerationHydroPage() {
                 >
                   {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
                 </Button>
+              )}
               </Stack>
             </CardContent>
           </Card>
@@ -430,16 +434,20 @@ export default function DailyEnergyGenerationHydroPage() {
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
+                            {canEdit && (
+                              <Tooltip title="Edit">
                               <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Delete">
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
                               <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

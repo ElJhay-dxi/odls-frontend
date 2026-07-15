@@ -16,6 +16,7 @@ import type {
   DailyStationEnergyConsumption,
   DailyStationEnergyConsumptionForm,
 } from '../../types/dailyStationEnergyConsumption';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyStationEnergyConsumptionForm = {
   plantCode: '',
@@ -24,6 +25,7 @@ const emptyForm: DailyStationEnergyConsumptionForm = {
 };
 
 export default function DailyStationEnergyConsumptionPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.station_energy');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailyStationEnergyConsumptionForm>(emptyForm);
@@ -47,11 +49,9 @@ export default function DailyStationEnergyConsumptionPage() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    // All plant types — both Hydro and Thermal log station energy consumption
     powerPlantApi.getAll().then((res) => setPlants(res.data));
   }, []);
 
-  // Fetch prior record for Previous Reading preview
   useEffect(() => {
     if (editTarget || !form.plantCode || !form.logDate) {
       setPriorRecord(null);
@@ -134,8 +134,7 @@ export default function DailyStationEnergyConsumptionPage() {
       fetchRecords();
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
-      setSaveError(msg ?? 'Failed to save. Please try again.');
+      setSaveError(axiosErr.response?.data?.message ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -243,11 +242,11 @@ export default function DailyStationEnergyConsumptionPage() {
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       label="Previous Reading" fullWidth
-                      type={isFirstEntry ? "number" : "text"}
+                      type={isFirstEntry ? 'number' : 'text'}
                       disabled={!isFirstEntry}
                       value={isFirstEntry ? manualPreviousReading : loadingPrior ? '…' : previewPreviousReading.toFixed(2)}
                       onChange={(e) => isFirstEntry && setManualPreviousReading(e.target.value)}
-                      helperText={isFirstEntry ? "Enter the prior meter reading (first entry only)" : "Auto-carried from prior day"}
+                      helperText={isFirstEntry ? 'Enter the prior meter reading (first entry only)' : 'Auto-carried from prior day'}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -283,12 +282,14 @@ export default function DailyStationEnergyConsumptionPage() {
 
               <Stack direction="row" spacing={1.5}>
                 {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
-                <Button variant="contained" onClick={handleSave}
-                  disabled={saving || !isFormValid}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}>
-                  {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                </Button>
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !isFormValid}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
+                  </Button>
+                )}
               </Stack>
             </CardContent>
           </Card>
@@ -363,16 +364,20 @@ export default function DailyStationEnergyConsumptionPage() {
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.progressiveTotal.toFixed(1)}</Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

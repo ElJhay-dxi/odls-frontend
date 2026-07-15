@@ -13,6 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyPlantReliabilityApi } from '../../api/daily/dailyPlantReliabilityApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyPlantReliability, DailyPlantReliabilityForm } from '../../types/dailyPlantReliability';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyPlantReliabilityForm = {
   plantCode: '',
@@ -20,9 +21,8 @@ const emptyForm: DailyPlantReliabilityForm = {
   mtbf: '', successfulStarts: '', unsuccessfulStarts: '',
 };
 
-type ReliabilityFormKey = keyof DailyPlantReliabilityForm;
-
 export default function DailyPlantReliabilityPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.plant_reliability');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailyPlantReliabilityForm>(emptyForm);
@@ -61,10 +61,14 @@ export default function DailyPlantReliabilityPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const fv = (key: ReliabilityFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
-  const setField = (key: ReliabilityFormKey, val: string) => {
+  const activeForm = editTarget
+    ? (updateForm as unknown as Record<string, unknown>)
+    : (form as unknown as Record<string, unknown>);
+
+  const fv = (key: string) => String(activeForm[key] ?? '');
+  const setField = (key: string, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val }));
+    else setForm((prev) => ({ ...prev, [key]: val } as DailyPlantReliabilityForm));
   };
 
   // Live preview
@@ -109,9 +113,8 @@ export default function DailyPlantReliabilityPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -256,12 +259,14 @@ export default function DailyPlantReliabilityPage() {
 
               <Stack direction="row" spacing={1.5}>
                 {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
                 <Button variant="contained" onClick={handleSave}
                   disabled={saving || !isFormValid}
                   startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                   sx={{ minWidth: 140 }}>
                   {saving ? 'Saving...' : editTarget ? 'Update Record' : 'Save Record'}
                 </Button>
+              )}
               </Stack>
             </CardContent>
           </Card>
@@ -348,16 +353,20 @@ export default function DailyPlantReliabilityPage() {
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
+                            {canEdit && (
+                              <Tooltip title="Edit">
                               <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Delete">
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
                               <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

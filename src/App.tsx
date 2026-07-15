@@ -4,6 +4,9 @@ import { AuthenticatedTemplate, UnauthenticatedTemplate } from '@azure/msal-reac
 import { Box, CircularProgress } from '@mui/material';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/auth/LoginPage';
+import { UserProvider } from './context/UserContext';
+import UserGate from './components/auth/UserGate';
+import PermissionGuard from './components/auth/PermissionGuard';
 
 // Master Data
 const PlantClassificationPage = lazy(() => import('./pages/masterData/PlantClassificationPage'));
@@ -46,8 +49,15 @@ const DailyPlantReliabilityPage = lazy(() => import('./pages/daily/DailyPlantRel
 const DailyPlantLoadFactorPage = lazy(() => import('./pages/daily/DailyPlantLoadFactorPage'));
 const WaterSystemReadingsPage = lazy(() => import('./pages/daily/WaterSystemReadingsPage'));
 const HydrologyPage = lazy(() => import('./pages/daily/HydrologyPage'));
+
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
+
+// Admin
+const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
+const RolesPage = lazy(() => import('./pages/admin/RolesPage'));
+const RolePermissionsPage = lazy(() => import('./pages/admin/RolePermissionsPage'));
+const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
 
 function PageLoader() {
   return (
@@ -55,6 +65,11 @@ function PageLoader() {
       <CircularProgress />
     </Box>
   );
+}
+
+// Helper to wrap a page with a PermissionGuard
+function G({ p, children }: { p: string; children: React.ReactNode }) {
+  return <PermissionGuard permission={p}>{children}</PermissionGuard>;
 }
 
 export default function App() {
@@ -67,56 +82,67 @@ export default function App() {
       </UnauthenticatedTemplate>
 
       <AuthenticatedTemplate>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<AppShell />}>
-              <Route index element={<DashboardPage />} />
+        <UserProvider>
+          <UserGate>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<AppShell />}>
+                  <Route index element={<DashboardPage />} />
 
-              {/* Master Data */}
-              <Route path="master/plant-classifications" element={<PlantClassificationPage />} />
-              <Route path="master/generation-types" element={<GenerationTypePage />} />
-              <Route path="master/plant-locations" element={<PlantLocationPage />} />
-              <Route path="master/power-plants" element={<PowerPlantPage />} />
-              <Route path="master/plant-units" element={<PlantUnitPage />} />
-              <Route path="master/unit-systems" element={<PlantUnitSystemPage />} />
-              <Route path="master/unit-subsystems" element={<PlantUnitSubSystemPage />} />
-              <Route path="master/unit-equipment" element={<PlantUnitEquipmentPage />} />
-              <Route path="master/bop" element={<BalanceOfPlantPage />} />
-              <Route path="master/bop-systems" element={<BopSystemPage />} />
-              <Route path="master/bop-subsystems" element={<BopSubSystemPage />} />
-              <Route path="master/bop-equipment" element={<BopEquipmentPage />} />
-              <Route path="master/bearing-metals" element={<BearingMetalPage />} />
-              <Route path="master/bearing-drains" element={<BearingDrainPage />} />
-              <Route path="master/plant-buses" element={<PlantBusPage />} />
+                  {/* Master Data */}
+                  <Route path="master/plant-classifications" element={<G p="master.view"><PlantClassificationPage /></G>} />
+                  <Route path="master/generation-types" element={<G p="master.view"><GenerationTypePage /></G>} />
+                  <Route path="master/plant-locations" element={<G p="master.view"><PlantLocationPage /></G>} />
+                  <Route path="master/power-plants" element={<G p="master.view"><PowerPlantPage /></G>} />
+                  <Route path="master/plant-units" element={<G p="master.view"><PlantUnitPage /></G>} />
+                  <Route path="master/unit-systems" element={<G p="master.view"><PlantUnitSystemPage /></G>} />
+                  <Route path="master/unit-subsystems" element={<G p="master.view"><PlantUnitSubSystemPage /></G>} />
+                  <Route path="master/unit-equipment" element={<G p="master.view"><PlantUnitEquipmentPage /></G>} />
+                  <Route path="master/bop" element={<G p="master.view"><BalanceOfPlantPage /></G>} />
+                  <Route path="master/bop-systems" element={<G p="master.view"><BopSystemPage /></G>} />
+                  <Route path="master/bop-subsystems" element={<G p="master.view"><BopSubSystemPage /></G>} />
+                  <Route path="master/bop-equipment" element={<G p="master.view"><BopEquipmentPage /></G>} />
+                  <Route path="master/bearing-metals" element={<G p="master.view"><BearingMetalPage /></G>} />
+                  <Route path="master/bearing-drains" element={<G p="master.view"><BearingDrainPage /></G>} />
+                  <Route path="master/plant-buses" element={<G p="master.view"><PlantBusPage /></G>} />
 
-              {/* Hourly Readings */}
-              <Route path="hourly/hydro-units" element={<HourlyHydroReadingPage />} />
-              <Route path="hourly/thermal-units" element={<HourlyThermalReadingPage />} />
-              <Route path="hourly/system-conditions" element={<HourlySystemConditionPage />} />
-              <Route path="hourly/exchange-generation" element={<HourlyExchangeGenerationPage />} />
-              <Route path="hourly/bus-voltages" element={<HourlyBusVoltagePage />} />
-            <Route path="hourly/peak-period" element={<PeakPeriodPage />} />
+                  {/* Hourly Readings */}
+                  <Route path="hourly/hydro-units" element={<G p="hourly.hydro_units.view"><HourlyHydroReadingPage /></G>} />
+                  <Route path="hourly/thermal-units" element={<G p="hourly.thermal_units.view"><HourlyThermalReadingPage /></G>} />
+                  <Route path="hourly/system-conditions" element={<G p="hourly.system_conditions.view"><HourlySystemConditionPage /></G>} />
+                  <Route path="hourly/exchange-generation" element={<G p="hourly.exchange_generation.view"><HourlyExchangeGenerationPage /></G>} />
+                  <Route path="hourly/bus-voltages" element={<G p="hourly.bus_voltages.view"><HourlyBusVoltagePage /></G>} />
+                  <Route path="hourly/peak-period" element={<G p="hourly.peak_period.view"><PeakPeriodPage /></G>} />
 
-              {/* Daily Readings */}
-            <Route path="daily/energy-generation-hydro" element={<DailyEnergyGenerationHydroPage />} />
-            <Route path="daily/energy-generation-thermal" element={<DailyEnergyGenerationThermalPage />} />
-            <Route path="daily/reactive-power" element={<DailyReactivePowerPage />} />
-            <Route path="daily/lco-readings" element={<DailyLcoReadingPage />} />
-            <Route path="daily/dfo-readings" element={<DailyDfoReadingPage />} />
-            <Route path="daily/natural-gas-turbine" element={<DailyNaturalGasTurbinePage />} />
-            <Route path="daily/natural-gas-chromatograph" element={<DailyNaturalGasChromatographPage />} />
-            <Route path="daily/station-energy-consumption" element={<DailyStationEnergyConsumptionPage />} />
-            <Route path="daily/scc-readings" element={<DailySccReadingPage />} />
-            <Route path="daily/plant-availability" element={<DailyPlantAvailabilityPage />} />
-            <Route path="daily/plant-trips" element={<DailyPlantTripPage />} />
-            <Route path="daily/plant-reliability" element={<DailyPlantReliabilityPage />} />
-            <Route path="daily/plant-load-factor" element={<DailyPlantLoadFactorPage />} />
-              <Route path="daily/water-system" element={<WaterSystemReadingsPage />} />
-              <Route path="hydrology" element={<HydrologyPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </Suspense>
+                  {/* Daily Readings */}
+                  <Route path="daily/energy-generation-hydro" element={<G p="daily.energy_hydro.view"><DailyEnergyGenerationHydroPage /></G>} />
+                  <Route path="daily/energy-generation-thermal" element={<G p="daily.energy_thermal.view"><DailyEnergyGenerationThermalPage /></G>} />
+                  <Route path="daily/reactive-power" element={<G p="daily.reactive_power.view"><DailyReactivePowerPage /></G>} />
+                  <Route path="daily/lco-readings" element={<G p="daily.lco.view"><DailyLcoReadingPage /></G>} />
+                  <Route path="daily/dfo-readings" element={<G p="daily.dfo.view"><DailyDfoReadingPage /></G>} />
+                  <Route path="daily/natural-gas-turbine" element={<G p="daily.gas_turbine.view"><DailyNaturalGasTurbinePage /></G>} />
+                  <Route path="daily/natural-gas-chromatograph" element={<G p="daily.gas_chromatograph.view"><DailyNaturalGasChromatographPage /></G>} />
+                  <Route path="daily/station-energy-consumption" element={<G p="daily.station_energy.view"><DailyStationEnergyConsumptionPage /></G>} />
+                  <Route path="daily/scc-readings" element={<G p="daily.scc.view"><DailySccReadingPage /></G>} />
+                  <Route path="daily/plant-availability" element={<G p="daily.plant_availability.view"><DailyPlantAvailabilityPage /></G>} />
+                  <Route path="daily/plant-trips" element={<G p="daily.plant_trips.view"><DailyPlantTripPage /></G>} />
+                  <Route path="daily/plant-reliability" element={<G p="daily.plant_reliability.view"><DailyPlantReliabilityPage /></G>} />
+                  <Route path="daily/plant-load-factor" element={<G p="daily.plant_load_factor.view"><DailyPlantLoadFactorPage /></G>} />
+                  <Route path="daily/water-system" element={<G p="daily.water_system.view"><WaterSystemReadingsPage /></G>} />
+                  <Route path="hydrology" element={<G p="daily.hydrology.view"><HydrologyPage /></G>} />
+
+                  {/* Admin */}
+                  <Route path="admin/permissions" element={<G p="permissions.view"><PermissionsPage /></G>} />
+                  <Route path="admin/roles" element={<G p="roles.view"><RolesPage /></G>} />
+                  <Route path="admin/role-permissions" element={<G p="roles.edit"><RolePermissionsPage /></G>} />
+                  <Route path="admin/users" element={<G p="users.view"><UsersPage /></G>} />
+
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+              </Routes>
+            </Suspense>
+          </UserGate>
+        </UserProvider>
       </AuthenticatedTemplate>
     </BrowserRouter>
   );

@@ -13,6 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyLcoReadingApi } from '../../api/daily/dailyLcoReadingApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyLcoReading, DailyLcoReadingForm } from '../../types/dailyLcoReading';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyLcoReadingForm = {
   plantCode: '',
@@ -21,6 +22,7 @@ const emptyForm: DailyLcoReadingForm = {
 };
 
 export default function DailyLcoReadingPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.lco');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailyLcoReadingForm>(emptyForm);
@@ -127,9 +129,8 @@ export default function DailyLcoReadingPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -275,6 +276,7 @@ export default function DailyLcoReadingPage() {
                 {editTarget && (
                   <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
                 )}
+                {(editTarget ? canEdit : canCreate) && (
                 <Button
                   variant="contained"
                   onClick={handleSave}
@@ -284,6 +286,7 @@ export default function DailyLcoReadingPage() {
                 >
                   {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
                 </Button>
+              )}
               </Stack>
             </CardContent>
           </Card>
@@ -367,16 +370,20 @@ export default function DailyLcoReadingPage() {
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
+                            {canEdit && (
+                              <Tooltip title="Edit">
                               <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Delete">
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
                               <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

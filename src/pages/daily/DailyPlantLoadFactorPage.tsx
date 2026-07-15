@@ -15,6 +15,7 @@ import type { PowerPlant } from '../../types/masterData';
 import type {
   DailyPlantLoadFactor, DailyPlantLoadFactorForm, EnergyGeneratedPreview,
 } from '../../types/dailyPlantLoadFactor';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyPlantLoadFactorForm = {
   plantCode: '',
@@ -26,13 +27,13 @@ const emptyForm: DailyPlantLoadFactorForm = {
 type LoadFactorFormKey = keyof DailyPlantLoadFactorForm;
 
 export default function DailyPlantLoadFactorPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.plant_load_factor');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailyPlantLoadFactorForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<Partial<DailyPlantLoadFactorForm>>({});
   const [editTarget, setEditTarget] = useState<DailyPlantLoadFactor | null>(null);
 
-  // Energy generated auto-pull
   const [energyPreview, setEnergyPreview] = useState<EnergyGeneratedPreview | null>(null);
   const [loadingEnergy, setLoadingEnergy] = useState(false);
   const [energyError, setEnergyError] = useState<string | null>(null);
@@ -53,7 +54,6 @@ export default function DailyPlantLoadFactorPage() {
     powerPlantApi.getAll().then((res) => setPlants(res.data));
   }, []);
 
-  // Auto-fetch energy generated when plant and date are both set (create mode only)
   useEffect(() => {
     if (editTarget || !form.plantCode || !form.logDate) {
       setEnergyPreview(null);
@@ -91,7 +91,6 @@ export default function DailyPlantLoadFactorPage() {
     else setForm((prev) => ({ ...prev, [key]: val }));
   };
 
-  // Live preview
   const energyMWh = editTarget ? editTarget.energyGeneratedMWh : (energyPreview?.energyGeneratedMWh ?? 0);
   const peakLoad = Number(fv('plantPeakLoadMW')) || 0;
   const previewLoadFactor = peakLoad > 0 ? (energyMWh / (peakLoad * 24)) * 100 : null;
@@ -133,8 +132,7 @@ export default function DailyPlantLoadFactorPage() {
       fetchRecords();
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
-      setSaveError(msg ?? 'Failed to save. Please try again.');
+      setSaveError(axiosErr.response?.data?.message ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -256,7 +254,7 @@ export default function DailyPlantLoadFactorPage() {
                 )}
               </Paper>
 
-              {/* User inputs */}
+              {/* Peak Load inputs */}
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary"
                   sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
@@ -306,12 +304,14 @@ export default function DailyPlantLoadFactorPage() {
 
               <Stack direction="row" spacing={1.5}>
                 {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
-                <Button variant="contained" onClick={handleSave}
-                  disabled={saving || !isFormValid}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}>
-                  {saving ? 'Saving...' : editTarget ? 'Update Record' : 'Save Record'}
-                </Button>
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !isFormValid}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update Record' : 'Save Record'}
+                  </Button>
+                )}
               </Stack>
             </CardContent>
           </Card>
@@ -394,16 +394,20 @@ export default function DailyPlantLoadFactorPage() {
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

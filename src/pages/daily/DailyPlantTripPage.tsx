@@ -13,6 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyPlantTripApi } from '../../api/daily/dailyPlantTripApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyPlantTrip, DailyPlantTripForm } from '../../types/dailyPlantTrip';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyPlantTripForm = {
   plantCode: '', logDate: new Date().toISOString().split('T')[0],
@@ -37,11 +38,10 @@ const THERMAL_FIELDS = [
   { key: 'protectiveLoadSheddingTrip', label: 'Protective Load Shedding Trip' },
 ];
 
-type TripFormKey = keyof DailyPlantTripForm;
-
 const toInt = (v: unknown) => v === '' || v === undefined || v === null ? 0 : Number(v);
 
 export default function DailyPlantTripPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.plant_trips');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailyPlantTripForm>(emptyForm);
@@ -80,10 +80,14 @@ export default function DailyPlantTripPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const fv = (key: TripFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
-  const setField = (key: TripFormKey, val: string) => {
+  const activeForm = editTarget
+    ? (updateForm as unknown as Record<string, unknown>)
+    : (form as unknown as Record<string, unknown>);
+
+  const fv = (key: string) => String(activeForm[key] ?? '');
+  const setField = (key: string, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val }));
+    else setForm((prev) => ({ ...prev, [key]: val } as DailyPlantTripForm));
   };
 
   const selectedPlantType = editTarget
@@ -135,9 +139,8 @@ export default function DailyPlantTripPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -160,11 +163,9 @@ export default function DailyPlantTripPage() {
 
   const isFormValid = editTarget ? true : form.plantCode && form.logDate;
 
-  const currentForm = editTarget ? updateForm : form;
-
   // Total trips for quick summary
-  const totalTrips = COMMON_FIELDS.reduce((sum, f) => sum + toInt(currentForm[f.key as TripFormKey]), 0)
-    + (isThermal ? THERMAL_FIELDS.reduce((sum, f) => sum + toInt(currentForm[f.key as TripFormKey]), 0) : 0);
+  const totalTrips = COMMON_FIELDS.reduce((sum, f) => sum + toInt(activeForm[f.key]), 0)
+    + (isThermal ? THERMAL_FIELDS.reduce((sum, f) => sum + toInt(activeForm[f.key]), 0) : 0);
 
   return (
     <Box>
@@ -238,7 +239,7 @@ export default function DailyPlantTripPage() {
 
               {/* Trip counts */}
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
-                <Stack direction="row" sx={{ mb: 1.5, justifyContent: "space-between", alignItems: "center" }}>
+                <Stack direction="row" sx={{ mb: 1.5 , alignItems: 'center',justifyContent: 'space-between'}}>
                   <Typography variant="caption" color="text.secondary"
                     sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
                     Trip Counts
@@ -251,7 +252,7 @@ export default function DailyPlantTripPage() {
                   {COMMON_FIELDS.map(({ key, label }) => (
                     <Grid key={key} size={{ xs: 12, sm: 6 }}>
                       <TextField label={label} type="number" fullWidth size="small"
-                        value={fv(key as TripFormKey)} onChange={(e) => setField(key as TripFormKey, e.target.value)}
+                        value={fv(key)} onChange={(e) => setField(key, e.target.value)}
                         slotProps={{ input: { inputProps: { min: 0 } } }}
                       />
                     </Grid>
@@ -268,7 +269,7 @@ export default function DailyPlantTripPage() {
                       {THERMAL_FIELDS.map(({ key, label }) => (
                         <Grid key={key} size={{ xs: 12, sm: 6 }}>
                           <TextField label={label} type="number" fullWidth size="small"
-                            value={fv(key as TripFormKey)} onChange={(e) => setField(key as TripFormKey, e.target.value)}
+                            value={fv(key)} onChange={(e) => setField(key, e.target.value)}
                             slotProps={{ input: { inputProps: { min: 0 } } }}
                           />
                         </Grid>
@@ -280,12 +281,14 @@ export default function DailyPlantTripPage() {
 
               <Stack direction="row" spacing={1.5}>
                 {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
                 <Button variant="contained" onClick={handleSave}
                   disabled={saving || !isFormValid}
                   startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                   sx={{ minWidth: 140 }}>
                   {saving ? 'Saving...' : editTarget ? 'Update Record' : 'Save Record'}
                 </Button>
+              )}
               </Stack>
             </CardContent>
           </Card>

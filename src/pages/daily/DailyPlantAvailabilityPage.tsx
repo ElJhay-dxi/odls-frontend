@@ -16,6 +16,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyPlantAvailabilityApi } from '../../api/daily/dailyPlantAvailabilityApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyPlantAvailability, DailyPlantAvailabilityForm } from '../../types/dailyPlantAvailability';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyPlantAvailabilityForm = {
   plantCode: '', logDate: new Date().toISOString().split('T')[0],
@@ -25,8 +26,6 @@ const emptyForm: DailyPlantAvailabilityForm = {
   maintenanceOutage: '', extendedMaintenanceOutage: '', maintenanceOutageOutsideMgmt: '',
   plannedOutage: '', extendedPlannedOutage: '', plannedOutageOutsideMgmt: '',
 };
-
-type AvailabilityFormKey = keyof DailyPlantAvailabilityForm;
 
 const toN = (v: unknown) => Number(v) || 0;
 const pct = (v?: number) => v != null ? `${v.toFixed(2)}%` : '—';
@@ -61,6 +60,7 @@ const OUTAGE_SECTIONS = [
 ];
 
 export default function DailyPlantAvailabilityPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.plant_availability');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailyPlantAvailabilityForm>(emptyForm);
@@ -103,25 +103,28 @@ export default function DailyPlantAvailabilityPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const fv = (key: AvailabilityFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
-  const setField = (key: AvailabilityFormKey, val: string) => {
+  const activeForm = editTarget
+    ? (updateForm as unknown as Record<string, unknown>)
+    : (form as unknown as Record<string, unknown>);
+
+  const fv = (key: string) => String(activeForm[key] ?? '');
+  const setField = (key: string, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val }));
+    else setForm((prev) => ({ ...prev, [key]: val } as DailyPlantAvailabilityForm));
   };
 
   // Live preview computations
   const period = 24;
-  const currentForm = editTarget ? updateForm : form;
-  const forcedHrs = toN(currentForm.forcedOutageU1) + toN(currentForm.forcedOutageU2) +
-    toN(currentForm.forcedOutageU3) + toN(currentForm.startingFailure) + toN(currentForm.forcedOutageOutsideMgmt);
-  const maintHrs = toN(currentForm.maintenanceOutage) + toN(currentForm.extendedMaintenanceOutage) +
-    toN(currentForm.maintenanceOutageOutsideMgmt);
-  const plannedHrs = toN(currentForm.plannedOutage) + toN(currentForm.extendedPlannedOutage) +
-    toN(currentForm.plannedOutageOutsideMgmt);
+  const forcedHrs = toN(activeForm.forcedOutageU1) + toN(activeForm.forcedOutageU2) +
+    toN(activeForm.forcedOutageU3) + toN(activeForm.startingFailure) + toN(activeForm.forcedOutageOutsideMgmt);
+  const maintHrs = toN(activeForm.maintenanceOutage) + toN(activeForm.extendedMaintenanceOutage) +
+    toN(activeForm.maintenanceOutageOutsideMgmt);
+  const plannedHrs = toN(activeForm.plannedOutage) + toN(activeForm.extendedPlannedOutage) +
+    toN(activeForm.plannedOutageOutsideMgmt);
   const unavailHrs = forcedHrs + maintHrs + plannedHrs;
   const availHrs = period - unavailHrs;
-  const serviceHrs = toN(currentForm.serviceHours);
-  const runHrs = toN(currentForm.runHours);
+  const serviceHrs = toN(activeForm.serviceHours);
+  const runHrs = toN(activeForm.runHours);
 
   const liveAF  = (availHrs / period) * 100;
   const liveFOF = (forcedHrs / period) * 100;
@@ -185,9 +188,8 @@ export default function DailyPlantAvailabilityPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -294,7 +296,7 @@ export default function DailyPlantAvailabilityPage() {
                   ].map(({ key, label }) => (
                     <Grid key={key} size={{ xs: 12, sm: 4 }}>
                       <TextField label={label} type="number" fullWidth size="small"
-                        value={fv(key as AvailabilityFormKey)} onChange={(e) => setField(key as AvailabilityFormKey, e.target.value)}
+                        value={fv(key)} onChange={(e) => setField(key, e.target.value)}
                         slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">hrs</Typography> } }}
                       />
                     </Grid>
@@ -324,7 +326,7 @@ export default function DailyPlantAvailabilityPage() {
                         {section.fields.map(({ key, label }) => (
                           <Grid key={key} size={{ xs: 12, sm: 4 }}>
                             <TextField label={label} type="number" fullWidth size="small"
-                              value={fv(key as AvailabilityFormKey)} onChange={(e) => setField(key as AvailabilityFormKey, e.target.value)}
+                              value={fv(key)} onChange={(e) => setField(key, e.target.value)}
                               slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">hrs</Typography> } }}
                             />
                           </Grid>
@@ -369,12 +371,14 @@ export default function DailyPlantAvailabilityPage() {
 
               <Stack direction="row" spacing={1.5}>
                 {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
                 <Button variant="contained" onClick={handleSave}
                   disabled={saving || !isFormValid}
                   startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                   sx={{ minWidth: 140 }}>
                   {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
                 </Button>
+              )}
               </Stack>
             </CardContent>
           </Card>
@@ -449,16 +453,20 @@ export default function DailyPlantAvailabilityPage() {
                             <Typography variant="body2">{row.capacityFactor.toFixed(1)}%</Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
+                            {canEdit && (
+                              <Tooltip title="Edit">
                               <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Delete">
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
                               <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

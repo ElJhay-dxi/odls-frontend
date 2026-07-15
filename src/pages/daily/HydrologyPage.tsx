@@ -13,6 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { hydroWaterLevelApi, hydroWaterDischargeApi } from '../../api/daily/waterSystemApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { HydroWaterLevel, HydroWaterDischarge } from '../../types/waterSystem';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const TABS = [
   { label: 'Water Levels', key: 'levels' },
@@ -20,6 +21,7 @@ const TABS = [
 ];
 
 export default function HydrologyPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.hydrology');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [tabIndex, setTabIndex] = useState(0);
 
@@ -257,11 +259,11 @@ export default function HydrologyPage() {
                 {tabIndex === 1 && (
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField label="Total Turbine Discharge" type="number" fullWidth required
+                      <TextField label="Unit Discharge" type="number" fullWidth required
                         value={unitDischarge} onChange={(e) => setUnitDischarge(e.target.value)} />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField label="Total Spillway Discharge" type="number" fullWidth required
+                      <TextField label="Spillway Discharge" type="number" fullWidth required
                         value={spillwayDischarge} onChange={(e) => setSpillwayDischarge(e.target.value)} />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
@@ -277,12 +279,14 @@ export default function HydrologyPage() {
 
                 <Stack direction="row" spacing={1.5}>
                   {editTarget && <Button variant="outlined" onClick={resetForm} disabled={saving}>Cancel</Button>}
-                  <Button variant="contained" onClick={handleSave}
+                  {(editTarget ? canEdit : canCreate) && (
+                <Button variant="contained" onClick={handleSave}
                     disabled={saving || !isFormValid}
                     startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                     sx={{ minWidth: 140 }}>
                     {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
                   </Button>
+              )}
                 </Stack>
               </Stack>
             </CardContent>
@@ -356,17 +360,21 @@ export default function HydrologyPage() {
                               <Chip label={row.netHead.toFixed(3)} size="small" color="info" variant="outlined" sx={{ fontWeight: 700 }} />
                             </TableCell>
                             <TableCell align="right">
+                              {canEdit && (
                               <Tooltip title="Edit">
                                 <IconButton size="small" color="primary" onClick={() => openEditLevel(row)}>
                                   <Edit fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+                            )}
+                              {canDelete && (
                               <Tooltip title="Delete">
                                 <IconButton size="small" color="error"
                                   onClick={() => setDeleteTarget({ id: row.id, label: `${row.plantCode} levels on ${row.logDate.split('T')[0]}` })}>
                                   <Delete fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+                            )}
                             </TableCell>
                           </TableRow>
                         ))}

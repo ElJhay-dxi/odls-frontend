@@ -6,9 +6,11 @@ import {
   Dashboard, Factory, ElectricBolt, AccountTree,
   ExpandLess, ExpandMore, Tune, WaterDrop,
   Science, Assignment, BarChart, Settings, LocationOn,
+  AdminPanelSettings, Security, People,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useUser } from '../../context/UserContext';
 
 export const DRAWER_WIDTH = 260;
 
@@ -16,6 +18,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   path?: string;
+  permission?: string;   // required permission code to show this item
   children?: NavItem[];
 }
 
@@ -28,81 +31,94 @@ const navItems: NavItem[] = [
   {
     label: 'Master Data',
     icon: <Settings />,
+    permission: 'master.view',
     children: [
-      { label: 'Plant Classifications', icon: <Tune />, path: '/master/plant-classifications' },
-      { label: 'Generation Types', icon: <ElectricBolt />, path: '/master/generation-types' },
-      { label: 'Plant Locations', icon: <LocationOn />, path: '/master/plant-locations' },
-      { label: 'Power Plants', icon: <Factory />, path: '/master/power-plants' },
-      { label: 'Plant Units', icon: <AccountTree />, path: '/master/plant-units' },
-      { label: 'Unit Systems', icon: <AccountTree />, path: '/master/unit-systems' },
-      { label: 'Unit Sub-Systems', icon: <AccountTree />, path: '/master/unit-subsystems' },
-      { label: 'Unit Equipment', icon: <Tune />, path: '/master/unit-equipment' },
-      { label: 'Balance of Plant', icon: <AccountTree />, path: '/master/bop' },
-      { label: 'BOP Systems', icon: <AccountTree />, path: '/master/bop-systems' },
-      { label: 'BOP Sub-Systems', icon: <AccountTree />, path: '/master/bop-subsystems' },
-      { label: 'BOP Equipment', icon: <Tune />, path: '/master/bop-equipment' },
-      { label: 'Bearing Metals', icon: <Settings />, path: '/master/bearing-metals' },
-      { label: 'Bearing Drains', icon: <Settings />, path: '/master/bearing-drains' },
-      { label: 'Plant Buses', icon: <Settings />, path: '/master/plant-buses' },
+      { label: 'Plant Classifications', icon: <Tune />, path: '/master/plant-classifications', permission: 'master.view' },
+      { label: 'Generation Types', icon: <ElectricBolt />, path: '/master/generation-types', permission: 'master.view' },
+      { label: 'Plant Locations', icon: <LocationOn />, path: '/master/plant-locations', permission: 'master.view' },
+      { label: 'Power Plants', icon: <Factory />, path: '/master/power-plants', permission: 'master.view' },
+      { label: 'Plant Units', icon: <AccountTree />, path: '/master/plant-units', permission: 'master.view' },
+      { label: 'Unit Systems', icon: <AccountTree />, path: '/master/unit-systems', permission: 'master.view' },
+      { label: 'Unit Sub-Systems', icon: <AccountTree />, path: '/master/unit-subsystems', permission: 'master.view' },
+      { label: 'Unit Equipment', icon: <Tune />, path: '/master/unit-equipment', permission: 'master.view' },
+      { label: 'Balance of Plant', icon: <AccountTree />, path: '/master/bop', permission: 'master.view' },
+      { label: 'BOP Systems', icon: <AccountTree />, path: '/master/bop-systems', permission: 'master.view' },
+      { label: 'BOP Sub-Systems', icon: <AccountTree />, path: '/master/bop-subsystems', permission: 'master.view' },
+      { label: 'BOP Equipment', icon: <Tune />, path: '/master/bop-equipment', permission: 'master.view' },
+      { label: 'Bearing Metals', icon: <Settings />, path: '/master/bearing-metals', permission: 'master.view' },
+      { label: 'Bearing Drains', icon: <Settings />, path: '/master/bearing-drains', permission: 'master.view' },
+      { label: 'Plant Buses', icon: <Settings />, path: '/master/plant-buses', permission: 'master.view' },
     ],
   },
   {
     label: 'Hourly Readings',
     icon: <ElectricBolt />,
     children: [
-      { label: 'Unit Readings (Hydro)', icon: <WaterDrop />, path: '/hourly/hydro-units' },
-      { label: 'Unit Readings (Thermal)', icon: <ElectricBolt />, path: '/hourly/thermal-units' },
-      { label: 'System Conditions', icon: <BarChart />, path: '/hourly/system-conditions' },
-      { label: 'Exchange Generation', icon: <ElectricBolt />, path: '/hourly/exchange-generation' },
-      { label: 'Bus Voltages', icon: <ElectricBolt />, path: '/hourly/bus-voltages' },
-      { label: 'Peak Period Readings', icon: <BarChart />, path: '/hourly/peak-period' },
+      { label: 'Unit Readings (Hydro)', icon: <WaterDrop />, path: '/hourly/hydro-units', permission: 'hourly.hydro_units.view' },
+      { label: 'Unit Readings (Thermal)', icon: <ElectricBolt />, path: '/hourly/thermal-units', permission: 'hourly.thermal_units.view' },
+      { label: 'System Conditions', icon: <BarChart />, path: '/hourly/system-conditions', permission: 'hourly.system_conditions.view' },
+      { label: 'Exchange Generation', icon: <ElectricBolt />, path: '/hourly/exchange-generation', permission: 'hourly.exchange_generation.view' },
+      { label: 'Bus Voltages', icon: <ElectricBolt />, path: '/hourly/bus-voltages', permission: 'hourly.bus_voltages.view' },
+      { label: 'Peak Period Readings', icon: <BarChart />, path: '/hourly/peak-period', permission: 'hourly.peak_period.view' },
     ],
   },
   {
     label: 'Daily Readings',
     icon: <Assignment />,
     children: [
-      { label: 'Energy Generation (Hydro)', icon: <WaterDrop />, path: '/daily/energy-generation-hydro' },
-      { label: 'Energy Generation (Thermal)', icon: <ElectricBolt />, path: '/daily/energy-generation-thermal' },
-      { label: 'Reactive Power', icon: <ElectricBolt />, path: '/daily/reactive-power' },
-      { label: 'LCO Readings', icon: <Tune />, path: '/daily/lco-readings' },
-      { label: 'DFO Readings', icon: <Tune />, path: '/daily/dfo-readings' },
-      { label: 'Natural Gas (Turbine)', icon: <Tune />, path: '/daily/natural-gas-turbine' },
-      { label: 'Natural Gas (Chromatograph)', icon: <Tune />, path: '/daily/natural-gas-chromatograph' },
-      { label: 'Station Energy Consumption', icon: <Tune />, path: '/daily/station-energy-consumption' },
-      { label: 'SCC System Readings', icon: <Tune />, path: '/daily/scc-readings' },
-      { label: 'Plant Availability', icon: <BarChart />, path: '/daily/plant-availability' },
-      { label: 'Plant Trips', icon: <Assignment />, path: '/daily/plant-trips' },
-      { label: 'Reliability Metrics', icon: <BarChart />, path: '/daily/plant-reliability' },
-      { label: 'Plant Load Factor', icon: <BarChart />, path: '/daily/plant-load-factor' },
-      { label: 'Water System', icon: <WaterDrop />, path: '/daily/water-system' },
-      { label: 'Hydrology', icon: <WaterDrop />, path: '/hydrology' },
+      { label: 'Energy Generation (Hydro)', icon: <WaterDrop />, path: '/daily/energy-generation-hydro', permission: 'daily.energy_hydro.view' },
+      { label: 'Energy Generation (Thermal)', icon: <ElectricBolt />, path: '/daily/energy-generation-thermal', permission: 'daily.energy_thermal.view' },
+      { label: 'Reactive Power', icon: <ElectricBolt />, path: '/daily/reactive-power', permission: 'daily.reactive_power.view' },
+      { label: 'LCO Readings', icon: <Tune />, path: '/daily/lco-readings', permission: 'daily.lco.view' },
+      { label: 'DFO Readings', icon: <Tune />, path: '/daily/dfo-readings', permission: 'daily.dfo.view' },
+      { label: 'Natural Gas (Turbine)', icon: <Tune />, path: '/daily/natural-gas-turbine', permission: 'daily.gas_turbine.view' },
+      { label: 'Natural Gas (Chromatograph)', icon: <Tune />, path: '/daily/natural-gas-chromatograph', permission: 'daily.gas_chromatograph.view' },
+      { label: 'Station Energy Consumption', icon: <Tune />, path: '/daily/station-energy-consumption', permission: 'daily.station_energy.view' },
+      { label: 'SCC System Readings', icon: <Tune />, path: '/daily/scc-readings', permission: 'daily.scc.view' },
+      { label: 'Plant Availability', icon: <BarChart />, path: '/daily/plant-availability', permission: 'daily.plant_availability.view' },
+      { label: 'Plant Trips', icon: <Assignment />, path: '/daily/plant-trips', permission: 'daily.plant_trips.view' },
+      { label: 'Reliability Metrics', icon: <BarChart />, path: '/daily/plant-reliability', permission: 'daily.plant_reliability.view' },
+      { label: 'Plant Load Factor', icon: <BarChart />, path: '/daily/plant-load-factor', permission: 'daily.plant_load_factor.view' },
+      { label: 'Water System', icon: <WaterDrop />, path: '/daily/water-system', permission: 'daily.water_system.view' },
+      { label: 'Hydrology', icon: <WaterDrop />, path: '/hydrology', permission: 'daily.hydrology.view' },
     ],
   },
   {
     label: 'Station Logs',
     icon: <Assignment />,
     children: [
-      { label: 'Thermal Station Logs', icon: <ElectricBolt />, path: '/station-logs/thermal' },
-      { label: 'Hydro Station Logs', icon: <WaterDrop />, path: '/station-logs/hydro' },
+      { label: 'Thermal Station Logs', icon: <ElectricBolt />, path: '/station-logs/thermal', permission: 'station_logs.thermal.view' },
+      { label: 'Hydro Station Logs', icon: <WaterDrop />, path: '/station-logs/hydro', permission: 'station_logs.hydro.view' },
     ],
   },
   {
     label: 'Chemical Lab',
     icon: <Science />,
     children: [
-      { label: 'Shift Logs', icon: <Assignment />, path: '/lab/shift-logs' },
-      { label: 'Lab Analysis', icon: <Science />, path: '/lab/analysis' },
-      { label: 'Sample Records', icon: <Assignment />, path: '/lab/samples' },
-      { label: 'Sea Water Monitoring', icon: <WaterDrop />, path: '/lab/seawater' },
-      { label: 'Desalination Logs', icon: <WaterDrop />, path: '/lab/desalination' },
-      { label: 'Chemical Dosing', icon: <Science />, path: '/lab/dosing' },
+      { label: 'Shift Logs', icon: <Assignment />, path: '/lab/shift-logs', permission: 'lab.shift_logs.view' },
+      { label: 'Lab Analysis', icon: <Science />, path: '/lab/analysis', permission: 'lab.analysis.view' },
+      { label: 'Sample Records', icon: <Assignment />, path: '/lab/samples', permission: 'lab.samples.view' },
+      { label: 'Sea Water Monitoring', icon: <WaterDrop />, path: '/lab/seawater', permission: 'lab.seawater.view' },
+      { label: 'Desalination Logs', icon: <WaterDrop />, path: '/lab/desalination', permission: 'lab.desalination.view' },
+      { label: 'Chemical Dosing', icon: <Science />, path: '/lab/dosing', permission: 'lab.dosing.view' },
     ],
   },
   {
     label: 'Reports',
     icon: <BarChart />,
     path: '/reports',
+    permission: 'reports.view',
+  },
+  {
+    label: 'Admin',
+    icon: <AdminPanelSettings />,
+    permission: 'users.view',
+    children: [
+      { label: 'Permissions', icon: <Security />, path: '/admin/permissions', permission: 'permissions.view' },
+      { label: 'Roles', icon: <AdminPanelSettings />, path: '/admin/roles', permission: 'roles.view' },
+      { label: 'Role Permissions', icon: <Security />, path: '/admin/role-permissions', permission: 'roles.edit' },
+      { label: 'Users', icon: <People />, path: '/admin/users', permission: 'users.view' },
+    ],
   },
 ];
 
@@ -113,6 +129,7 @@ interface SidebarProps {
 export default function Sidebar({ open }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { profile, hasPermission } = useUser();
   const [expanded, setExpanded] = useState<string[]>(['Master Data']);
 
   const toggleExpand = (label: string) => {
@@ -122,6 +139,23 @@ export default function Sidebar({ open }: SidebarProps) {
   };
 
   const isActive = (path?: string) => path && location.pathname === path;
+
+  // Filter items the user has permission to see
+  const canSee = (item: NavItem): boolean => {
+    if (!item.permission) return true; // no permission required — always show
+    return hasPermission(item.permission);
+  };
+
+  const filterItems = (items: NavItem[]): NavItem[] =>
+    items
+      .filter(canSee)
+      .map((item) => ({
+        ...item,
+        children: item.children ? filterItems(item.children) : undefined,
+      }))
+      .filter((item) => !item.children || item.children.length > 0); // hide parent if all children hidden
+
+  const visibleItems = filterItems(navItems);
 
   const renderItems = (items: NavItem[], depth = 0) =>
     items.map((item) => {
@@ -234,7 +268,7 @@ export default function Sidebar({ open }: SidebarProps) {
 
       <Box sx={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, py: 1 }}>
         <List disablePadding>
-          {renderItems(navItems)}
+          {renderItems(visibleItems)}
         </List>
       </Box>
 
@@ -249,16 +283,16 @@ export default function Sidebar({ open }: SidebarProps) {
           }}
         >
           <Typography variant="caption" sx={{ fontWeight: 700, color: '#000' }}>
-            OP
+            {profile?.fullName?.charAt(0)?.toUpperCase() ?? 'U'}
           </Typography>
         </Box>
         {open && (
           <Box>
             <Typography variant="caption" sx={{ color: '#FFF', fontWeight: 600, display: 'block', fontSize: '0.75rem' }}>
-              Operator
+              {profile?.fullName ?? 'User'}
             </Typography>
             <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.68rem' }}>
-              operator@vra.com
+              {profile?.roleName ?? ''}
             </Typography>
           </Box>
         )}

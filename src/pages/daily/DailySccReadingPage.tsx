@@ -13,6 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailySccReadingApi } from '../../api/daily/dailySccReadingApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailySccReading, DailySccReadingForm } from '../../types/dailySccReading';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailySccReadingForm = {
   plantCode: '',
@@ -21,9 +22,8 @@ const emptyForm: DailySccReadingForm = {
   stationServiceKwh: '',
 };
 
-type SccFormKey = keyof DailySccReadingForm;
-
 export default function DailySccReadingPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.scc');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailySccReadingForm>(emptyForm);
@@ -64,10 +64,14 @@ export default function DailySccReadingPage() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const fv = (key: SccFormKey) => String(editTarget ? updateForm[key] ?? '' : form[key] ?? '');
-  const setField = (key: SccFormKey, val: string) => {
+  const fv = (key: string) => String(
+    editTarget
+      ? (updateForm as unknown as Record<string, unknown>)[key] ?? ''
+      : (form as unknown as Record<string, unknown>)[key] ?? ''
+  );
+  const setField = (key: string, val: string) => {
     if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val }));
+    else setForm((prev) => ({ ...prev, [key]: val } as DailySccReadingForm));
   };
 
   // Live preview of Net Generation
@@ -109,9 +113,8 @@ export default function DailySccReadingPage() {
       }
       setSaveSuccess(true);
       fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -241,12 +244,14 @@ export default function DailySccReadingPage() {
 
               <Stack direction="row" spacing={1.5}>
                 {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
+                {(editTarget ? canEdit : canCreate) && (
                 <Button variant="contained" onClick={handleSave}
                   disabled={saving || !isFormValid}
                   startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                   sx={{ minWidth: 140 }}>
                   {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
                 </Button>
+              )}
               </Stack>
             </CardContent>
           </Card>
@@ -321,16 +326,20 @@ export default function DailySccReadingPage() {
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
+                            {canEdit && (
+                              <Tooltip title="Edit">
                               <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Delete">
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
                               <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

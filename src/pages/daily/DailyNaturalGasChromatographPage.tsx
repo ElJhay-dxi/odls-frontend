@@ -17,6 +17,7 @@ import type {
   DailyNaturalGasChromatograph,
   DailyNaturalGasChromatographForm,
 } from '../../types/dailyNaturalGasChromatograph';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: DailyNaturalGasChromatographForm = {
   plantCode: '', unitCode: '',
@@ -29,6 +30,7 @@ type ChromatographFormKey = keyof DailyNaturalGasChromatographForm;
 const fmt = (v?: number, dec = 2) => v != null ? v.toFixed(dec) : '—';
 
 export default function DailyNaturalGasChromatographPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.gas_chromatograph');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [allUnits, setAllUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
@@ -321,12 +323,14 @@ export default function DailyNaturalGasChromatographPage() {
 
               <Stack direction="row" spacing={1.5}>
                 {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
-                <Button variant="contained" onClick={handleSave}
-                  disabled={saving || !isFormValid}
-                  startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                  sx={{ minWidth: 140 }}>
-                  {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                </Button>
+                {(editTarget ? canEdit : canCreate) && (
+                  <Button variant="contained" onClick={handleSave}
+                    disabled={saving || !isFormValid}
+                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                    sx={{ minWidth: 140 }}>
+                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
+                  </Button>
+                )}
               </Stack>
             </CardContent>
           </Card>
@@ -415,16 +419,20 @@ export default function DailyNaturalGasChromatographPage() {
                             <Typography variant="body2">{row.consumptionMMBtu.toFixed(2)}</Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

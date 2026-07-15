@@ -16,6 +16,7 @@ import type {
   DailyEnergyGenerationThermal, DailyEnergyGenThermalForm, ThermalFuelType,
 } from '../../types/dailyEnergyGenerationThermal';
 import { FUEL_TYPE_LABELS } from '../../types/dailyEnergyGenerationThermal';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const FUEL_TYPES: ThermalFuelType[] = ['NaturalGas', 'DFO'];
 
@@ -27,6 +28,7 @@ const emptyForm: DailyEnergyGenThermalForm = {
 };
 
 export default function DailyEnergyGenerationThermalPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.energy_thermal');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
 
   const [form, setForm] = useState<DailyEnergyGenThermalForm>(emptyForm);
@@ -308,6 +310,7 @@ export default function DailyEnergyGenerationThermalPage() {
                 {editTarget && (
                   <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>
                 )}
+                {(editTarget ? canEdit : canCreate) && (
                 <Button
                   variant="contained"
                   onClick={handleSave}
@@ -317,6 +320,7 @@ export default function DailyEnergyGenerationThermalPage() {
                 >
                   {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
                 </Button>
+              )}
               </Stack>
             </CardContent>
           </Card>
@@ -423,16 +427,20 @@ export default function DailyEnergyGenerationThermalPage() {
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
+                            {canEdit && (
+                              <Tooltip title="Edit">
                               <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Delete">
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
                               <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
