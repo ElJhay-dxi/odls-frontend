@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import { rolesApi, permissionsApi } from '../../api/auth/userManagementApi';
 import type { Role, Permission } from '../../types/userManagement';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const ACTION_ORDER = ['view', 'create', 'edit', 'delete'];
 const ACTION_COLORS: Record<string, string> = {
@@ -16,11 +17,12 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 export default function RolePermissionsPage() {
+  const { canEdit } = useSectionPermissions('roles');
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [assigned, setAssigned] = useState<Set<string>>(new Set()); // Set of permission IDs
+  const [assigned, setAssigned] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,6 @@ export default function RolePermissionsPage() {
       .finally(() => setLoading(false));
   }, [selectedRoleId]);
 
-  // Group permissions by group then by section (everything before last dot)
   const grouped = permissions.reduce((acc, p) => {
     if (!acc[p.group]) acc[p.group] = {};
     const parts = p.code.split('.');
@@ -90,7 +91,6 @@ export default function RolePermissionsPage() {
     try {
       await rolesApi.updatePermissions(selectedRoleId, Array.from(assigned));
       setSuccess(true);
-      // Reload role to confirm
       const res = await rolesApi.getById(selectedRoleId);
       setSelectedRole(res.data);
       setAssigned(new Set(res.data.permissions.map((p) => p.id)));
@@ -132,11 +132,13 @@ export default function RolePermissionsPage() {
             {selectedRole && (
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                 <Chip label={`${assigned.size} permissions assigned`} color="primary" variant="outlined" />
-                <Button variant="contained" size="large"
-                  startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
-                  onClick={handleSave} disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </Button>
+                {canEdit && (
+                  <Button variant="contained" size="large"
+                    startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                    onClick={handleSave} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                )}
               </Stack>
             )}
           </Stack>
@@ -168,10 +170,12 @@ export default function RolePermissionsPage() {
                       </Stack>
                     }
                     action={
-                      <Button size="small" onClick={() => toggleGroup(groupPerms)}
-                        startIcon={groupAllSelected ? <CheckBox /> : <CheckBoxOutlineBlank />}>
-                        {groupAllSelected ? 'Deselect All' : 'Select All'}
-                      </Button>
+                      canEdit && (
+                        <Button size="small" onClick={() => toggleGroup(groupPerms)}
+                          startIcon={groupAllSelected ? <CheckBox /> : <CheckBoxOutlineBlank />}>
+                          {groupAllSelected ? 'Deselect All' : 'Select All'}
+                        </Button>
+                      )
                     }
                   />
                   <Divider />
@@ -193,12 +197,8 @@ export default function RolePermissionsPage() {
                           {Object.entries(sections).map(([section, perms]) => {
                             const sectionAssigned = perms.filter((p) => assigned.has(p.id)).length;
                             const sectionAll = sectionAssigned === perms.length;
-
-                            // Find permission by action suffix
                             const byAction = (action: string) =>
                               perms.find((p) => p.code.endsWith(`.${action}`));
-
-                            // Display section label (last part after dot, or full if no dot)
                             const sectionLabel = section.split('.').pop()?.replace(/_/g, ' ') ?? section;
 
                             return (
@@ -216,7 +216,8 @@ export default function RolePermissionsPage() {
                                         <Checkbox
                                           size="small"
                                           checked={assigned.has(perm.id)}
-                                          onChange={() => toggle(perm.id)}
+                                          onChange={() => canEdit && toggle(perm.id)}
+                                          disabled={!canEdit}
                                           sx={{ color: ACTION_COLORS[action], '&.Mui-checked': { color: ACTION_COLORS[action] } }}
                                         />
                                       ) : (
@@ -228,7 +229,9 @@ export default function RolePermissionsPage() {
                                 <TableCell align="center" sx={{ p: 0.5 }}>
                                   <Checkbox size="small" checked={sectionAll}
                                     indeterminate={sectionAssigned > 0 && !sectionAll}
-                                    onChange={() => toggleSection(perms)} />
+                                    onChange={() => canEdit && toggleSection(perms)}
+                                    disabled={!canEdit}
+                                  />
                                 </TableCell>
                               </TableRow>
                             );

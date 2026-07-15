@@ -10,6 +10,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { permissionsApi } from '../../api/auth/userManagementApi';
 import type { Permission } from '../../types/userManagement';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const GROUPS = [
   'Master Data', 'Hourly Readings', 'Daily Readings',
@@ -26,6 +27,7 @@ const ACTION_COLORS: Record<string, 'default' | 'info' | 'warning' | 'error'> = 
 const emptyForm = { code: '', name: '', group: '', section: '', action: '', description: '' };
 
 export default function PermissionsPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('permissions');
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,14 +58,11 @@ export default function PermissionsPage() {
 
   useEffect(() => { fetchPermissions(); }, [fetchPermissions]);
 
-  // Auto-build code from group + section + action
   useEffect(() => {
     if (!editTarget && form.section && form.action) {
       const groupSlug = form.group.toLowerCase().replace(/\s+/g, '_');
       const sectionSlug = form.section.toLowerCase().replace(/\s+/g, '_');
-      const code = form.action === 'view' && !form.section.includes('.')
-        ? `${groupSlug}.${sectionSlug}.${form.action}`
-        : `${groupSlug}.${sectionSlug}.${form.action}`;
+      const code = `${groupSlug}.${sectionSlug}.${form.action}`;
       setForm((p) => ({ ...p, code }));
     }
   }, [form.group, form.section, form.action, editTarget]);
@@ -218,12 +217,14 @@ export default function PermissionsPage() {
 
                   <Stack direction="row" spacing={1.5}>
                     <Button variant="outlined" onClick={() => setShowForm(false)} disabled={saving}>Cancel</Button>
-                    <Button variant="contained"
-                      startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
-                      onClick={handleSave}
-                      disabled={saving || !form.code || !form.name || !form.group}>
-                      {saving ? 'Saving...' : editTarget ? 'Update' : 'Create'}
-                    </Button>
+                    {(editTarget ? canEdit : canCreate) && (
+                      <Button variant="contained"
+                        startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                        onClick={handleSave}
+                        disabled={saving || !form.code || !form.name || !form.group}>
+                        {saving ? 'Saving...' : editTarget ? 'Update' : 'Create'}
+                      </Button>
+                    )}
                   </Stack>
                 </Stack>
               </CardContent>
@@ -237,9 +238,11 @@ export default function PermissionsPage() {
             <CardHeader
               title={<Typography sx={{ fontWeight: 700 }}>All Permissions ({permissions.length})</Typography>}
               action={
-                <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-                  Add Permission
-                </Button>
+                canCreate && (
+                  <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
+                    Add Permission
+                  </Button>
+                )
               }
             />
             <Divider />
@@ -294,16 +297,20 @@ export default function PermissionsPage() {
                                     variant="outlined" sx={{ fontWeight: 700, fontSize: 11 }} />
                                 </TableCell>
                                 <TableCell align="right">
-                                  <Tooltip title="Edit">
-                                    <IconButton size="small" color="primary" onClick={() => openEdit(perm)}>
-                                      <Edit fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                  <Tooltip title="Delete">
-                                    <IconButton size="small" color="error" onClick={() => setDeleteTarget(perm)}>
-                                      <Delete fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
+                                  {canEdit && (
+                                    <Tooltip title="Edit">
+                                      <IconButton size="small" color="primary" onClick={() => openEdit(perm)}>
+                                        <Edit fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                  {canDelete && (
+                                    <Tooltip title="Delete">
+                                      <IconButton size="small" color="error" onClick={() => setDeleteTarget(perm)}>
+                                        <Delete fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );

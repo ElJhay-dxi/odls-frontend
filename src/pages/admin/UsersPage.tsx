@@ -13,6 +13,7 @@ import { appUsersApi, rolesApi } from '../../api/auth/userManagementApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import type { AppUser, Role } from '../../types/userManagement';
 import type { PowerPlant } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm = {
   fullName: '', email: '', employeeId: '', designation: '',
@@ -20,6 +21,7 @@ const emptyForm = {
 };
 
 export default function UsersPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('users');
   const [users, setUsers] = useState<AppUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
@@ -164,8 +166,6 @@ export default function UsersPage() {
               <CardContent>
                 {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
                 <Stack spacing={2}>
-
-                  {/* Identity */}
                   <Typography variant="caption" color="text.secondary"
                     sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
                     Identity
@@ -201,7 +201,6 @@ export default function UsersPage() {
 
                   <Divider />
 
-                  {/* Role */}
                   <Typography variant="caption" color="text.secondary"
                     sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
                     Role & Access
@@ -223,7 +222,6 @@ export default function UsersPage() {
                     </Select>
                   </FormControl>
 
-                  {/* Plant assignment */}
                   <FormControl fullWidth>
                     <InputLabel>Plant Access</InputLabel>
                     <Select
@@ -270,12 +268,14 @@ export default function UsersPage() {
 
                   <Stack direction="row" spacing={1.5}>
                     <Button variant="outlined" onClick={() => setShowForm(false)} disabled={saving}>Cancel</Button>
-                    <Button variant="contained"
-                      startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
-                      onClick={handleSave}
-                      disabled={saving || !form.fullName || !form.email || !form.roleId}>
-                      {saving ? 'Saving...' : editTarget ? 'Update User' : 'Create User'}
-                    </Button>
+                    {(editTarget ? canEdit : canCreate) && (
+                      <Button variant="contained"
+                        startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                        onClick={handleSave}
+                        disabled={saving || !form.fullName || !form.email || !form.roleId}>
+                        {saving ? 'Saving...' : editTarget ? 'Update User' : 'Create User'}
+                      </Button>
+                    )}
                   </Stack>
                 </Stack>
               </CardContent>
@@ -289,9 +289,11 @@ export default function UsersPage() {
             <CardHeader
               title={<Typography sx={{ fontWeight: 700 }}>All Users ({users.length})</Typography>}
               action={
-                <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-                  Add User
-                </Button>
+                canCreate && (
+                  <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
+                    Add User
+                  </Button>
+                )
               }
             />
             <Divider />
@@ -356,7 +358,7 @@ export default function UsersPage() {
                             {user.plants.length === 0 ? (
                               <Typography variant="caption" color="text.secondary">All Plants</Typography>
                             ) : (
-                              <Stack    direction="row"    spacing={0.5}    useFlexGap    sx={{        flexWrap: 'wrap',    }}>
+                              <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
                                 {user.plants.map((p) => (
                                   <Chip key={p.plantCode} label={p.plantCode} size="small"
                                     variant="outlined" sx={{ fontSize: 10 }} />
@@ -373,16 +375,20 @@ export default function UsersPage() {
                             />
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(user)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => setDeleteTarget(user)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {canEdit && (
+                              <Tooltip title="Edit">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(user)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(user)}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

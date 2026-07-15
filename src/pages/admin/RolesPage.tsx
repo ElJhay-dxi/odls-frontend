@@ -1,8 +1,8 @@
 import {
   Box, Card, CardContent, CardHeader, TextField, Button, CircularProgress,
   Alert, Typography, Grid, Divider, Chip, Stack, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, IconButton, Tooltip
-  , Switch, FormControlLabel,
+  TableCell, TableContainer, TableHead, TableRow, IconButton, Tooltip,
+  Switch, FormControlLabel,
 } from '@mui/material';
 import { Add, Edit, Delete, Save, Close, AdminPanelSettings, LockOutlined } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
@@ -10,10 +10,12 @@ import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { rolesApi } from '../../api/auth/userManagementApi';
 import type { Role } from '../../types/userManagement';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm = { name: '', description: '', isActive: true };
 
 export default function RolesPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('roles');
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,12 +145,14 @@ export default function RolesPage() {
                   </Alert>
                   <Stack direction="row" spacing={1.5}>
                     <Button variant="outlined" onClick={() => setShowForm(false)} disabled={saving}>Cancel</Button>
-                    <Button variant="contained"
-                      startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
-                      onClick={handleSave}
-                      disabled={saving || !form.name.trim()}>
-                      {saving ? 'Saving...' : editTarget ? 'Update' : 'Create Role'}
-                    </Button>
+                    {(editTarget ? canEdit : canCreate) && (
+                      <Button variant="contained"
+                        startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                        onClick={handleSave}
+                        disabled={saving || !form.name.trim()}>
+                        {saving ? 'Saving...' : editTarget ? 'Update' : 'Create Role'}
+                      </Button>
+                    )}
                   </Stack>
                 </Stack>
               </CardContent>
@@ -162,9 +166,11 @@ export default function RolesPage() {
             <CardHeader
               title={<Typography sx={{ fontWeight: 700 }}>All Roles ({roles.length})</Typography>}
               action={
-                <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-                  Add Role
-                </Button>
+                canCreate && (
+                  <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
+                    Add Role
+                  </Button>
+                )
               }
             />
             <Divider />
@@ -217,12 +223,14 @@ export default function RolesPage() {
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Edit role">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(role)}>
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            {!role.isSystem && (
+                            {canEdit && (
+                              <Tooltip title="Edit role">
+                                <IconButton size="small" color="primary" onClick={() => openEdit(role)}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && !role.isSystem && (
                               <Tooltip title="Delete role">
                                 <IconButton size="small" color="error" onClick={() => setDeleteTarget(role)}>
                                   <Delete fontSize="small" />
