@@ -11,23 +11,21 @@ import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { plantLocationApi } from '../../api/masterData/plantLocationApi';
 import type { PlantLocation, PlantLocationForm } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
-const emptyForm: PlantLocationForm = {
-  locationName: '',
-};
+const emptyForm: PlantLocationForm = { locationName: '' };
 
 export default function PlantLocationPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [rows, setRows] = useState<PlantLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantLocation | null>(null);
   const [form, setForm] = useState<PlantLocationForm>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<PlantLocation | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -97,7 +95,7 @@ export default function PlantLocationPage() {
         title="Plant Locations"
         subtitle="Manage geographic locations assigned to power plants"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Plant Locations' }]}
-        action={{ label: 'Add Location', onClick: openCreate, icon: <Add /> }}
+        action={canCreate ? { label: 'Add Location', onClick: openCreate, icon: <Add /> } : undefined}
       />
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
@@ -141,9 +139,7 @@ export default function PlantLocationPage() {
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <LocationOn sx={{ fontSize: '1rem', color: 'text.disabled' }} />
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {row.locationName}
-                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.locationName}</Typography>
                         </Box>
                       </TableCell>
                       <TableCell>
@@ -158,16 +154,20 @@ export default function PlantLocationPage() {
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title="Delete">
+                            <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -178,7 +178,6 @@ export default function PlantLocationPage() {
         </CardContent>
       </Card>
 
-      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editTarget ? 'Edit Location' : 'Add Location'}
@@ -186,43 +185,33 @@ export default function PlantLocationPage() {
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <TextField
-            label="Location Name"
-            value={form.locationName}
+            label="Location Name" value={form.locationName}
             onChange={(e) => setForm({ locationName: e.target.value })}
-            fullWidth
-            required
-            autoFocus
+            fullWidth required autoFocus
             placeholder="e.g. Volta Region, Greater Accra"
-            helperText="A unique code will be assigned automatically."
-          />
+            helperText="A unique code will be assigned automatically." />
         </DialogContent>
         <Divider />
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
-            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              variant="contained"
-              disabled={saving || !isFormValid}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-            >
-              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Location'}
-            </Button>
+            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
+            {(editTarget ? canEdit : canCreate) && (
+              <Button onClick={handleSave} variant="contained"
+                disabled={saving || !isFormValid}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+                {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Location'}
+              </Button>
+            )}
           </Stack>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Location"
         message={`Are you sure you want to delete "${deleteTarget?.locationName}"? This cannot be undone.`}
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   );

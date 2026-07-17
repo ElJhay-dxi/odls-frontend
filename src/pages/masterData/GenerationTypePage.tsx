@@ -13,6 +13,7 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { generationTypeApi } from '../../api/masterData/generationTypeApi';
 import { plantClassificationApi } from '../../api/masterData/plantClassificationApi';
 import type { GenerationType, GenerationTypeForm, PlantClassification } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: GenerationTypeForm = {
   typeName: '',
@@ -20,25 +21,22 @@ const emptyForm: GenerationTypeForm = {
 };
 
 export default function GenerationTypePage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [rows, setRows] = useState<GenerationType[]>([]);
   const [classifications, setClassifications] = useState<PlantClassification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter
   const [filterClassCode, setFilterClassCode] = useState<number | ''>('');
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<GenerationType | null>(null);
   const [form, setForm] = useState<GenerationTypeForm>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<GenerationType | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Load classifications for dropdown
   useEffect(() => {
     plantClassificationApi.getAll()
       .then((res) => setClassifications(res.data))
@@ -115,38 +113,28 @@ export default function GenerationTypePage() {
         title="Generation Types"
         subtitle="Manage generation type configurations linked to plant classifications"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Generation Types' }]}
-        action={{ label: 'Add Generation Type', onClick: openCreate, icon: <Add /> }}
+        action={canCreate ? { label: 'Add Generation Type', onClick: openCreate, icon: <Add /> } : undefined}
       />
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Filter Bar */}
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ py: '12px !important' }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             <FilterList sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
-            <Typography variant="body2" sx={{ fontWeight: 600, mr: 1 }} color="text.secondary">
-              Filter:
-            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600, mr: 1 }} color="text.secondary">Filter:</Typography>
             <FormControl size="small" sx={{ minWidth: 200 }}>
               <InputLabel>Plant Classification</InputLabel>
-              <Select
-                label="Plant Classification"
-                value={filterClassCode}
-                onChange={(e) => setFilterClassCode(e.target.value as number | '')}
-              >
+              <Select label="Plant Classification" value={filterClassCode}
+                onChange={(e) => setFilterClassCode(e.target.value as number | '')}>
                 <MenuItem value="">All Classifications</MenuItem>
                 {classifications.map((c) => (
-                  <MenuItem key={c.id} value={c.classificationCode}>
-                    {c.classificationType}
-                  </MenuItem>
+                  <MenuItem key={c.id} value={c.classificationCode}>{c.classificationType}</MenuItem>
                 ))}
               </Select>
             </FormControl>
             {filterClassCode !== '' && (
-              <Button size="small" variant="outlined" onClick={() => setFilterClassCode('')}>
-                Clear
-              </Button>
+              <Button size="small" variant="outlined" onClick={() => setFilterClassCode('')}>Clear</Button>
             )}
           </Stack>
         </CardContent>
@@ -185,39 +173,34 @@ export default function GenerationTypePage() {
                   rows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {row.typeName}
-                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.typeName}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={row.classificationType}
-                          size="small"
-                          color="primary"
-                          variant="outlined"
-                          sx={{ textTransform: 'capitalize', fontWeight: 500 }}
-                        />
+                        <Chip label={row.classificationType} size="small" color="primary" variant="outlined"
+                          sx={{ textTransform: 'capitalize', fontWeight: 500 }} />
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">{row.createdByName}</Typography>
                         <Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {new Date(row.createdOn).toLocaleDateString('en-GB')}
-                        </Typography>
+                        <Typography variant="body2">{new Date(row.createdOn).toLocaleDateString('en-GB')}</Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title="Delete">
+                            <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -228,7 +211,6 @@ export default function GenerationTypePage() {
         </CardContent>
       </Card>
 
-      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editTarget ? 'Edit Generation Type' : 'Add Generation Type'}
@@ -237,55 +219,41 @@ export default function GenerationTypePage() {
         <DialogContent sx={{ pt: '20px !important', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <FormControl fullWidth required>
             <InputLabel>Plant Classification</InputLabel>
-            <Select
-              label="Plant Classification"
-              value={form.classificationCode || ''}
-              onChange={(e) => setForm({ ...form, classificationCode: Number(e.target.value) })}
-            >
+            <Select label="Plant Classification" value={form.classificationCode || ''}
+              onChange={(e) => setForm({ ...form, classificationCode: Number(e.target.value) })}>
               {classifications.map((c) => (
-                <MenuItem key={c.id} value={c.classificationCode}>
-                  {c.classificationType}
-                </MenuItem>
+                <MenuItem key={c.id} value={c.classificationCode}>{c.classificationType}</MenuItem>
               ))}
             </Select>
           </FormControl>
-          <TextField
-            label="Type Name"
+          <TextField label="Type Name"
             placeholder="e.g. Simple Cycle, Combined Cycle, Hydro"
             value={form.typeName}
             onChange={(e) => setForm({ ...form, typeName: e.target.value })}
-            fullWidth
-            required
-            helperText="A unique code will be assigned automatically."
-          />
+            fullWidth required
+            helperText="A unique code will be assigned automatically." />
         </DialogContent>
         <Divider />
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Stack direction="row" spacing={1.5}>
-            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              variant="contained"
-              disabled={saving || !isFormValid}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-            >
-              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Generation Type'}
-            </Button>
+            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
+            {(editTarget ? canEdit : canCreate) && (
+              <Button onClick={handleSave} variant="contained"
+                disabled={saving || !isFormValid}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+                {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Generation Type'}
+              </Button>
+            )}
           </Stack>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Generation Type"
         message={`Are you sure you want to delete "${deleteTarget?.typeName}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   );

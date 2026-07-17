@@ -13,48 +13,39 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import type { PlantUnit, PlantUnitForm, UpdatePlantUnitForm, PowerPlant } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const FUEL_CONFIGS = ['Single', 'Dual'];
 const FUEL_TYPES = ['Gas', 'LCO', 'DFO', 'Gas/LCO', 'Gas/DFO'];
 
 const emptyForm: PlantUnitForm = {
-  plantCode: '',
-  unitName: '',
-  unitCode: '',
-  installedCapacity: 0,
-  fuelConfiguration: '',
-  fuelType: '',
+  plantCode: '', unitName: '', unitCode: '', installedCapacity: 0,
+  fuelConfiguration: '', fuelType: '',
 };
 
 const emptyUpdateForm: UpdatePlantUnitForm = {
-  unitName: '',
-  unitCode: '',
-  installedCapacity: 0,
-  fuelConfiguration: '',
-  fuelType: '',
+  unitName: '', unitCode: '', installedCapacity: 0,
+  fuelConfiguration: '', fuelType: '',
 };
 
 export default function PlantUnitPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [rows, setRows] = useState<PlantUnit[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter
   const [filterPlantCode, setFilterPlantCode] = useState<string>('');
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantUnit | null>(null);
   const [form, setForm] = useState<PlantUnitForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<UpdatePlantUnitForm>(emptyUpdateForm);
   const [saving, setSaving] = useState(false);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<PlantUnit | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Load plants for filter/dropdown
   useEffect(() => {
     powerPlantApi.getAll()
       .then((res) => setPlants(res.data))
@@ -87,11 +78,9 @@ export default function PlantUnitPage() {
   const openEdit = (row: PlantUnit) => {
     setEditTarget(row);
     setUpdateForm({
-      unitName: row.unitName,
-      unitCode: row.unitCode,
+      unitName: row.unitName, unitCode: row.unitCode,
       installedCapacity: row.installedCapacity,
-      fuelConfiguration: row.fuelConfiguration,
-      fuelType: row.fuelType,
+      fuelConfiguration: row.fuelConfiguration, fuelType: row.fuelType,
     });
     setDialogOpen(true);
   };
@@ -127,14 +116,12 @@ export default function PlantUnitPage() {
     }
   };
 
-  // Use correct form based on create vs edit
   const activeForm = editTarget ? updateForm : form;
 
   const isFormValid = editTarget
     ? updateForm.unitName.trim() && updateForm.unitCode.trim() && updateForm.installedCapacity > 0
     : form.plantCode && form.unitName.trim() && form.unitCode.trim() && form.installedCapacity > 0;
 
-  // Detect if selected plant is thermal (needs fuel fields)
   const selectedPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
   const selectedPlant = plants.find((p) => p.plantCode === selectedPlantCode);
   const isThermal = selectedPlant?.classificationType?.toLowerCase() === 'thermal';
@@ -145,38 +132,28 @@ export default function PlantUnitPage() {
         title="Plant Units"
         subtitle="Manage generating units within each power plant"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Plant Units' }]}
-        action={{ label: 'Add Plant Unit', onClick: openCreate, icon: <Add /> }}
+        action={canCreate ? { label: 'Add Plant Unit', onClick: openCreate, icon: <Add /> } : undefined}
       />
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Filter Bar */}
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ py: '12px !important' }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             <FilterList sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
-            <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">
-              Filter:
-            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">Filter:</Typography>
             <FormControl size="small" sx={{ minWidth: 240 }}>
               <InputLabel>Power Plant</InputLabel>
-              <Select
-                label="Power Plant"
-                value={filterPlantCode}
-                onChange={(e) => setFilterPlantCode(e.target.value)}
-              >
+              <Select label="Power Plant" value={filterPlantCode}
+                onChange={(e) => setFilterPlantCode(e.target.value)}>
                 <MenuItem value="">All Plants</MenuItem>
                 {plants.map((p) => (
-                  <MenuItem key={p.id} value={p.plantCode}>
-                    {p.plantName} ({p.plantCode})
-                  </MenuItem>
+                  <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                 ))}
               </Select>
             </FormControl>
             {filterPlantCode && (
-              <Button size="small" variant="outlined" onClick={() => setFilterPlantCode('')}>
-                Clear
-              </Button>
+              <Button size="small" variant="outlined" onClick={() => setFilterPlantCode('')}>Clear</Button>
             )}
           </Stack>
         </CardContent>
@@ -230,7 +207,8 @@ export default function PlantUnitPage() {
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.unitName}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip label={row.unitCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
+                        <Chip label={row.unitCode} size="small" variant="outlined"
+                          sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -239,12 +217,9 @@ export default function PlantUnitPage() {
                       </TableCell>
                       <TableCell>
                         {row.fuelConfiguration ? (
-                          <Chip
-                            label={row.fuelConfiguration}
-                            size="small"
+                          <Chip label={row.fuelConfiguration} size="small"
                             color={row.fuelConfiguration === 'Dual' ? 'secondary' : 'default'}
-                            sx={{ fontWeight: 500 }}
-                          />
+                            sx={{ fontWeight: 500 }} />
                         ) : (
                           <Typography variant="caption" color="text.disabled">N/A</Typography>
                         )}
@@ -261,16 +236,20 @@ export default function PlantUnitPage() {
                         <Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title="Delete">
+                            <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -281,7 +260,6 @@ export default function PlantUnitPage() {
         </CardContent>
       </Card>
 
-      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editTarget ? 'Edit Plant Unit' : 'Add Plant Unit'}
@@ -289,100 +267,63 @@ export default function PlantUnitPage() {
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
-            {/* Plant — shown on create, locked/display on edit */}
             <Grid size={{ xs: 12 }}>
               <FormControl fullWidth required disabled={!!editTarget}>
                 <InputLabel>Power Plant</InputLabel>
-                <Select
-                  label="Power Plant"
+                <Select label="Power Plant"
                   value={editTarget ? editTarget.plantCode : form.plantCode}
-                  onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}
-                >
+                  onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
                   {plants.map((p) => (
-                    <MenuItem key={p.id} value={p.plantCode}>
-                      {p.plantName} ({p.plantCode})
-                    </MenuItem>
+                    <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-
-            {/* Unit Name & Code */}
             <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                label="Unit Name"
-                value={activeForm.unitName}
+              <TextField label="Unit Name" value={activeForm.unitName}
                 onChange={(e) => editTarget
                   ? setUpdateForm({ ...updateForm, unitName: e.target.value })
-                  : setForm({ ...form, unitName: e.target.value })
-                }
-                fullWidth required
-                placeholder="e.g. Unit 1, Turbine A"
-              />
+                  : setForm({ ...form, unitName: e.target.value })}
+                fullWidth required placeholder="e.g. Unit 1, Turbine A" />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Unit Code"
-                value={activeForm.unitCode}
+              <TextField label="Unit Code" value={activeForm.unitCode}
                 onChange={(e) => editTarget
                   ? setUpdateForm({ ...updateForm, unitCode: e.target.value.toUpperCase() })
-                  : setForm({ ...form, unitCode: e.target.value.toUpperCase() })
-                }
-                fullWidth required
-                placeholder="e.g. U1"
-                slotProps={{ htmlInput: { maxLength: 20 } }}
-              />
+                  : setForm({ ...form, unitCode: e.target.value.toUpperCase() })}
+                fullWidth required placeholder="e.g. U1"
+                slotProps={{ htmlInput: { maxLength: 20 } }} />
             </Grid>
-
-            {/* Capacity */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Installed Capacity (MW)"
-                type="number"
+              <TextField label="Installed Capacity (MW)" type="number"
                 value={activeForm.installedCapacity || ''}
                 onChange={(e) => editTarget
                   ? setUpdateForm({ ...updateForm, installedCapacity: Number(e.target.value) })
-                  : setForm({ ...form, installedCapacity: Number(e.target.value) })
-                }
+                  : setForm({ ...form, installedCapacity: Number(e.target.value) })}
                 fullWidth required
-                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-              />
+                slotProps={{ htmlInput: { min: 0, step: 0.01 } }} />
             </Grid>
-
-            {/* Fuel fields — only for thermal plants */}
             {isThermal && (
               <>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth>
                     <InputLabel>Fuel Configuration</InputLabel>
-                    <Select
-                      label="Fuel Configuration"
-                      value={activeForm.fuelConfiguration}
+                    <Select label="Fuel Configuration" value={activeForm.fuelConfiguration}
                       onChange={(e) => editTarget
                         ? setUpdateForm({ ...updateForm, fuelConfiguration: e.target.value })
-                        : setForm({ ...form, fuelConfiguration: e.target.value })
-                      }
-                    >
-                      {FUEL_CONFIGS.map((f) => (
-                        <MenuItem key={f} value={f}>{f}</MenuItem>
-                      ))}
+                        : setForm({ ...form, fuelConfiguration: e.target.value })}>
+                      {FUEL_CONFIGS.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth>
                     <InputLabel>Fuel Type</InputLabel>
-                    <Select
-                      label="Fuel Type"
-                      value={activeForm.fuelType}
+                    <Select label="Fuel Type" value={activeForm.fuelType}
                       onChange={(e) => editTarget
                         ? setUpdateForm({ ...updateForm, fuelType: e.target.value })
-                        : setForm({ ...form, fuelType: e.target.value })
-                      }
-                    >
-                      {FUEL_TYPES.map((f) => (
-                        <MenuItem key={f} value={f}>{f}</MenuItem>
-                      ))}
+                        : setForm({ ...form, fuelType: e.target.value })}>
+                      {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -393,30 +334,24 @@ export default function PlantUnitPage() {
         <Divider />
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
-            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              variant="contained"
-              disabled={saving || !isFormValid}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-            >
-              {saving ? 'Saving...' : editTarget ? 'Update Unit' : 'Add Unit'}
-            </Button>
+            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
+            {(editTarget ? canEdit : canCreate) && (
+              <Button onClick={handleSave} variant="contained"
+                disabled={saving || !isFormValid}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+                {saving ? 'Saving...' : editTarget ? 'Update Unit' : 'Add Unit'}
+              </Button>
+            )}
           </Stack>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Plant Unit"
         message={`Are you sure you want to delete "${deleteTarget?.unitName}" from ${deleteTarget?.plantName}?`}
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   );

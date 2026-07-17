@@ -18,28 +18,20 @@ import type {
   PowerPlant, PowerPlantForm,
   PlantClassification, GenerationType, PlantLocation,
 } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const CLASSIFICATION_COLORS: Record<string, 'error' | 'primary' | 'warning' | 'success' | 'default'> = {
-  thermal: 'error',
-  hydro: 'primary',
-  solar: 'warning',
-  wind: 'success',
+  thermal: 'error', hydro: 'primary', solar: 'warning', wind: 'success',
 };
 
 const emptyForm: PowerPlantForm = {
-  plantName: '',
-  plantCode: '',
-  classificationCode: 0,
-  generationTypeCode: 0,
-  plantOwner: '',
-  numberOfUnits: 0,
-  installedCapacity: 0,
-  standardMeasuringUnit: 0,
-  commissioningDate: '',
-  locationCode: 0,
+  plantName: '', plantCode: '', classificationCode: 0, generationTypeCode: 0,
+  plantOwner: '', numberOfUnits: 0, installedCapacity: 0, standardMeasuringUnit: 0,
+  commissioningDate: '', locationCode: 0,
 };
 
 export default function PowerPlantPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [rows, setRows] = useState<PowerPlant[]>([]);
   const [classifications, setClassifications] = useState<PlantClassification[]>([]);
   const [generationTypes, setGenerationTypes] = useState<GenerationType[]>([]);
@@ -48,17 +40,14 @@ export default function PowerPlantPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PowerPlant | null>(null);
   const [form, setForm] = useState<PowerPlantForm>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<PowerPlant | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Load reference data
   useEffect(() => {
     Promise.all([
       plantClassificationApi.getAll(),
@@ -86,23 +75,16 @@ export default function PowerPlantPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Cascade: filter generation types when classification changes
   useEffect(() => {
     if (form.classificationCode) {
-      setFilteredGenTypes(
-        generationTypes.filter((g) => g.classificationCode === form.classificationCode)
-      );
+      setFilteredGenTypes(generationTypes.filter((g) => g.classificationCode === form.classificationCode));
     } else {
       setFilteredGenTypes([]);
     }
   }, [form.classificationCode, generationTypes]);
 
   const handleClassificationChange = (code: number) => {
-    setForm((prev) => ({
-      ...prev,
-      classificationCode: code,
-      generationTypeCode: 0,
-    }));
+    setForm((prev) => ({ ...prev, classificationCode: code, generationTypeCode: 0 }));
   };
 
   const handleGenerationTypeChange = (code: number) => {
@@ -122,16 +104,11 @@ export default function PowerPlantPage() {
   const openEdit = (row: PowerPlant) => {
     setEditTarget(row);
     setForm({
-      plantName: row.plantName,
-      plantCode: row.plantCode,
-      classificationCode: row.classificationCode,
-      generationTypeCode: row.generationTypeCode,
-      plantOwner: row.plantOwner,
-      numberOfUnits: row.numberOfUnits,
-      installedCapacity: row.installedCapacity,
-      standardMeasuringUnit: row.standardMeasuringUnit,
-      commissioningDate: row.commissioningDate.split('T')[0],
-      locationCode: row.locationCode,
+      plantName: row.plantName, plantCode: row.plantCode,
+      classificationCode: row.classificationCode, generationTypeCode: row.generationTypeCode,
+      plantOwner: row.plantOwner, numberOfUnits: row.numberOfUnits,
+      installedCapacity: row.installedCapacity, standardMeasuringUnit: row.standardMeasuringUnit,
+      commissioningDate: row.commissioningDate.split('T')[0], locationCode: row.locationCode,
     });
     setDialogOpen(true);
   };
@@ -168,13 +145,9 @@ export default function PowerPlantPage() {
   };
 
   const isFormValid =
-    form.plantName.trim() &&
-    form.plantCode.trim() &&
-    form.classificationCode > 0 &&
-    form.generationTypeCode > 0 &&
-    form.locationCode > 0 &&
-    form.commissioningDate &&
-    form.installedCapacity > 0;
+    form.plantName.trim() && form.plantCode.trim() &&
+    form.classificationCode > 0 && form.generationTypeCode > 0 &&
+    form.locationCode > 0 && form.commissioningDate && form.installedCapacity > 0;
 
   return (
     <Box>
@@ -182,7 +155,7 @@ export default function PowerPlantPage() {
         title="Power Plants"
         subtitle="Manage all registered power plants across Hydro, Thermal, Solar and Wind"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Power Plants' }]}
-        action={{ label: 'Add Power Plant', onClick: openCreate, icon: <Add /> }}
+        action={canCreate ? { label: 'Add Power Plant', onClick: openCreate, icon: <Add /> } : undefined}
       />
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
@@ -230,35 +203,25 @@ export default function PowerPlantPage() {
                   rows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {row.plantName}
-                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.plantName}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip label={row.plantCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
+                        <Chip label={row.plantCode} size="small" variant="outlined"
+                          sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={row.classificationType}
-                          size="small"
+                        <Chip label={row.classificationType} size="small"
                           color={CLASSIFICATION_COLORS[row.classificationType.toLowerCase()] ?? 'default'}
-                          sx={{ fontWeight: 600, textTransform: 'capitalize' }}
-                        />
+                          sx={{ fontWeight: 600, textTransform: 'capitalize' }} />
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {row.generationTypeName}
-                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.generationTypeName}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {row.plantOwner}
-                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantOwner}</Typography>
                       </TableCell>
                       <TableCell align="center">
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {row.numberOfUnits}
-                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.numberOfUnits}</Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -266,9 +229,7 @@ export default function PowerPlantPage() {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {row.locationName}
-                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.locationName}</Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -278,16 +239,20 @@ export default function PowerPlantPage() {
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title="Delete">
+                            <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -298,7 +263,6 @@ export default function PowerPlantPage() {
         </CardContent>
       </Card>
 
-      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editTarget ? 'Edit Power Plant' : 'Add Power Plant'}
@@ -306,40 +270,24 @@ export default function PowerPlantPage() {
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
-            {/* Row 1 — Plant Name & Code */}
             <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                label="Plant Name"
-                value={form.plantName}
+              <TextField label="Plant Name" value={form.plantName}
                 onChange={(e) => setForm({ ...form, plantName: e.target.value })}
-                fullWidth required
-                placeholder="e.g. Akosombo Hydro Power Plant"
-              />
+                fullWidth required placeholder="e.g. Akosombo Hydro Power Plant" />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Plant Code"
-                value={form.plantCode}
+              <TextField label="Plant Code" value={form.plantCode}
                 onChange={(e) => setForm({ ...form, plantCode: e.target.value.toUpperCase() })}
-                fullWidth required
-                placeholder="e.g. AKS"
-                slotProps={{ htmlInput: { maxLength: 20 } }}
-              />
+                fullWidth required placeholder="e.g. AKS"
+                slotProps={{ htmlInput: { maxLength: 20 } }} />
             </Grid>
-
-            {/* Row 2 — Classification & Generation Type (cascading) */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required>
                 <InputLabel>Plant Classification</InputLabel>
-                <Select
-                  label="Plant Classification"
-                  value={form.classificationCode || ''}
-                  onChange={(e) => handleClassificationChange(Number(e.target.value))}
-                >
+                <Select label="Plant Classification" value={form.classificationCode || ''}
+                  onChange={(e) => handleClassificationChange(Number(e.target.value))}>
                   {classifications.map((c) => (
-                    <MenuItem key={c.id} value={c.classificationCode}>
-                      {c.classificationType}
-                    </MenuItem>
+                    <MenuItem key={c.id} value={c.classificationCode}>{c.classificationType}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -347,125 +295,81 @@ export default function PowerPlantPage() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!form.classificationCode}>
                 <InputLabel>Generation Type</InputLabel>
-                <Select
-                  label="Generation Type"
-                  value={form.generationTypeCode || ''}
-                  onChange={(e) => handleGenerationTypeChange(Number(e.target.value))}
-                >
+                <Select label="Generation Type" value={form.generationTypeCode || ''}
+                  onChange={(e) => handleGenerationTypeChange(Number(e.target.value))}>
                   {filteredGenTypes.length === 0 ? (
-                    <MenuItem disabled value="">
-                      <em>Select a classification first</em>
-                    </MenuItem>
+                    <MenuItem disabled value=""><em>Select a classification first</em></MenuItem>
                   ) : (
                     filteredGenTypes.map((g) => (
-                      <MenuItem key={g.id} value={g.typeCode}>
-                        {g.typeName}
-                      </MenuItem>
+                      <MenuItem key={g.id} value={g.typeCode}>{g.typeName}</MenuItem>
                     ))
                   )}
                 </Select>
               </FormControl>
             </Grid>
-
-            {/* Row 3 — Owner & Location */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Plant Owner"
-                value={form.plantOwner}
+              <TextField label="Plant Owner" value={form.plantOwner}
                 onChange={(e) => setForm({ ...form, plantOwner: e.target.value })}
-                fullWidth
-                placeholder="e.g. Volta River Authority"
-              />
+                fullWidth placeholder="e.g. Volta River Authority" />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required>
                 <InputLabel>Location</InputLabel>
-                <Select
-                  label="Location"
-                  value={form.locationCode || ''}
-                  onChange={(e) => handleLocationChange(Number(e.target.value))}
-                >
+                <Select label="Location" value={form.locationCode || ''}
+                  onChange={(e) => handleLocationChange(Number(e.target.value))}>
                   {locations.map((l) => (
-                    <MenuItem key={l.id} value={l.locationCode}>
-                      {l.locationName}
-                    </MenuItem>
+                    <MenuItem key={l.id} value={l.locationCode}>{l.locationName}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-
-            {/* Row 4 — Capacity & Units */}
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Installed Capacity (MW)"
-                type="number"
+              <TextField label="Installed Capacity (MW)" type="number"
                 value={form.installedCapacity || ''}
                 onChange={(e) => setForm({ ...form, installedCapacity: Number(e.target.value) })}
-                fullWidth required
-                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-              />
+                fullWidth required slotProps={{ htmlInput: { min: 0, step: 0.01 } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Standard Measuring Unit"
-                type="number"
+              <TextField label="Standard Measuring Unit" type="number"
                 value={form.standardMeasuringUnit || ''}
                 onChange={(e) => setForm({ ...form, standardMeasuringUnit: Number(e.target.value) })}
-                fullWidth
-                slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
-              />
+                fullWidth slotProps={{ htmlInput: { min: 0, step: 0.01 } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Number of Units"
-                type="number"
+              <TextField label="Number of Units" type="number"
                 value={form.numberOfUnits || ''}
                 onChange={(e) => setForm({ ...form, numberOfUnits: Number(e.target.value) })}
-                fullWidth
-                slotProps={{ htmlInput: { min: 0 } }}
-              />
+                fullWidth slotProps={{ htmlInput: { min: 0 } }} />
             </Grid>
-
-            {/* Row 5 — Commissioning Date */}
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="Commissioning Date"
-                type="date"
+              <TextField label="Commissioning Date" type="date"
                 value={form.commissioningDate}
                 onChange={(e) => setForm({ ...form, commissioningDate: e.target.value })}
-                fullWidth required
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
+                fullWidth required slotProps={{ inputLabel: { shrink: true } }} />
             </Grid>
           </Grid>
         </DialogContent>
         <Divider />
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
-            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              variant="contained"
-              disabled={saving || !isFormValid}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-            >
-              {saving ? 'Saving...' : editTarget ? 'Update Plant' : 'Add Plant'}
-            </Button>
+            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
+            {(editTarget ? canEdit : canCreate) && (
+              <Button onClick={handleSave} variant="contained"
+                disabled={saving || !isFormValid}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+                {saving ? 'Saving...' : editTarget ? 'Update Plant' : 'Add Plant'}
+              </Button>
+            )}
           </Stack>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Power Plant"
         message={`Are you sure you want to delete "${deleteTarget?.plantName}"? This will not delete associated units, systems or equipment.`}
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   );

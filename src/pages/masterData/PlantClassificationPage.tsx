@@ -11,30 +11,25 @@ import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { plantClassificationApi } from '../../api/masterData/plantClassificationApi';
 import type { PlantClassification, PlantClassificationForm } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const CLASSIFICATION_COLORS: Record<string, 'primary' | 'error' | 'warning' | 'success' | 'default'> = {
-  thermal: 'error',
-  hydro: 'primary',
-  solar: 'warning',
-  wind: 'success',
+  thermal: 'error', hydro: 'primary', solar: 'warning', wind: 'success',
 };
 
-const emptyForm: PlantClassificationForm = {
-  classificationType: '',
-};
+const emptyForm: PlantClassificationForm = { classificationType: '' };
 
 export default function PlantClassificationPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [rows, setRows] = useState<PlantClassification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantClassification | null>(null);
   const [form, setForm] = useState<PlantClassificationForm>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<PlantClassification | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -104,7 +99,7 @@ export default function PlantClassificationPage() {
         title="Plant Classifications"
         subtitle="Manage plant classification types (Thermal, Hydro, Solar, Wind)"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Plant Classifications' }]}
-        action={{ label: 'Add Classification', onClick: openCreate, icon: <Add /> }}
+        action={canCreate ? { label: 'Add Classification', onClick: openCreate, icon: <Add /> } : undefined}
       />
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
@@ -159,16 +154,20 @@ export default function PlantClassificationPage() {
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title="Delete">
+                            <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -179,7 +178,6 @@ export default function PlantClassificationPage() {
         </CardContent>
       </Card>
 
-      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editTarget ? 'Edit Classification' : 'Add Classification'}
@@ -191,9 +189,7 @@ export default function PlantClassificationPage() {
             placeholder="e.g. Thermal, Hydro, Solar, Wind"
             value={form.classificationType}
             onChange={(e) => setForm({ classificationType: e.target.value })}
-            fullWidth
-            required
-            autoFocus
+            fullWidth required autoFocus
             helperText={
               editTarget
                 ? 'Classification code cannot be changed after creation.'
@@ -204,30 +200,24 @@ export default function PlantClassificationPage() {
         <Divider />
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
-            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              variant="contained"
-              disabled={saving || !isFormValid}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-            >
-              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Classification'}
-            </Button>
+            <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
+            {(editTarget ? canEdit : canCreate) && (
+              <Button onClick={handleSave} variant="contained"
+                disabled={saving || !isFormValid}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+                {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Classification'}
+              </Button>
+            )}
           </Stack>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Classification"
         message={`Are you sure you want to delete "${deleteTarget?.classificationType}"? This cannot be undone.`}
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   );

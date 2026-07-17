@@ -18,6 +18,7 @@ import type {
   PlantUnitEquipment, PlantUnitEquipmentForm, UpdatePlantUnitEquipmentForm,
   PowerPlant, PlantUnit, PlantUnitSystem, PlantUnitSubSystem,
 } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: PlantUnitEquipmentForm = {
   plantCode: '', unitCode: '', systemCode: '', subSystemCode: '',
@@ -29,6 +30,7 @@ const emptyUpdateForm: UpdatePlantUnitEquipmentForm = {
 };
 
 export default function PlantUnitEquipmentPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [rows, setRows] = useState<PlantUnitEquipment[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
@@ -73,8 +75,7 @@ export default function PlantUnitEquipmentPage() {
 
   const handleFormPlantChange = (plantCode: string) => {
     setFormUnits(units.filter((u) => u.plantCode === plantCode));
-    setFormSystems([]);
-    setFormSubSystems([]);
+    setFormSystems([]); setFormSubSystems([]);
     setForm((prev) => ({ ...prev, plantCode, unitCode: '', systemCode: '', subSystemCode: '' }));
   };
 
@@ -90,11 +91,8 @@ export default function PlantUnitEquipmentPage() {
   };
 
   const openCreate = () => {
-    setEditTarget(null);
-    setForm(emptyForm);
-    setFormUnits([]);
-    setFormSystems([]);
-    setFormSubSystems([]);
+    setEditTarget(null); setForm(emptyForm);
+    setFormUnits([]); setFormSystems([]); setFormSubSystems([]);
     setDialogOpen(true);
   };
 
@@ -112,8 +110,7 @@ export default function PlantUnitEquipmentPage() {
       } else {
         await plantUnitEquipmentApi.create(form);
       }
-      setDialogOpen(false);
-      fetchAll();
+      setDialogOpen(false); fetchAll();
     } catch {
       setError('Failed to save.');
     } finally {
@@ -126,8 +123,7 @@ export default function PlantUnitEquipmentPage() {
     setDeleting(true);
     try {
       await plantUnitEquipmentApi.delete(deleteTarget.id);
-      setDeleteTarget(null);
-      fetchAll();
+      setDeleteTarget(null); fetchAll();
     } catch {
       setError('Failed to delete.');
     } finally {
@@ -149,7 +145,7 @@ export default function PlantUnitEquipmentPage() {
         title="Unit Equipment"
         subtitle="Manage equipment / devices within each unit sub-system"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Unit Equipment' }]}
-        action={{ label: 'Add Equipment', onClick: openCreate, icon: <Add /> }}
+        action={canCreate ? { label: 'Add Equipment', onClick: openCreate, icon: <Add /> } : undefined}
       />
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -210,12 +206,30 @@ export default function PlantUnitEquipmentPage() {
                       <Typography variant="caption" color="text.secondary">{row.subSystemName}</Typography>
                     </TableCell>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.equipmentName}</Typography></TableCell>
-                    <TableCell><Chip label={row.equipmentCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} /></TableCell>
-                    <TableCell><Chip label={row.multiplier} size="small" color={row.multiplier !== 1 ? 'secondary' : 'default'} variant="outlined" /></TableCell>
-                    <TableCell><Typography variant="body2">{new Date(row.createdOn).toLocaleDateString('en-GB')}</Typography></TableCell>
+                    <TableCell>
+                      <Chip label={row.equipmentCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={row.multiplier} size="small" color={row.multiplier !== 1 ? 'secondary' : 'default'} variant="outlined" />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{new Date(row.createdOn).toLocaleDateString('en-GB')}</Typography>
+                    </TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(row)} color="primary"><Edit fontSize="small" /></IconButton></Tooltip>
-                      <Tooltip title="Delete"><IconButton size="small" onClick={() => setDeleteTarget(row)} color="error"><Delete fontSize="small" /></IconButton></Tooltip>
+                      {canEdit && (
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canDelete && (
+                        <Tooltip title="Delete">
+                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -230,11 +244,11 @@ export default function PlantUnitEquipmentPage() {
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
-            {/* Hierarchy selectors — locked on edit */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!!editTarget}>
                 <InputLabel>Plant</InputLabel>
-                <Select label="Plant" value={editTarget ? editTarget.plantCode : form.plantCode} onChange={(e) => handleFormPlantChange(e.target.value)}>
+                <Select label="Plant" value={editTarget ? editTarget.plantCode : form.plantCode}
+                  onChange={(e) => handleFormPlantChange(e.target.value)}>
                   {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
                 </Select>
               </FormControl>
@@ -242,7 +256,8 @@ export default function PlantUnitEquipmentPage() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!!editTarget || !form.plantCode}>
                 <InputLabel>Unit</InputLabel>
-                <Select label="Unit" value={editTarget ? editTarget.unitCode : form.unitCode} onChange={(e) => handleFormUnitChange(e.target.value)}>
+                <Select label="Unit" value={editTarget ? editTarget.unitCode : form.unitCode}
+                  onChange={(e) => handleFormUnitChange(e.target.value)}>
                   {(editTarget ? units.filter(u => u.plantCode === editTarget.plantCode) : formUnits).map((u) => (
                     <MenuItem key={u.id} value={u.unitCode}>{u.unitName}</MenuItem>
                   ))}
@@ -252,7 +267,8 @@ export default function PlantUnitEquipmentPage() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!!editTarget || !form.unitCode}>
                 <InputLabel>System</InputLabel>
-                <Select label="System" value={editTarget ? editTarget.systemCode : form.systemCode} onChange={(e) => handleFormSystemChange(e.target.value)}>
+                <Select label="System" value={editTarget ? editTarget.systemCode : form.systemCode}
+                  onChange={(e) => handleFormSystemChange(e.target.value)}>
                   {(editTarget ? systems.filter(s => s.plantCode === editTarget.plantCode && s.unitCode === editTarget.unitCode) : formSystems).map((s) => (
                     <MenuItem key={s.id} value={s.systemCode}>{s.systemName}</MenuItem>
                   ))}
@@ -262,53 +278,42 @@ export default function PlantUnitEquipmentPage() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!!editTarget || !form.systemCode}>
                 <InputLabel>Sub-System</InputLabel>
-                <Select label="Sub-System" value={editTarget ? editTarget.subSystemCode : form.subSystemCode} onChange={(e) => setForm((prev) => ({ ...prev, subSystemCode: e.target.value }))}>
-                  {(editTarget ? subSystems.filter(ss => ss.plantCode === editTarget.plantCode && ss.unitCode === editTarget.unitCode && ss.systemCode === editTarget.systemCode) : formSubSystems).map((ss) => (
+                <Select label="Sub-System" value={editTarget ? editTarget.subSystemCode : form.subSystemCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, subSystemCode: e.target.value }))}>
+                  {(editTarget
+                    ? subSystems.filter(ss => ss.plantCode === editTarget.plantCode && ss.unitCode === editTarget.unitCode && ss.systemCode === editTarget.systemCode)
+                    : formSubSystems
+                  ).map((ss) => (
                     <MenuItem key={ss.id} value={ss.subSystemCode}>{ss.subSystemName}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-
-            {/* Equipment fields — editable on both create and edit */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Equipment Name"
-                value={activeEquipmentName}
+              <TextField label="Equipment Name" value={activeEquipmentName}
                 onChange={(e) => editTarget
                   ? setUpdateForm({ ...updateForm, equipmentName: e.target.value })
-                  : setForm({ ...form, equipmentName: e.target.value })
-                }
-                fullWidth required placeholder="e.g. Discharge Valve"
-              />
+                  : setForm({ ...form, equipmentName: e.target.value })}
+                fullWidth required placeholder="e.g. Discharge Valve" />
             </Grid>
             <Grid size={{ xs: 12, sm: 3 }}>
-              <TextField
-                label="Equipment Code"
-                value={activeEquipmentCode}
+              <TextField label="Equipment Code" value={activeEquipmentCode}
                 onChange={(e) => editTarget
                   ? setUpdateForm({ ...updateForm, equipmentCode: e.target.value.toUpperCase() })
-                  : setForm({ ...form, equipmentCode: e.target.value.toUpperCase() })
-                }
+                  : setForm({ ...form, equipmentCode: e.target.value.toUpperCase() })}
                 fullWidth required placeholder="e.g. DV-01"
-                slotProps={{ htmlInput: { maxLength: 30 } }}
-              />
+                slotProps={{ htmlInput: { maxLength: 30 } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 3 }}>
-              <TextField
-                label="Multiplier"
-                type="number"
-                value={activeMultiplier}
+              <TextField label="Multiplier" type="number" value={activeMultiplier}
                 onChange={(e) => editTarget
                   ? setUpdateForm({ ...updateForm, multiplier: Number(e.target.value) })
-                  : setForm({ ...form, multiplier: Number(e.target.value) })
-                }
+                  : setForm({ ...form, multiplier: Number(e.target.value) })}
                 fullWidth
                 slotProps={{
                   htmlInput: { min: 0, step: 0.01 },
                   input: { startAdornment: <InputAdornment position="start">×</InputAdornment> },
-                }}
-              />
+                }} />
             </Grid>
           </Grid>
         </DialogContent>
@@ -316,10 +321,13 @@ export default function PlantUnitEquipmentPage() {
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
             <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
-            <Button onClick={handleSave} variant="contained" disabled={saving || !isFormValid}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
-              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Equipment'}
-            </Button>
+            {(editTarget ? canEdit : canCreate) && (
+              <Button onClick={handleSave} variant="contained"
+                disabled={saving || !isFormValid}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+                {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Equipment'}
+              </Button>
+            )}
           </Stack>
         </DialogActions>
       </Dialog>

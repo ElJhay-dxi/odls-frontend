@@ -12,11 +12,13 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { balanceOfPlantApi } from '../../api/masterData/balanceOfPlantApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import type { BalanceOfPlant, BalanceOfPlantForm, UpdateBalanceOfPlantForm, PowerPlant } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: BalanceOfPlantForm = { plantCode: '', bopName: '', bopCode: '' };
 const emptyUpdateForm: UpdateBalanceOfPlantForm = { bopName: '', bopCode: '' };
 
 export default function BalanceOfPlantPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [rows, setRows] = useState<BalanceOfPlant[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +79,7 @@ export default function BalanceOfPlantPage() {
 
   return (
     <Box>
-      <PageHeader title="Balance of Plant" subtitle="Manage BOP entries for each power plant" breadcrumbs={[{ label: 'Master Data' }, { label: 'Balance of Plant' }]} action={{ label: 'Add BOP', onClick: openCreate, icon: <Add /> }} />
+      <PageHeader title="Balance of Plant" subtitle="Manage BOP entries for each power plant" breadcrumbs={[{ label: 'Master Data' }, { label: 'Balance of Plant' }]} action={canCreate ? { label: 'Add BOP', onClick: openCreate, icon: <Add /> } : undefined} />
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
       <Card>
         <CardContent sx={{ p: 0 }}>
@@ -106,8 +108,8 @@ export default function BalanceOfPlantPage() {
                     <TableCell><Typography variant="body2">{row.createdByName}</Typography><Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography></TableCell>
                     <TableCell><Typography variant="body2">{new Date(row.createdOn).toLocaleDateString('en-GB')}</Typography></TableCell>
                     <TableCell align="right">
-                      <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(row)} color="primary"><Edit fontSize="small" /></IconButton></Tooltip>
-                      <Tooltip title="Delete"><IconButton size="small" onClick={() => setDeleteTarget(row)} color="error"><Delete fontSize="small" /></IconButton></Tooltip>
+                      {canEdit && <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(row)} color="primary"><Edit fontSize="small" /></IconButton></Tooltip>}
+                      {canDelete && <Tooltip title="Delete"><IconButton size="small" onClick={() => setDeleteTarget(row)} color="error"><Delete fontSize="small" /></IconButton></Tooltip>}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -151,9 +153,9 @@ export default function BalanceOfPlantPage() {
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
             <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
-            <Button onClick={handleSave} variant="contained" disabled={saving || !isFormValid} startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+            {(editTarget ? canEdit : canCreate) && <Button onClick={handleSave} variant="contained" disabled={saving || !isFormValid} startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
               {saving ? 'Saving...' : editTarget ? 'Update' : 'Add BOP'}
-            </Button>
+            </Button>}
           </Stack>
         </DialogActions>
       </Dialog>

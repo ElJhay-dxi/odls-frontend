@@ -14,20 +14,16 @@ import { plantBusApi } from '../../api/hourly/hourlyBusVoltageApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import type { PlantBus } from '../../types/plantBus';
 import type { PowerPlant } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
-interface CreateForm {
-  plantCode: string;
-  busCode: string;
-  busName: string;
-}
-interface UpdateForm {
-  busName: string;
-}
+interface CreateForm { plantCode: string; busCode: string; busName: string; }
+interface UpdateForm { busName: string; }
 
 const emptyCreate: CreateForm = { plantCode: '', busCode: '', busName: '' };
 const emptyUpdate: UpdateForm = { busName: '' };
 
 export default function PlantBusPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [allRows, setAllRows] = useState<PlantBus[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,7 +42,6 @@ export default function PlantBusPage() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    // All plant types can have buses — no classification filter
     powerPlantApi.getAll().then((res) => setPlants(res.data));
   }, []);
 
@@ -106,8 +101,7 @@ export default function PlantBusPage() {
       fetchRows();
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
-      const msg = axiosErr.response?.data?.message;
-      setSaveError(msg ?? 'Failed to save.');
+      setSaveError(axiosErr.response?.data?.message ?? 'Failed to save.');
     } finally {
       setSaving(false);
     }
@@ -136,7 +130,7 @@ export default function PlantBusPage() {
         title="Plant Bus Master"
         subtitle="Configure bus bars per plant for hourly voltage logging"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Plant Buses' }]}
-        action={{ label: 'Add Bus', onClick: openCreate }}
+        action={canCreate ? { label: 'Add Bus', onClick: openCreate } : undefined}
       />
 
       <Card>
@@ -195,16 +189,20 @@ export default function PlantBusPage() {
                         <Typography variant="caption">{row.createdByName}</Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit name">
-                          <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip title="Edit name">
+                            <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title="Delete">
+                            <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -233,12 +231,10 @@ export default function PlantBusPage() {
                 <Chip label={`${editTarget.busCode}`} size="small" color="primary" variant="outlined" />
               </Stack>
               <TextField
-                label="Bus Name"
-                value={updateForm.busName}
+                label="Bus Name" value={updateForm.busName}
                 onChange={(e) => setUpdateForm({ busName: e.target.value })}
                 fullWidth required autoFocus
-                helperText="The bus code cannot be changed after creation."
-              />
+                helperText="The bus code cannot be changed after creation." />
             </Stack>
           ) : (
             <Grid container spacing={2}>
@@ -254,21 +250,16 @@ export default function PlantBusPage() {
                 </FormControl>
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  label="Bus Code" fullWidth required
+                <TextField label="Bus Code" fullWidth required
                   value={form.busCode}
                   onChange={(e) => setForm((prev) => ({ ...prev, busCode: e.target.value }))}
-                  placeholder="e.g. A1"
-                  helperText="Unique code per plant"
-                />
+                  placeholder="e.g. A1" helperText="Unique code per plant" />
               </Grid>
               <Grid size={{ xs: 12, sm: 8 }}>
-                <TextField
-                  label="Bus Name" fullWidth required
+                <TextField label="Bus Name" fullWidth required
                   value={form.busName}
                   onChange={(e) => setForm((prev) => ({ ...prev, busName: e.target.value }))}
-                  placeholder="e.g. Akosombo Bus"
-                />
+                  placeholder="e.g. Akosombo Bus" />
               </Grid>
             </Grid>
           )}
@@ -276,14 +267,13 @@ export default function PlantBusPage() {
         <Divider />
         <DialogActions sx={{ px: 3, py: 1.5 }}>
           <Button onClick={closeDialog} disabled={saving}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={saving || (editTarget ? !isUpdateValid : !isCreateValid)}
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-          >
-            {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Bus'}
-          </Button>
+          {(editTarget ? canEdit : canCreate) && (
+            <Button variant="contained" onClick={handleSave}
+              disabled={saving || (editTarget ? !isUpdateValid : !isCreateValid)}
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Bus'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
@@ -291,10 +281,8 @@ export default function PlantBusPage() {
         open={!!deleteTarget}
         title="Delete Bus"
         message={`Delete bus #${deleteTarget?.busCode} (${deleteTarget?.busName}) from plant ${deleteTarget?.plantCode}? This cannot be undone.`}
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   );

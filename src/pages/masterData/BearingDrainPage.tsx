@@ -14,6 +14,7 @@ import { bearingDrainApi } from '../../api/hourly/hourlyThermalApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import type { BearingDrain } from '../../types/bearings';
+import { useSectionPermissions } from '../../hooks/usePermission';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 
 interface CreateForm {
@@ -31,6 +32,7 @@ const emptyCreate: CreateForm = { plantCode: '', unitCode: '', drainCode: '', dr
 const emptyUpdate: UpdateForm = { drainName: '' };
 
 export default function BearingDrainPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [allRows, setAllRows] = useState<BearingDrain[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
@@ -159,7 +161,7 @@ export default function BearingDrainPage() {
         title="Bearing Drain Master"
         subtitle="Configure bearing drain sensors per thermal unit"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Bearing Drains' }]}
-        action={{ label: 'Add Drain', onClick: openCreate }}
+        action={canCreate ? { label: 'Add Drain', onClick: openCreate } : undefined}
       />
 
       <Card>
@@ -234,16 +236,20 @@ export default function BearingDrainPage() {
                         <Typography variant="caption">{row.createdByName}</Typography>
                       </TableCell>
                       <TableCell align="right">
+                        {canEdit && (
                         <Tooltip title="Edit name">
                           <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                             <Edit fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        )}
+                        {canDelete && (
                         <Tooltip title="Delete">
                           <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                             <Delete fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -327,6 +333,7 @@ export default function BearingDrainPage() {
         <Divider />
         <DialogActions sx={{ px: 3, py: 1.5 }}>
           <Button onClick={closeDialog} disabled={saving}>Cancel</Button>
+          {(editTarget ? canEdit : canCreate) && (
           <Button
             variant="contained"
             onClick={handleSave}
@@ -335,6 +342,7 @@ export default function BearingDrainPage() {
           >
             {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Drain'}
           </Button>
+          )}
         </DialogActions>
       </Dialog>
 

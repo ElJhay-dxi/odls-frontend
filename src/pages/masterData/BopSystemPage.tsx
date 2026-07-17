@@ -15,6 +15,7 @@ import { balanceOfPlantApi } from '../../api/masterData/balanceOfPlantApi';
 import { bopSystemApi } from '../../api/masterData/bopSystemApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import type { BopSystem, BopSystemForm, PowerPlant, BalanceOfPlant } from '../../types/masterData';
+import { useSectionPermissions } from '../../hooks/usePermission';
 
 const emptyForm: BopSystemForm = {
   plantName: '', plantCode: '',
@@ -25,6 +26,7 @@ const emptyForm: BopSystemForm = {
 export default function BopSystemPage() {
   const { accounts } = useMsal();
   const user = accounts[0];
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
 
   const [rows, setRows] = useState<BopSystem[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
@@ -32,19 +34,16 @@ export default function BopSystemPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
   const [filterPlantCode, setFilterPlantCode] = useState('');
   const [filterBopCode, setFilterBopCode] = useState('');
   const filteredBops = filterPlantCode ? bops.filter((b) => b.plantCode === filterPlantCode) : [];
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<BopSystem | null>(null);
   const [form, setForm] = useState<BopSystemForm>(emptyForm);
   const [formBops, setFormBops] = useState<BalanceOfPlant[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<BopSystem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -140,24 +139,20 @@ export default function BopSystemPage() {
         title="BOP Systems"
         subtitle="Manage systems within each Balance of Plant"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'BOP Systems' }]}
-        action={{ label: 'Add BOP System', onClick: openCreate, icon: <Add /> }}
+        action={canCreate ? { label: 'Add BOP System', onClick: openCreate, icon: <Add /> } : undefined}
       />
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Filter Bar */}
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ py: '12px !important' }}>
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap :'wrap' }} >
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <FilterList sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
             <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">Filter:</Typography>
             <FormControl size="small" sx={{ minWidth: 220 }}>
               <InputLabel>Power Plant</InputLabel>
-              <Select
-                label="Power Plant"
-                value={filterPlantCode}
-                onChange={(e) => { setFilterPlantCode(e.target.value); setFilterBopCode(''); }}
-              >
+              <Select label="Power Plant" value={filterPlantCode}
+                onChange={(e) => { setFilterPlantCode(e.target.value); setFilterBopCode(''); }}>
                 <MenuItem value="">All Plants</MenuItem>
                 {plants.map((p) => (
                   <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
@@ -166,11 +161,8 @@ export default function BopSystemPage() {
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 200 }} disabled={!filterPlantCode}>
               <InputLabel>BOP</InputLabel>
-              <Select
-                label="BOP"
-                value={filterBopCode}
-                onChange={(e) => setFilterBopCode(e.target.value)}
-              >
+              <Select label="BOP" value={filterBopCode}
+                onChange={(e) => setFilterBopCode(e.target.value)}>
                 <MenuItem value="">All BOPs</MenuItem>
                 {filteredBops.map((b) => (
                   <MenuItem key={b.id} value={b.bopCode}>{b.bopName}</MenuItem>
@@ -178,7 +170,8 @@ export default function BopSystemPage() {
               </Select>
             </FormControl>
             {filterPlantCode && (
-              <Button size="small" variant="outlined" onClick={() => { setFilterPlantCode(''); setFilterBopCode(''); }}>
+              <Button size="small" variant="outlined"
+                onClick={() => { setFilterPlantCode(''); setFilterBopCode(''); }}>
                 Clear
               </Button>
             )}
@@ -237,28 +230,31 @@ export default function BopSystemPage() {
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.systemName}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip label={row.systemCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
+                        <Chip label={row.systemCode} size="small" variant="outlined"
+                          sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">{row.createdByName}</Typography>
                         <Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {new Date(row.createdOn).toLocaleDateString('en-GB')}
-                        </Typography>
+                        <Typography variant="body2">{new Date(row.createdOn).toLocaleDateString('en-GB')}</Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {canEdit && (
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title="Delete">
+                            <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -269,7 +265,6 @@ export default function BopSystemPage() {
         </CardContent>
       </Card>
 
-      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editTarget ? 'Edit BOP System' : 'Add BOP System'}
@@ -280,12 +275,8 @@ export default function BopSystemPage() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required>
                 <InputLabel>Power Plant</InputLabel>
-                <Select
-                  label="Power Plant"
-                  value={form.plantCode}
-                  onChange={(e) => handleFormPlantChange(e.target.value)}
-                  disabled={!!editTarget}
-                >
+                <Select label="Power Plant" value={form.plantCode}
+                  onChange={(e) => handleFormPlantChange(e.target.value)} disabled={!!editTarget}>
                   {plants.map((p) => (
                     <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                   ))}
@@ -295,12 +286,8 @@ export default function BopSystemPage() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!form.plantCode}>
                 <InputLabel>Balance of Plant</InputLabel>
-                <Select
-                  label="Balance of Plant"
-                  value={form.bopCode}
-                  onChange={(e) => handleFormBopChange(e.target.value)}
-                  disabled={!!editTarget}
-                >
+                <Select label="Balance of Plant" value={form.bopCode}
+                  onChange={(e) => handleFormBopChange(e.target.value)} disabled={!!editTarget}>
                   {formBops.length === 0 ? (
                     <MenuItem disabled value=""><em>Select a plant first</em></MenuItem>
                   ) : (
@@ -312,23 +299,15 @@ export default function BopSystemPage() {
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                label="System Name"
-                value={form.systemName}
+              <TextField label="System Name" value={form.systemName}
                 onChange={(e) => setForm({ ...form, systemName: e.target.value })}
-                fullWidth required
-                placeholder="e.g. Fire Fighting System"
-              />
+                fullWidth required placeholder="e.g. Fire Fighting System" />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="System Code"
-                value={form.systemCode}
+              <TextField label="System Code" value={form.systemCode}
                 onChange={(e) => setForm({ ...form, systemCode: e.target.value.toUpperCase() })}
-                fullWidth required
-                placeholder="e.g. FFS"
-                slotProps={{  htmlInput: {  maxLength: 20, }, }}
-              />
+                fullWidth required placeholder="e.g. FFS"
+                slotProps={{ htmlInput: { maxLength: 20 } }} />
             </Grid>
           </Grid>
         </DialogContent>
@@ -336,14 +315,13 @@ export default function BopSystemPage() {
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
             <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
-            <Button
-              onClick={handleSave}
-              variant="contained"
-              disabled={saving || !isFormValid}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
-            >
-              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add System'}
-            </Button>
+            {(editTarget ? canEdit : canCreate) && (
+              <Button onClick={handleSave} variant="contained"
+                disabled={saving || !isFormValid}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+                {saving ? 'Saving...' : editTarget ? 'Update' : 'Add System'}
+              </Button>
+            )}
           </Stack>
         </DialogActions>
       </Dialog>
@@ -352,10 +330,8 @@ export default function BopSystemPage() {
         open={!!deleteTarget}
         title="Delete BOP System"
         message={`Delete "${deleteTarget?.systemName}" from ${deleteTarget?.bopName}?`}
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />
     </Box>
   );

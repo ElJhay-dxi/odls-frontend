@@ -14,6 +14,7 @@ import { bearingMetalApi } from '../../api/hourly/hourlyThermalApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import type { BearingMetal } from '../../types/bearings';
+import { useSectionPermissions } from '../../hooks/usePermission';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 
 interface CreateForm {
@@ -31,6 +32,7 @@ const emptyCreate: CreateForm = { plantCode: '', unitCode: '', bearingCode: '', 
 const emptyUpdate: UpdateForm = { bearingName: '' };
 
 export default function BearingMetalPage() {
+  const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
   const [allRows, setAllRows] = useState<BearingMetal[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
@@ -164,7 +166,7 @@ export default function BearingMetalPage() {
         title="Bearing Metal Master"
         subtitle="Configure bearing metal sensors per thermal unit"
         breadcrumbs={[{ label: 'Master Data' }, { label: 'Bearing Metals' }]}
-        action={{ label: 'Add Bearing', onClick: openCreate }}
+        action={canCreate ? { label: 'Add Bearing', onClick: openCreate } : undefined}
       />
 
       <Card>
@@ -240,16 +242,20 @@ export default function BearingMetalPage() {
                         <Typography variant="caption">{row.createdByName}</Typography>
                       </TableCell>
                       <TableCell align="right">
+                        {canEdit && (
                         <Tooltip title="Edit name">
                           <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
                             <Edit fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        )}
+                        {canDelete && (
                         <Tooltip title="Delete">
                           <IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}>
                             <Delete fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -335,6 +341,7 @@ export default function BearingMetalPage() {
         <Divider />
         <DialogActions sx={{ px: 3, py: 1.5 }}>
           <Button onClick={closeDialog} disabled={saving}>Cancel</Button>
+          {(editTarget ? canEdit : canCreate) && (
           <Button
             variant="contained"
             onClick={handleSave}
@@ -343,6 +350,7 @@ export default function BearingMetalPage() {
           >
             {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Bearing'}
           </Button>
+          )}
         </DialogActions>
       </Dialog>
 
