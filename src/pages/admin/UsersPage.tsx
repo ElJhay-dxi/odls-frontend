@@ -209,6 +209,7 @@ export default function UsersPage() {
                     <InputLabel>Role</InputLabel>
                     <Select label="Role" value={form.roleId}
                       onChange={(e) => setForm((p) => ({ ...p, roleId: e.target.value }))}>
+                      <MenuItem value="" disabled><em>Select a role…</em></MenuItem>
                       {roles.filter((r) => r.isActive).map((r) => (
                         <MenuItem key={r.id} value={r.id}>
                           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>

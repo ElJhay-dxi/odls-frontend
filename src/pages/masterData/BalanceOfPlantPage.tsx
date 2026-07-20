@@ -79,7 +79,12 @@ export default function BalanceOfPlantPage() {
 
   return (
     <Box>
-      <PageHeader title="Balance of Plant" subtitle="Manage BOP entries for each power plant" breadcrumbs={[{ label: 'Master Data' }, { label: 'Balance of Plant' }]} action={canCreate ? { label: 'Add BOP', onClick: openCreate, icon: <Add /> } : undefined} />
+      <PageHeader
+        title="Balance of Plant"
+        subtitle="Manage BOP entries for each power plant"
+        breadcrumbs={[{ label: 'Master Data' }, { label: 'Balance of Plant' }]}
+        action={canCreate ? { label: 'Add BOP', onClick: openCreate, icon: <Add /> } : undefined}
+      />
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
       <Card>
         <CardContent sx={{ p: 0 }}>
@@ -99,17 +104,44 @@ export default function BalanceOfPlantPage() {
                 {loading ? (
                   <TableRow><TableCell colSpan={6} align="center" sx={{ py: 6 }}><CircularProgress size={32} /></TableCell></TableRow>
                 ) : rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} align="center" sx={{ py: 8 }}><Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}><AccountTree sx={{ fontSize: '2.5rem', color: 'text.disabled' }} /><Typography variant="body2" color="text.secondary">No BOP records found.</Typography></Box></TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <AccountTree sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
+                        <Typography variant="body2" color="text.secondary">No BOP records found.</Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
                 ) : rows.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell><Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantName}</Typography><Typography variant="caption" color="text.secondary">{row.plantCode}</Typography></TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantName}</Typography>
+                      <Typography variant="caption" color="text.secondary">{row.plantCode}</Typography>
+                    </TableCell>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.bopName}</Typography></TableCell>
-                    <TableCell><Chip label={row.bopCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} /></TableCell>
-                    <TableCell><Typography variant="body2">{row.createdByName}</Typography><Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography></TableCell>
+                    <TableCell>
+                      <Chip label={row.bopCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{row.createdByName}</Typography>
+                      <Typography variant="caption" color="text.secondary">{row.createdByEmail}</Typography>
+                    </TableCell>
                     <TableCell><Typography variant="body2">{new Date(row.createdOn).toLocaleDateString('en-GB')}</Typography></TableCell>
                     <TableCell align="right">
-                      {canEdit && <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(row)} color="primary"><Edit fontSize="small" /></IconButton></Tooltip>}
-                      {canDelete && <Tooltip title="Delete"><IconButton size="small" onClick={() => setDeleteTarget(row)} color="error"><Delete fontSize="small" /></IconButton></Tooltip>}
+                      {canEdit && (
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => openEdit(row)} color="primary">
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canDelete && (
+                        <Tooltip title="Delete">
+                          <IconButton size="small" onClick={() => setDeleteTarget(row)} color="error">
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -127,25 +159,27 @@ export default function BalanceOfPlantPage() {
             <Grid size={{ xs: 12 }}>
               <FormControl fullWidth required disabled={!!editTarget}>
                 <InputLabel>Power Plant</InputLabel>
-                <Select label="Power Plant" value={editTarget ? editTarget.plantCode : form.plantCode} onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
+                <Select label="Power Plant"
+                  value={editTarget ? editTarget.plantCode : form.plantCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
                   {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>)}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                label="BOP Name" value={activeBopName}
-                onChange={(e) => editTarget ? setUpdateForm({ ...updateForm, bopName: e.target.value }) : setForm({ ...form, bopName: e.target.value })}
-                fullWidth required placeholder="e.g. Common Services BOP"
-              />
+              <TextField label="BOP Name" value={activeBopName}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, bopName: e.target.value })
+                  : setForm({ ...form, bopName: e.target.value })}
+                fullWidth required placeholder="e.g. Common Services BOP" />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label="BOP Code" value={activeBopCode}
-                onChange={(e) => editTarget ? setUpdateForm({ ...updateForm, bopCode: e.target.value.toUpperCase() }) : setForm({ ...form, bopCode: e.target.value.toUpperCase() })}
+              <TextField label="BOP Code" value={activeBopCode}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, bopCode: e.target.value.toUpperCase() })
+                  : setForm({ ...form, bopCode: e.target.value.toUpperCase() })}
                 fullWidth required placeholder="e.g. CSB"
-                slotProps={{ htmlInput: { maxLength: 20 } }}
-              />
+                slotProps={{ htmlInput: { maxLength: 20 } }} />
             </Grid>
           </Grid>
         </DialogContent>
@@ -153,13 +187,24 @@ export default function BalanceOfPlantPage() {
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Stack direction="row" spacing={1.5}>
             <Button onClick={() => setDialogOpen(false)} variant="outlined" disabled={saving}>Cancel</Button>
-            {(editTarget ? canEdit : canCreate) && <Button onClick={handleSave} variant="contained" disabled={saving || !isFormValid} startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
-              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add BOP'}
-            </Button>}
+            {(editTarget ? canEdit : canCreate) && (
+              <Button onClick={handleSave} variant="contained"
+                disabled={saving || !isFormValid}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
+                {saving ? 'Saving...' : editTarget ? 'Update' : 'Add BOP'}
+              </Button>
+            )}
           </Stack>
         </DialogActions>
       </Dialog>
-      <ConfirmDialog open={!!deleteTarget} title="Delete BOP" message={`Delete "${deleteTarget?.bopName}"?`} confirmLabel="Delete" loading={deleting} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete BOP"
+        message={`Delete "${deleteTarget?.bopName}"?`}
+        confirmLabel="Delete" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
+      />
     </Box>
   );
 }
