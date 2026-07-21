@@ -15,7 +15,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { hourlyBusVoltageApi, plantBusApi } from '../../api/hourly/hourlyBusVoltageApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { PlantBus, BusVoltageReadingRow, HourlyBusVoltage } from '../../types/plantBus';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
@@ -49,9 +49,20 @@ export default function HourlyBusVoltagePage() {
   const [deleteTarget, setDeleteTarget] = useState<HourlyBusVoltage | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Plant filter hook — restricts dropdown to user's assigned plants
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
+
   useEffect(() => {
     powerPlantApi.getAll().then((res) => setPlants(res.data));
   }, []);
+
+  // Auto-select plant when user has only one assigned
+  useEffect(() => {
+    if (autoPlantCode) {
+      setPlantCode(autoPlantCode);
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     if (!editTarget) {
@@ -207,11 +218,11 @@ export default function HourlyBusVoltagePage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={!!editTarget || plantLocked}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select label="Power Plant" value={currentPlantCode}
                         onChange={(e) => setPlantCode(e.target.value)}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -226,7 +237,7 @@ export default function HourlyBusVoltagePage() {
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={!!editTarget || plantLocked}>
                       <InputLabel>Hour</InputLabel>
                       <Select label="Hour" value={editTarget ? editTarget.logHour : logHour}
                         onChange={(e) => setLogHour(Number(e.target.value))}>
@@ -370,9 +381,9 @@ export default function HourlyBusVoltagePage() {
               <Stack spacing={1.5} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
+                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
                     ))}
                   </Select>

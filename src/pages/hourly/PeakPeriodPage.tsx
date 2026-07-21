@@ -15,7 +15,7 @@ import { peakPeriodApi } from '../../api/hourly/peakPeriodApi';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { PeakPeriodReading, PeakPeriodInterval } from '../../types/peakPeriod';
 import { PEAK_INTERVALS } from '../../types/peakPeriod';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 export default function PeakPeriodPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.peak_period');
@@ -53,6 +53,18 @@ export default function PeakPeriodPage() {
       setAllUnits(u.data);
     });
   }, []);
+
+  // Plant filter hook — restricts dropdown to user's assigned plants
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
+
+  // Auto-select plant when user has only one assigned
+  useEffect(() => {
+    if (autoPlantCode) {
+      setFilterPlant(autoPlantCode);
+      setFilterUnit('');
+      setRecord(null);
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     setFilterUnits(filterPlant ? allUnits.filter((u) => u.plantCode === filterPlant) : []);
@@ -174,9 +186,9 @@ export default function PeakPeriodPage() {
                 <FormControl fullWidth size="small">
                   <InputLabel>Power Plant</InputLabel>
                   <Select label="Power Plant" value={filterPlant}
-                    onChange={(e) => setFilterPlant(e.target.value)}>
+                    onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                     ))}
                   </Select>

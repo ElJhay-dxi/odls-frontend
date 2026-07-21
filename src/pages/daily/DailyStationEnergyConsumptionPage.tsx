@@ -16,7 +16,7 @@ import type {
   DailyStationEnergyConsumption,
   DailyStationEnergyConsumptionForm,
 } from '../../types/dailyStationEnergyConsumption';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const emptyForm: DailyStationEnergyConsumptionForm = {
   plantCode: '',
@@ -27,6 +27,7 @@ const emptyForm: DailyStationEnergyConsumptionForm = {
 export default function DailyStationEnergyConsumptionPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.station_energy');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [form, setForm] = useState<DailyStationEnergyConsumptionForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<{ currentReading: number | string }>({ currentReading: '' });
@@ -51,6 +52,13 @@ export default function DailyStationEnergyConsumptionPage() {
   useEffect(() => {
     powerPlantApi.getAll().then((res) => setPlants(res.data));
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     if (editTarget || !form.plantCode || !form.logDate) {
@@ -198,12 +206,12 @@ export default function DailyStationEnergyConsumptionPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>
                             {p.plantName} ({p.plantCode}) — {p.classificationType}
                           </MenuItem>
@@ -311,9 +319,9 @@ export default function DailyStationEnergyConsumptionPage() {
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
+                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.classificationType})</MenuItem>
                     ))}
                   </Select>

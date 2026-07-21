@@ -14,7 +14,7 @@ import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { dailyNaturalGasTurbineApi } from '../../api/daily/dailyNaturalGasTurbineApi';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { DailyNaturalGasTurbine, DailyNaturalGasTurbineForm } from '../../types/dailyNaturalGasTurbine';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const emptyForm: DailyNaturalGasTurbineForm = {
   plantCode: '', unitCode: '',
@@ -28,6 +28,7 @@ const fmt = (v?: number, dec = 2) => v != null ? v.toFixed(dec) : '—';
 export default function DailyNaturalGasTurbinePage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.gas_turbine');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
   const [allUnits, setAllUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
 
@@ -58,6 +59,13 @@ export default function DailyNaturalGasTurbinePage() {
       setAllUnits(u.data);
     });
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     const code = editTarget ? editTarget.plantCode : form.plantCode;
@@ -235,12 +243,12 @@ export default function DailyNaturalGasTurbinePage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -367,9 +375,9 @@ export default function DailyNaturalGasTurbinePage() {
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
                   <Select label="Plant" value={filterPlant}
-                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }}>
+                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
                     ))}
                   </Select>

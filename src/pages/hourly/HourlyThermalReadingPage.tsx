@@ -18,7 +18,7 @@ import { hourlyThermalApi, bearingMetalApi, bearingDrainApi } from '../../api/ho
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { BearingMetal, BearingDrain, BearingMetalReadingRow, BearingDrainReadingRow } from '../../types/bearings';
 import type { HourlyThermalReading, CreateHourlyThermalReadingForm } from '../../types/hourlyReadings';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 type FormKey = keyof CreateHourlyThermalReadingForm;
 type NumericFormKey = Exclude<FormKey, 'plantCode' | 'unitCode' | 'logDate' | 'logHour' | 'remarks'>;
@@ -187,6 +187,17 @@ export default function HourlyThermalReadingPage() {
       })
       .catch(() => setRecordsError('Failed to load reference data.'));
   }, []);
+
+  // Plant filter hook — restricts dropdown to user's assigned plants
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
+
+  // Auto-select plant when user has only one assigned
+  useEffect(() => {
+    if (autoPlantCode) {
+      setFilterPlant(autoPlantCode);
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     setFilteredUnits(form.plantCode ? units.filter((u) => u.plantCode === form.plantCode) : []);
@@ -377,12 +388,12 @@ export default function HourlyThermalReadingPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={!!editTarget || plantLocked}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -409,7 +420,7 @@ export default function HourlyThermalReadingPage() {
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={!!editTarget || plantLocked}>
                       <InputLabel>Hour</InputLabel>
                       <Select label="Hour"
                         value={editTarget ? editTarget.logHour : form.logHour}
@@ -697,9 +708,9 @@ export default function HourlyThermalReadingPage() {
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
                   <Select label="Plant" value={filterPlant}
-                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }}>
+                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
+                    {availablePlants.map((p: PowerPlant) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <Stack direction="row" spacing={1}>

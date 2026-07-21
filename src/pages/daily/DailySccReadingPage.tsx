@@ -13,7 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailySccReadingApi } from '../../api/daily/dailySccReadingApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailySccReading, DailySccReadingForm } from '../../types/dailySccReading';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const emptyForm: DailySccReadingForm = {
   plantCode: '',
@@ -25,6 +25,7 @@ const emptyForm: DailySccReadingForm = {
 export default function DailySccReadingPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.scc');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [form, setForm] = useState<DailySccReadingForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<Partial<DailySccReadingForm>>({});
@@ -47,6 +48,13 @@ export default function DailySccReadingPage() {
       setPlants(res.data.filter((p) => p.classificationType === 'Thermal'))
     );
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   const fetchRecords = useCallback(async () => {
     if (!filterPlant) return;
@@ -179,12 +187,12 @@ export default function DailySccReadingPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -273,9 +281,9 @@ export default function DailySccReadingPage() {
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
+                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
                     ))}
                   </Select>

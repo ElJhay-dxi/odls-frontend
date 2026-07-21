@@ -13,7 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyEnergyGenerationHydroApi } from '../../api/daily/dailyEnergyGenerationHydroApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyEnergyGenerationHydro, DailyEnergyGenHydroForm } from '../../types/dailyEnergyGenerationHydro';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const emptyForm: DailyEnergyGenHydroForm = {
   plantCode: '',
@@ -29,6 +29,7 @@ const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefi
 export default function DailyEnergyGenerationHydroPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.energy_hydro');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [form, setForm] = useState<DailyEnergyGenHydroForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<Partial<DailyEnergyGenHydroForm>>({});
@@ -56,6 +57,13 @@ export default function DailyEnergyGenerationHydroPage() {
       setPlants(res.data.filter((p) => p.classificationType === 'Hydro'));
     });
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   // Fetch the most recent prior record whenever plant or date changes (create mode only)
   useEffect(() => {
@@ -231,14 +239,14 @@ export default function DailyEnergyGenerationHydroPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select
                         label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}
                       >
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -372,9 +380,9 @@ export default function DailyEnergyGenerationHydroPage() {
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
+                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
                     ))}
                   </Select>

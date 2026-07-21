@@ -40,3 +40,21 @@ export function useUserPlants(): { isPlantUser: boolean; plantCodes: string[] } 
   const { isPlantUser, userPlantCodes } = useUser();
   return { isPlantUser, plantCodes: userPlantCodes };
 }
+/**
+ * Filters a plant list to only those the current user is assigned to.
+ * If the user is an admin or unrestricted, all plants are returned.
+ * Also returns plantLocked (true when user has exactly one plant — auto-select + disable)
+ * and autoPlantCode (the single plant code to auto-select, or undefined).
+ */
+export function usePlantFilter<T extends { plantCode: string }>(plants: T[]) {
+  const { isPlantUser, userPlantCodes } = useUser();
+
+  const availablePlants = isPlantUser
+    ? plants.filter((p) => userPlantCodes.includes(p.plantCode))
+    : plants;
+
+  const plantLocked = isPlantUser && availablePlants.length === 1;
+  const autoPlantCode = plantLocked ? availablePlants[0]?.plantCode : undefined;
+
+  return { availablePlants, plantLocked, autoPlantCode, isPlantUser };
+}

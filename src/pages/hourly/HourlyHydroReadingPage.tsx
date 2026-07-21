@@ -21,7 +21,7 @@ import type {
   CreateHourlyHydroReadingForm,
   UpdateHourlyHydroReadingForm,
 } from '../../types/hourlyReadings';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
@@ -109,6 +109,9 @@ export default function HourlyHydroReadingPage() {
   const [deleting, setDeleting] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
+  // Plant filter hook — restricts dropdown to user's assigned plants
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
+
   useEffect(() => {
     Promise.all([powerPlantApi.getAll(), plantUnitApi.getAll()])
       .then(([p, u]) => {
@@ -117,6 +120,14 @@ export default function HourlyHydroReadingPage() {
       })
       .catch(() => setRecordsError('Failed to load reference data.'));
   }, []);
+
+  // Auto-select plant when user has only one assigned
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     setFilteredUnits(form.plantCode ? units.filter((u) => u.plantCode === form.plantCode) : []);
@@ -298,12 +309,12 @@ export default function HourlyHydroReadingPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={!!editTarget || plantLocked}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setFormField('plantCode', e.target.value)}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -431,9 +442,10 @@ export default function HourlyHydroReadingPage() {
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
                   <Select label="Plant" value={filterPlant}
-                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }}>
+                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }}
+                    disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
                     ))}
                   </Select>

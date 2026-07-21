@@ -17,7 +17,7 @@ import type {
   DailyNaturalGasChromatograph,
   DailyNaturalGasChromatographForm,
 } from '../../types/dailyNaturalGasChromatograph';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const emptyForm: DailyNaturalGasChromatographForm = {
   plantCode: '', unitCode: '',
@@ -32,6 +32,7 @@ const fmt = (v?: number, dec = 2) => v != null ? v.toFixed(dec) : '—';
 export default function DailyNaturalGasChromatographPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.gas_chromatograph');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
   const [allUnits, setAllUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
 
@@ -62,6 +63,13 @@ export default function DailyNaturalGasChromatographPage() {
       setAllUnits(u.data);
     });
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     const code = editTarget ? editTarget.plantCode : form.plantCode;
@@ -227,12 +235,12 @@ export default function DailyNaturalGasChromatographPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -353,9 +361,9 @@ export default function DailyNaturalGasChromatographPage() {
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
                   <Select label="Plant" value={filterPlant}
-                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }}>
+                    onChange={(e) => { setFilterPlant(e.target.value); setFilterUnit(''); }} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
                     ))}
                   </Select>

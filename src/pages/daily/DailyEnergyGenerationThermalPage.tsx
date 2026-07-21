@@ -16,7 +16,7 @@ import type {
   DailyEnergyGenerationThermal, DailyEnergyGenThermalForm, ThermalFuelType,
 } from '../../types/dailyEnergyGenerationThermal';
 import { FUEL_TYPE_LABELS } from '../../types/dailyEnergyGenerationThermal';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const FUEL_TYPES: ThermalFuelType[] = ['NaturalGas', 'DFO'];
 
@@ -30,6 +30,7 @@ const emptyForm: DailyEnergyGenThermalForm = {
 export default function DailyEnergyGenerationThermalPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.energy_thermal');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [form, setForm] = useState<DailyEnergyGenThermalForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<{ currentReading: number | string }>({ currentReading: '' });
@@ -57,6 +58,13 @@ export default function DailyEnergyGenerationThermalPage() {
       setPlants(res.data.filter((p) => p.classificationType === 'Thermal'));
     });
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   // Fetch the most recent prior record whenever plant or fuel type or date changes (create mode only)
   useEffect(() => {
@@ -214,14 +222,14 @@ export default function DailyEnergyGenerationThermalPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select
                         label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}
                       >
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -343,9 +351,9 @@ export default function DailyEnergyGenerationThermalPage() {
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
                   <Select label="Plant" value={filterPlant}
-                    onChange={(e) => { setFilterPlant(e.target.value); setFilterFuelType(''); }}>
+                    onChange={(e) => { setFilterPlant(e.target.value); setFilterFuelType(''); }} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
                     ))}
                   </Select>

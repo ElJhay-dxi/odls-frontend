@@ -15,7 +15,7 @@ import {
 } from '../../api/daily/waterSystemApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { WaterMeterReading, DeminWaterTankLevel } from '../../types/waterSystem';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const TABS = [
   { label: 'a) FW Inflow', key: 'fwInflow' },
@@ -82,6 +82,7 @@ export default function WaterSystemReadingsPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.water_system');
   const [tabIndex, setTabIndex] = useState(0);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [plantCode, setPlantCode] = useState('');
   const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
@@ -125,6 +126,13 @@ export default function WaterSystemReadingsPage() {
       setPlants(res.data.filter((p) => p.classificationType === 'Thermal'));
     });
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setPlantCode(autoPlantCode);
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     setPlantCode(''); setLogDate(new Date().toISOString().split('T')[0]);
@@ -238,10 +246,10 @@ export default function WaterSystemReadingsPage() {
     <Stack spacing={2}>
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <FormControl fullWidth required disabled={!!editTarget}>
+          <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
             <InputLabel>Power Plant</InputLabel>
             <Select label="Power Plant" value={plantCode} onChange={(e) => setPlantCode(e.target.value)}>
-              {plants.map((p) => (
+              {availablePlants.map((p: PowerPlant) => (
                 <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
               ))}
             </Select>
@@ -395,9 +403,9 @@ export default function WaterSystemReadingsPage() {
               <Stack spacing={1.5} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
+                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
+                    {availablePlants.map((p: PowerPlant) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <Stack direction="row" spacing={1}>

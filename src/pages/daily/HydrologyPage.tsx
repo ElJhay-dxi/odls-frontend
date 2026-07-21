@@ -13,7 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { hydroWaterLevelApi, hydroWaterDischargeApi } from '../../api/daily/waterSystemApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { HydroWaterLevel, HydroWaterDischarge } from '../../types/waterSystem';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const TABS = [
   { label: 'Water Levels', key: 'levels' },
@@ -23,6 +23,7 @@ const TABS = [
 export default function HydrologyPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.hydrology');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
   const [tabIndex, setTabIndex] = useState(0);
 
   // Form state
@@ -60,6 +61,13 @@ export default function HydrologyPage() {
       setPlants(res.data.filter((p) => p.classificationType === 'Hydro'))
     );
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setPlantCode(autoPlantCode);
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   // Reset on tab change
   useEffect(() => {
@@ -210,10 +218,10 @@ export default function HydrologyPage() {
                 {/* Identity */}
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={!!editTarget || plantLocked}>
                       <InputLabel>Hydro Plant</InputLabel>
                       <Select label="Hydro Plant" value={plantCode} onChange={(e) => setPlantCode(e.target.value)}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -309,9 +317,9 @@ export default function HydrologyPage() {
               <Stack spacing={1.5} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
+                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
+                    {availablePlants.map((p: PowerPlant) => <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>)}
                   </Select>
                 </FormControl>
                 <Stack direction="row" spacing={1}>

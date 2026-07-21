@@ -13,7 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyPlantReliabilityApi } from '../../api/daily/dailyPlantReliabilityApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyPlantReliability, DailyPlantReliabilityForm } from '../../types/dailyPlantReliability';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const emptyForm: DailyPlantReliabilityForm = {
   plantCode: '',
@@ -24,6 +24,7 @@ const emptyForm: DailyPlantReliabilityForm = {
 export default function DailyPlantReliabilityPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.plant_reliability');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [form, setForm] = useState<DailyPlantReliabilityForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<Partial<DailyPlantReliabilityForm>>({});
@@ -44,6 +45,13 @@ export default function DailyPlantReliabilityPage() {
   useEffect(() => {
     powerPlantApi.getAll().then((res) => setPlants(res.data));
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   const fetchRecords = useCallback(async () => {
     if (!filterPlant) return;
@@ -179,12 +187,12 @@ export default function DailyPlantReliabilityPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>
                             {p.plantName} ({p.plantCode}) — {p.classificationType}
                           </MenuItem>
@@ -288,9 +296,9 @@ export default function DailyPlantReliabilityPage() {
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
+                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.classificationType})</MenuItem>
                     ))}
                   </Select>

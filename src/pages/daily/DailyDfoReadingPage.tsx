@@ -13,7 +13,7 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyDfoReadingApi } from '../../api/daily/dailyDfoReadingApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyDfoReading, DailyDfoReadingForm } from '../../types/dailyDfoReading';
-import { useSectionPermissions } from '../../hooks/usePermission';
+import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 const emptyForm: DailyDfoReadingForm = {
   plantCode: '',
@@ -24,6 +24,7 @@ const emptyForm: DailyDfoReadingForm = {
 export default function DailyDfoReadingPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.dfo');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [form, setForm] = useState<DailyDfoReadingForm>(emptyForm);
   const [updateForm, setUpdateForm] = useState<{ currentReading: number | string }>({ currentReading: '' });
@@ -50,6 +51,13 @@ export default function DailyDfoReadingPage() {
       setPlants(res.data.filter((p) => p.classificationType === 'Thermal'));
     });
   }, []);
+
+  useEffect(() => {
+    if (autoPlantCode) {
+      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
+      setFilterPlant(autoPlantCode);
+    }
+  }, [autoPlantCode]);
 
   useEffect(() => {
     if (editTarget || !form.plantCode || !form.logDate) {
@@ -201,14 +209,14 @@ export default function DailyDfoReadingPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={!!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
                       <InputLabel>Power Plant</InputLabel>
                       <Select
                         label="Power Plant"
                         value={editTarget ? editTarget.plantCode : form.plantCode}
                         onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}
                       >
-                        {plants.map((p) => (
+                        {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
                         ))}
                       </Select>
@@ -308,9 +316,9 @@ export default function DailyDfoReadingPage() {
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)}>
+                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
                     <MenuItem value="">Select plant…</MenuItem>
-                    {plants.map((p) => (
+                    {availablePlants.map((p: PowerPlant) => (
                       <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
                     ))}
                   </Select>
