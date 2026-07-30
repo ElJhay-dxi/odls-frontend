@@ -50,6 +50,9 @@ const DailyPlantLoadFactorPage = lazy(() => import('./pages/daily/DailyPlantLoad
 const WaterSystemReadingsPage = lazy(() => import('./pages/daily/WaterSystemReadingsPage'));
 const HydrologyPage = lazy(() => import('./pages/daily/HydrologyPage'));
 
+// Station Logs
+const ShiftLogPage = lazy(() => import('./pages/stationLog/ShiftLogPage'));
+
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 
@@ -130,6 +133,9 @@ export default function App() {
                   <Route path="daily/plant-load-factor" element={<G p="daily.plant_load_factor.view"><DailyPlantLoadFactorPage /></G>} />
                   <Route path="daily/water-system" element={<G p="daily.water_system.view"><WaterSystemReadingsPage /></G>} />
                   <Route path="hydrology" element={<G p="daily.hydrology.view"><HydrologyPage /></G>} />
+
+                  {/* Station Logs */}
+                  <Route path="station-logs/shift-logs" element={<G p="station_logs.shift_logs.view"><ShiftLogPage /></G>} />
 
                   {/* Admin */}
                   <Route path="admin/permissions" element={<G p="permissions.view"><PermissionsPage /></G>} />
