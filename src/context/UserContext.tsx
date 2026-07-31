@@ -11,13 +11,14 @@ interface UserContextValue {
   hasAnyPermission: (codes: string[]) => boolean;
   isPlantUser: boolean;       // true if user is restricted to specific plants
   userPlantCodes: string[];   // list of plant codes the user is assigned to
+  userPlantClassifications: string[]; // list of classification types for user's plants (e.g. ['hydro', 'thermal'])
   reload: () => void;
 }
 
 const UserContext = createContext<UserContextValue>({
   profile: null, loading: true, error: null,
   hasPermission: () => false, hasAnyPermission: () => false,
-  isPlantUser: false, userPlantCodes: [], reload: () => {},
+  isPlantUser: false, userPlantCodes: [], userPlantClassifications: [], reload: () => {},
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -48,12 +49,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Plant-restricted users have assigned plants and are not admins
   const isPlantUser = !profile?.isAdmin && (profile?.plants.length ?? 0) > 0;
   const userPlantCodes = profile?.plants.map((p) => p.plantCode) ?? [];
+  const userPlantClassifications = [...new Set(
+    profile?.plants.map((p) => p.classificationType?.toLowerCase()).filter(Boolean) ?? []
+  )] as string[];
 
   return (
     <UserContext.Provider value={{
       profile, loading, error,
       hasPermission, hasAnyPermission,
-      isPlantUser, userPlantCodes,
+      isPlantUser, userPlantCodes, userPlantClassifications,
       reload: () => setTick((t) => t + 1),
     }}>
       {children}

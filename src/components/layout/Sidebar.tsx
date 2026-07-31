@@ -87,6 +87,7 @@ const navItems: NavItem[] = [
     label: 'Station Logs',
     icon: <Assignment />,
     children: [
+      { label: 'Shift Logs', icon: <Assignment />, path: '/station-logs/shift-logs', permission: 'station_logs.shift_logs.view' },
       { label: 'Thermal Station Logs', icon: <ElectricBolt />, path: '/station-logs/thermal', permission: 'station_logs.thermal.view' },
       { label: 'Hydro Station Logs', icon: <WaterDrop />, path: '/station-logs/hydro', permission: 'station_logs.hydro.view' },
     ],
@@ -129,7 +130,7 @@ interface SidebarProps {
 export default function Sidebar({ open }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, hasPermission } = useUser();
+  const { profile, hasPermission, isPlantUser, userPlantClassifications } = useUser();
   const [expanded, setExpanded] = useState<string[]>(['Master Data']);
 
   const toggleExpand = (label: string) => {
@@ -143,7 +144,13 @@ export default function Sidebar({ open }: SidebarProps) {
   // Filter items the user has permission to see
   const canSee = (item: NavItem): boolean => {
     if (!item.permission) return true; // no permission required — always show
-    return hasPermission(item.permission);
+    if (!hasPermission(item.permission)) return false;
+    // For plant-restricted users, hide station log pages that don't match their plant type
+    if (isPlantUser && userPlantClassifications.length > 0) {
+      if (item.path === '/station-logs/hydro' && !userPlantClassifications.includes('hydro')) return false;
+      if (item.path === '/station-logs/thermal' && !userPlantClassifications.includes('thermal')) return false;
+    }
+    return true;
   };
 
   const filterItems = (items: NavItem[]): NavItem[] =>

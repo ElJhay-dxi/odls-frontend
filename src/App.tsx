@@ -52,6 +52,7 @@ const HydrologyPage = lazy(() => import('./pages/daily/HydrologyPage'));
 
 // Station Logs
 const ShiftLogPage = lazy(() => import('./pages/stationLog/ShiftLogPage'));
+const HydroStationLogPage = lazy(() => import('./pages/stationLog/HydroStationLogPage'));
 
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
@@ -136,6 +137,7 @@ export default function App() {
 
                   {/* Station Logs */}
                   <Route path="station-logs/shift-logs" element={<G p="station_logs.shift_logs.view"><ShiftLogPage /></G>} />
+                  <Route path="station-logs/hydro" element={<G p="station_logs.hydro.view"><HydroStationLogPage /></G>} />
 
                   {/* Admin */}
                   <Route path="admin/permissions" element={<G p="permissions.view"><PermissionsPage /></G>} />

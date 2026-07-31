@@ -2,6 +2,7 @@ export interface UserPlant {
   id: string;
   plantCode: string;
   plantName: string;
+  classificationType: string;
 }
 
 export interface CurrentUserProfile {
