@@ -87,7 +87,6 @@ const navItems: NavItem[] = [
     label: 'Station Logs',
     icon: <Assignment />,
     children: [
-      { label: 'Shift Logs', icon: <Assignment />, path: '/station-logs/shift-logs', permission: 'station_logs.shift_logs.view' },
       { label: 'Thermal Station Logs', icon: <ElectricBolt />, path: '/station-logs/thermal', permission: 'station_logs.thermal.view' },
       { label: 'Hydro Station Logs', icon: <WaterDrop />, path: '/station-logs/hydro', permission: 'station_logs.hydro.view' },
     ],
