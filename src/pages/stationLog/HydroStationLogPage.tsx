@@ -2,11 +2,12 @@ import {
   Box, Card, CardContent, CardHeader, TextField, Button, CircularProgress,
   Alert, Typography, MenuItem, FormControl, InputLabel, Select,
   Grid, Divider, Chip, Stack, Paper, IconButton, Tooltip, Collapse,
-  OutlinedInput, Checkbox, ListItemText,
+  OutlinedInput, Checkbox, ListItemText, Table, TableBody, TableCell,
+  TableHead, TableRow,
 } from '@mui/material';
 import {
   Save, Edit, Delete, Add, WaterDrop, ExpandMore, ExpandLess,
-  Assignment, CheckCircle, Warning,
+  Assignment, CheckCircle, Warning, TableChart,
 } from '@mui/icons-material';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -16,32 +17,34 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { plantBusApi } from '../../api/hourly/hourlyBusVoltageApi';
 import { hydroStationLogApi } from '../../api/stationLog/hydroStationLogApi';
+import { shiftLogApi } from '../../api/stationLog/shiftLogApi';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { PlantBus } from '../../types/plantBus';
 import type {
-  HydroStationLog,
-  HydroStationLogEntry,
-  UpdateHydroStationLogForm,
-  CreateHydroStationLogEntryForm,
-  UpdateHydroStationLogEntryForm,
+  HydroStationLog, HydroStationLogEntry, HydroStationLogCondition,
+  UpdateHydroStationLogForm, CreateHydroStationLogEntryForm,
+  UpdateHydroStationLogEntryForm, CreateConditionForm, ConditionRowForm,
 } from '../../types/hydroStationLog';
+import type { ShiftLog } from '../../types/shiftLog';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { useUser } from '../../context/UserContext';
 
 const emptyHeader: UpdateHydroStationLogForm = {
-  unitsInService: '',
-  linesInService: '',
-  stationService: '',
-  permitsInEffect: '',
-  applicationsForOutage: '',
-  miscNotes: '',
-  energyGeneratedKwh: null,
-  shiftLeaderName: '',
+  unitsInService: '', linesInService: '', stationService: '',
+  permitsInEffect: '', applicationsForOutage: '', miscNotes: '',
+  energyGeneratedKwh: null, shiftLeaderName: '',
 };
 
 const emptyEntry: CreateHydroStationLogEntryForm = {
   entryTime: new Date().toTimeString().slice(0, 5),
   entryText: '',
+};
+
+const emptyCondition: CreateConditionForm = {
+  snapshotTime: new Date().toTimeString().slice(0, 5),
+  source: '',
+  systemVoltageKv: '',
+  rows: [],
 };
 
 const TEXT_HEADER_FIELDS = [
@@ -52,19 +55,31 @@ const TEXT_HEADER_FIELDS = [
 ] as const;
 
 type TextHeaderKey = typeof TEXT_HEADER_FIELDS[number]['key'];
+type TimelineItemType = 'entry' | 'condition' | 'handover';
 
-// Parse comma-separated string to array
+interface TimelineItem {
+  id: string;
+  time: string;
+  type: TimelineItemType;
+  entry?: HydroStationLogEntry;
+  condition?: HydroStationLogCondition;
+  handoverText?: string;
+  handoverType?: 'incoming' | 'outgoing';
+}
+
 const toArray = (val?: string) => val ? val.split(',').map((s) => s.trim()).filter(Boolean) : [];
-// Join array to comma-separated string
 const toStr = (arr: string[]) => arr.join(', ');
 
 export default function HydroStationLogPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('station_logs.hydro');
   const { isPlantUser, userPlantClassifications } = useUser();
   const navigate = useNavigate();
-  const isWrongPlantType = isPlantUser && userPlantClassifications.length > 0 && !userPlantClassifications.includes('hydro');
+  const isWrongPlantType = isPlantUser && userPlantClassifications.length > 0
+    && !userPlantClassifications.includes('hydro');
+
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
+  const [allPlants, setAllPlants] = useState<PowerPlant[]>([]);
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
   const [plantBuses, setPlantBuses] = useState<PlantBus[]>([]);
 
@@ -72,10 +87,12 @@ export default function HydroStationLogPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [log, setLog] = useState<HydroStationLog | null>(null);
+  const [shiftHandovers, setShiftHandovers] = useState<ShiftLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [creatingLog, setCreatingLog] = useState(false);
 
-  // Header state — split into structured (units/lines arrays) and text fields
+  // Header
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedBuses, setSelectedBuses] = useState<string[]>([]);
   const [headerTextForm, setHeaderTextForm] = useState<Pick<UpdateHydroStationLogForm,
@@ -87,19 +104,27 @@ export default function HydroStationLogPage() {
   const [headerError, setHeaderError] = useState<string | null>(null);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
 
-  const [creatingLog, setCreatingLog] = useState(false);
-
+  // Entry
   const [entryForm, setEntryForm] = useState<CreateHydroStationLogEntryForm>(emptyEntry);
   const [addingEntry, setAddingEntry] = useState(false);
   const [entryError, setEntryError] = useState<string | null>(null);
-
   const [editingEntry, setEditingEntry] = useState<HydroStationLogEntry | null>(null);
   const [editEntryForm, setEditEntryForm] = useState<UpdateHydroStationLogEntryForm>({ entryTime: '', entryText: '' });
   const [savingEntry, setSavingEntry] = useState(false);
-
   const [deleteEntry, setDeleteEntry] = useState<HydroStationLogEntry | null>(null);
   const [deletingEntry, setDeletingEntry] = useState(false);
 
+  // Condition snapshot
+  const [showConditionForm, setShowConditionForm] = useState(false);
+  const [conditionForm, setConditionForm] = useState<CreateConditionForm>(emptyCondition);
+  const [savingCondition, setSavingCondition] = useState(false);
+  const [conditionError, setConditionError] = useState<string | null>(null);
+  const [editingCondition, setEditingCondition] = useState<HydroStationLogCondition | null>(null);
+  const [deleteCondition, setDeleteCondition] = useState<HydroStationLogCondition | null>(null);
+  const [deletingCondition, setDeletingCondition] = useState(false);
+  const [expandedConditions, setExpandedConditions] = useState<Set<string>>(new Set());
+
+  // Summary
   const [summaryEditing, setSummaryEditing] = useState(false);
   const [summaryForm, setSummaryForm] = useState({ energyGeneratedKwh: '', shiftLeaderName: '' });
   const [savingSummary, setSavingSummary] = useState(false);
@@ -107,6 +132,7 @@ export default function HydroStationLogPage() {
 
   useEffect(() => {
     powerPlantApi.getAll().then((res) => {
+      setAllPlants(res.data);
       setPlants(res.data.filter((p) => p.classificationType?.toLowerCase() === 'hydro'));
     });
   }, []);
@@ -115,17 +141,12 @@ export default function HydroStationLogPage() {
     if (autoPlantCode) setSelectedPlant(autoPlantCode);
   }, [autoPlantCode]);
 
-  // Load units and buses when plant changes
   useEffect(() => {
-    if (!selectedPlant) {
-      setPlantUnits([]); setPlantBuses([]);
-      return;
-    }
+    if (!selectedPlant) { setPlantUnits([]); setPlantBuses([]); return; }
     plantUnitApi.getByPlant(selectedPlant).then((res) => setPlantUnits(res.data));
     plantBusApi.getAll(selectedPlant).then((res) => setPlantBuses(res.data));
   }, [selectedPlant]);
 
-  // Auto-load log when plant + date change
   useEffect(() => {
     if (!selectedPlant || !selectedDate) return;
     loadLog();
@@ -147,28 +168,76 @@ export default function HydroStationLogPage() {
   };
 
   const loadLog = async () => {
-    setLoading(true);
-    setLoadError(null);
-    setLog(null);
+    setLoading(true); setLoadError(null); setLog(null); setShiftHandovers([]);
     try {
-      const res = await hydroStationLogApi.getByDate(selectedPlant, selectedDate);
-      setLog(res.data);
-      populateHeaderState(res.data);
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status !== 404) setLoadError('Failed to load station log.');
+      const [logRes, handoverRes] = await Promise.allSettled([
+        hydroStationLogApi.getByDate(selectedPlant, selectedDate),
+        shiftLogApi.getAll({ plantCode: selectedPlant, date: selectedDate }),
+      ]);
+
+      if (logRes.status === 'fulfilled') {
+        setLog(logRes.value.data);
+        populateHeaderState(logRes.value.data);
+      } else {
+        const status = (logRes.reason as { response?: { status?: number } })?.response?.status;
+        if (status !== 404) setLoadError('Failed to load station log.');
+      }
+
+      if (handoverRes.status === 'fulfilled') {
+        setShiftHandovers(handoverRes.value.data);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // Build merged timeline
+  const buildTimeline = (): TimelineItem[] => {
+    const items: TimelineItem[] = [];
+
+    // Regular entries
+    (log?.entries ?? []).forEach((e) => items.push({ id: e.id, time: e.entryTime, type: 'entry', entry: e }));
+
+    // Condition snapshots
+    (log?.conditions ?? []).forEach((c) => items.push({ id: c.id, time: c.snapshotTime, type: 'condition', condition: c }));
+
+    // Shift handovers — only if date matches
+    shiftHandovers.forEach((h) => {
+      const handoverDate = h.logDate?.split('T')[0];
+      if (handoverDate !== selectedDate) return;
+
+      // Incoming officers entry
+      if (h.officers.length > 0) {
+        items.push({
+          id: `${h.id}-in`,
+          time: h.handoverTime,
+          type: 'handover',
+          handoverType: 'incoming',
+          handoverText: `On duty: ${h.officers.map((o) => o.officerName).join(', ')}.`,
+        });
+      }
+      // Outgoing officers — 1 min after handover time to keep order
+      if (h.outgoingOfficers.length > 0) {
+        const [hh, mm] = h.handoverTime.split(':').map(Number);
+        const outTime = `${String(hh).padStart(2, '0')}:${String(Math.min(mm + 1, 59)).padStart(2, '0')}`;
+        items.push({
+          id: `${h.id}-out`,
+          time: outTime,
+          type: 'handover',
+          handoverType: 'outgoing',
+          handoverText: `Off duty: ${h.outgoingOfficers.map((o) => o.officerName).join(', ')}.`,
+        });
+      }
+    });
+
+    return items.sort((a, b) => a.time.localeCompare(b.time));
+  };
+
   const handleCreateLog = async () => {
-    setCreatingLog(true);
-    setLoadError(null);
+    setCreatingLog(true); setLoadError(null);
     try {
       await hydroStationLogApi.create({
-        plantCode: selectedPlant,
-        logDate: selectedDate,
+        plantCode: selectedPlant, logDate: selectedDate,
         unitsInService: '', linesInService: '', stationService: '',
         permitsInEffect: '', applicationsForOutage: '', miscNotes: '',
       });
@@ -177,14 +246,11 @@ export default function HydroStationLogPage() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setLoadError(msg ?? 'Failed to create station log.');
-    } finally {
-      setCreatingLog(false);
-    }
+    } finally { setCreatingLog(false); }
   };
 
   const buildHeaderPayload = (): UpdateHydroStationLogForm => ({
-    unitsInService: toStr(selectedUnits),
-    linesInService: toStr(selectedBuses),
+    unitsInService: toStr(selectedUnits), linesInService: toStr(selectedBuses),
     ...headerTextForm,
     energyGeneratedKwh: log?.energyGeneratedKwh != null ? log.energyGeneratedKwh.toString() : null,
     shiftLeaderName: log?.shiftLeaderName ?? '',
@@ -192,24 +258,17 @@ export default function HydroStationLogPage() {
 
   const handleSaveHeader = async () => {
     if (!log) return;
-    setSavingHeader(true);
-    setHeaderError(null);
+    setSavingHeader(true); setHeaderError(null);
     try {
       const res = await hydroStationLogApi.update(log.id, buildHeaderPayload());
-      setLog(res.data);
-      populateHeaderState(res.data);
-      setHeaderEditing(false);
-    } catch {
-      setHeaderError('Failed to save header.');
-    } finally {
-      setSavingHeader(false);
-    }
+      setLog(res.data); populateHeaderState(res.data); setHeaderEditing(false);
+    } catch { setHeaderError('Failed to save header.'); }
+    finally { setSavingHeader(false); }
   };
 
   const handleAddEntry = async () => {
     if (!log || !entryForm.entryTime || !entryForm.entryText.trim()) return;
-    setAddingEntry(true);
-    setEntryError(null);
+    setAddingEntry(true); setEntryError(null);
     try {
       const res = await hydroStationLogApi.addEntry(log.id, entryForm);
       setLog((prev) => prev ? {
@@ -217,16 +276,8 @@ export default function HydroStationLogPage() {
         entries: [...prev.entries, res.data].sort((a, b) => a.entryTime.localeCompare(b.entryTime)),
       } : prev);
       setEntryForm({ entryTime: new Date().toTimeString().slice(0, 5), entryText: '' });
-    } catch {
-      setEntryError('Failed to add entry.');
-    } finally {
-      setAddingEntry(false);
-    }
-  };
-
-  const openEditEntry = (entry: HydroStationLogEntry) => {
-    setEditingEntry(entry);
-    setEditEntryForm({ entryTime: entry.entryTime, entryText: entry.entryText });
+    } catch { setEntryError('Failed to add entry.'); }
+    finally { setAddingEntry(false); }
   };
 
   const handleSaveEntry = async () => {
@@ -236,16 +287,12 @@ export default function HydroStationLogPage() {
       const res = await hydroStationLogApi.updateEntry(log.id, editingEntry.id, editEntryForm);
       setLog((prev) => prev ? {
         ...prev,
-        entries: prev.entries
-          .map((e) => e.id === editingEntry.id ? res.data : e)
+        entries: prev.entries.map((e) => e.id === editingEntry.id ? res.data : e)
           .sort((a, b) => a.entryTime.localeCompare(b.entryTime)),
       } : prev);
       setEditingEntry(null);
-    } catch {
-      setEntryError('Failed to update entry.');
-    } finally {
-      setSavingEntry(false);
-    }
+    } catch { setEntryError('Failed to update entry.'); }
+    finally { setSavingEntry(false); }
   };
 
   const handleDeleteEntry = async () => {
@@ -253,15 +300,82 @@ export default function HydroStationLogPage() {
     setDeletingEntry(true);
     try {
       await hydroStationLogApi.deleteEntry(log.id, deleteEntry.id);
-      setLog((prev) => prev ? {
-        ...prev, entries: prev.entries.filter((e) => e.id !== deleteEntry.id),
-      } : prev);
+      setLog((prev) => prev ? { ...prev, entries: prev.entries.filter((e) => e.id !== deleteEntry.id) } : prev);
       setDeleteEntry(null);
-    } catch {
-      setEntryError('Failed to delete entry.');
-    } finally {
-      setDeletingEntry(false);
-    }
+    } catch { setEntryError('Failed to delete entry.'); }
+    finally { setDeletingEntry(false); }
+  };
+
+  // Condition row helpers
+  const addConditionRow = () => {
+    setConditionForm((prev) => ({
+      ...prev,
+      rows: [...prev.rows, { plantCode: '', plantName: '', numberOfUnits: '', totalLoadMw: '', sortOrder: prev.rows.length }],
+    }));
+  };
+
+  const removeConditionRow = (idx: number) => {
+    setConditionForm((prev) => ({ ...prev, rows: prev.rows.filter((_, i) => i !== idx) }));
+  };
+
+  const updateConditionRow = (idx: number, field: keyof ConditionRowForm, value: string) => {
+    setConditionForm((prev) => ({
+      ...prev,
+      rows: prev.rows.map((r, i) => i === idx ? { ...r, [field]: value } : r),
+    }));
+  };
+
+  const openEditCondition = (c: HydroStationLogCondition) => {
+    setEditingCondition(c);
+    setConditionForm({
+      snapshotTime: c.snapshotTime,
+      source: c.source ?? '',
+      systemVoltageKv: c.systemVoltageKv?.toString() ?? '',
+      rows: c.rows.map((r) => ({
+        plantCode: r.plantCode,
+        plantName: r.plantName,
+        numberOfUnits: r.numberOfUnits?.toString() ?? '',
+        totalLoadMw: r.totalLoadMw?.toString() ?? '',
+        sortOrder: r.sortOrder,
+      })),
+    });
+    setShowConditionForm(true);
+  };
+
+  const handleSaveCondition = async () => {
+    if (!log || !conditionForm.snapshotTime) return;
+    setSavingCondition(true); setConditionError(null);
+    try {
+      if (editingCondition) {
+        const res = await hydroStationLogApi.updateCondition(log.id, editingCondition.id, conditionForm);
+        setLog((prev) => prev ? {
+          ...prev,
+          conditions: prev.conditions.map((c) => c.id === editingCondition.id ? res.data : c)
+            .sort((a, b) => a.snapshotTime.localeCompare(b.snapshotTime)),
+        } : prev);
+        setEditingCondition(null);
+      } else {
+        const res = await hydroStationLogApi.addCondition(log.id, conditionForm);
+        setLog((prev) => prev ? {
+          ...prev,
+          conditions: [...prev.conditions, res.data].sort((a, b) => a.snapshotTime.localeCompare(b.snapshotTime)),
+        } : prev);
+      }
+      setConditionForm(emptyCondition);
+      setShowConditionForm(false);
+    } catch { setConditionError('Failed to save condition snapshot.'); }
+    finally { setSavingCondition(false); }
+  };
+
+  const handleDeleteCondition = async () => {
+    if (!log || !deleteCondition) return;
+    setDeletingCondition(true);
+    try {
+      await hydroStationLogApi.deleteCondition(log.id, deleteCondition.id);
+      setLog((prev) => prev ? { ...prev, conditions: prev.conditions.filter((c) => c.id !== deleteCondition.id) } : prev);
+      setDeleteCondition(null);
+    } catch { setEntryError('Failed to delete condition snapshot.'); }
+    finally { setDeletingCondition(false); }
   };
 
   const handleSaveSummary = async () => {
@@ -269,38 +383,27 @@ export default function HydroStationLogPage() {
     setSavingSummary(true);
     try {
       const res = await hydroStationLogApi.update(log.id, {
-        unitsInService: log.unitsInService ?? '',
-        linesInService: log.linesInService ?? '',
-        stationService: log.stationService ?? '',
-        permitsInEffect: log.permitsInEffect ?? '',
-        applicationsForOutage: log.applicationsForOutage ?? '',
-        miscNotes: log.miscNotes ?? '',
+        unitsInService: log.unitsInService ?? '', linesInService: log.linesInService ?? '',
+        stationService: log.stationService ?? '', permitsInEffect: log.permitsInEffect ?? '',
+        applicationsForOutage: log.applicationsForOutage ?? '', miscNotes: log.miscNotes ?? '',
         energyGeneratedKwh: summaryForm.energyGeneratedKwh !== '' ? summaryForm.energyGeneratedKwh : null,
         shiftLeaderName: summaryForm.shiftLeaderName,
       });
-      setLog(res.data);
-      setSummaryEditing(false);
-    } catch {
-      setEntryError('Failed to save summary.');
-    } finally {
-      setSavingSummary(false);
-    }
+      setLog(res.data); setSummaryEditing(false);
+    } catch { setEntryError('Failed to save summary.'); }
+    finally { setSavingSummary(false); }
   };
 
-  // Resolve display names from codes stored in log
-  const getUnitName = (code: string) =>
-    plantUnits.find((u) => u.unitCode === code)?.unitName ?? code;
-  const getBusName = (code: string) =>
-    plantBuses.find((b) => b.busCode === code)?.busName ?? code;
+  const getUnitName = (code: string) => plantUnits.find((u) => u.unitCode === code)?.unitName ?? code;
+  const getBusName = (code: string) => plantBuses.find((b) => b.busCode === code)?.busName ?? code;
+  const plantDisplayName = availablePlants.find((p) => p.plantCode === selectedPlant)?.plantName ?? selectedPlant;
 
-  const plantName = availablePlants.find((p) => p.plantCode === selectedPlant)?.plantName ?? selectedPlant;
+  const timeline = log ? buildTimeline() : [];
+  const totalEntries = (log?.entries.length ?? 0) + (log?.conditions.length ?? 0) + shiftHandovers.length;
 
   const renderMultiSelect = (
-    label: string,
-    items: { value: string; label: string }[],
-    selected: string[],
-    onChange: (val: string[]) => void,
-    disabled?: boolean,
+    label: string, items: { value: string; label: string }[],
+    selected: string[], onChange: (val: string[]) => void, disabled?: boolean,
   ) => (
     <FormControl fullWidth size="small" disabled={disabled}>
       <InputLabel>{label}</InputLabel>
@@ -318,8 +421,7 @@ export default function HydroStationLogPage() {
       {selected.length > 0 && (
         <Stack direction="row" spacing={0.5} sx={{ mt: 0.75, flexWrap: 'wrap' }} useFlexGap>
           {selected.map((val) => (
-            <Chip key={val} size="small"
-              label={items.find((i) => i.value === val)?.label ?? val}
+            <Chip key={val} size="small" label={items.find((i) => i.value === val)?.label ?? val}
               onDelete={() => onChange(selected.filter((s) => s !== val))} />
           ))}
         </Stack>
@@ -335,7 +437,6 @@ export default function HydroStationLogPage() {
         breadcrumbs={[{ label: 'Station Logs' }, { label: 'Hydro Station Log' }]}
       />
 
-      {/* ── Wrong plant type warning ── */}
       {isWrongPlantType && (
         <Alert severity="warning" sx={{ mb: 3 }}
           action={
@@ -348,7 +449,7 @@ export default function HydroStationLogPage() {
         </Alert>
       )}
 
-      {/* ── Plant + Date Selector ── */}
+      {/* Plant + Date Selector */}
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ py: '14px !important' }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -365,8 +466,7 @@ export default function HydroStationLogPage() {
             </FormControl>
             <TextField label="Date" type="date" size="small" value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
+              slotProps={{ inputLabel: { shrink: true } }} />
             {loading && <CircularProgress size={20} />}
             {log && !loading && (
               <Chip icon={<CheckCircle />} label="Log loaded" color="success" size="small" variant="outlined" />
@@ -377,13 +477,13 @@ export default function HydroStationLogPage() {
 
       {loadError && <Alert severity="error" onClose={() => setLoadError(null)} sx={{ mb: 2 }}>{loadError}</Alert>}
 
-      {/* ── No log yet ── */}
+      {/* No log yet */}
       {!loading && !log && selectedPlant && (
         <Card sx={{ mb: 3 }}>
           <CardContent sx={{ textAlign: 'center', py: 5 }}>
             <Assignment sx={{ fontSize: '3rem', color: 'text.disabled', mb: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
-              No station log for {plantName} on {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
+              No station log for {plantDisplayName} on {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
               Start the log for this date to begin recording entries.
@@ -401,12 +501,11 @@ export default function HydroStationLogPage() {
 
       {log && (
         <>
-          {/* ── Log Header ── */}
+          {/* Opening Conditions Header */}
           <Card sx={{ mb: 3 }}>
             <Box sx={{
-              px: 2.5, py: 1.5, display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', cursor: 'pointer',
-              backgroundColor: '#1565C014',
+              px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              cursor: 'pointer', backgroundColor: '#1565C014',
               borderBottom: headerCollapsed ? 'none' : '1px solid', borderColor: 'divider',
             }} onClick={() => setHeaderCollapsed((p) => !p)}>
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
@@ -433,16 +532,11 @@ export default function HydroStationLogPage() {
               <CardContent>
                 {headerError && <Alert severity="error" onClose={() => setHeaderError(null)} sx={{ mb: 2 }}>{headerError}</Alert>}
                 <Grid container spacing={2}>
-                  {/* Units in Service */}
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    {headerEditing ? (
-                      renderMultiSelect(
-                        'Units in Service',
-                        plantUnits.map((u) => ({ value: u.unitCode, label: `${u.unitName} (${u.unitCode})` })),
-                        selectedUnits,
-                        setSelectedUnits,
-                        plantUnits.length === 0,
-                      )
+                    {headerEditing ? renderMultiSelect(
+                      'Units in Service',
+                      plantUnits.map((u) => ({ value: u.unitCode, label: `${u.unitName} (${u.unitCode})` })),
+                      selectedUnits, setSelectedUnits, plantUnits.length === 0,
                     ) : (
                       <Box>
                         <Typography variant="caption" color="text.secondary"
@@ -454,23 +548,16 @@ export default function HydroStationLogPage() {
                             ? toArray(log.unitsInService).map((code) => (
                               <Chip key={code} label={getUnitName(code)} size="small" color="primary" variant="outlined" />
                             ))
-                            : <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#999' }}>Not specified</Typography>
-                          }
+                            : <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#999' }}>Not specified</Typography>}
                         </Stack>
                       </Box>
                     )}
                   </Grid>
-
-                  {/* Lines in Service */}
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    {headerEditing ? (
-                      renderMultiSelect(
-                        'Lines in Service',
-                        plantBuses.map((b) => ({ value: b.busCode, label: `${b.busName} (${b.busCode})` })),
-                        selectedBuses,
-                        setSelectedBuses,
-                        plantBuses.length === 0,
-                      )
+                    {headerEditing ? renderMultiSelect(
+                      'Lines in Service',
+                      plantBuses.map((b) => ({ value: b.busCode, label: `${b.busName} (${b.busCode})` })),
+                      selectedBuses, setSelectedBuses, plantBuses.length === 0,
                     ) : (
                       <Box>
                         <Typography variant="caption" color="text.secondary"
@@ -482,21 +569,17 @@ export default function HydroStationLogPage() {
                             ? toArray(log.linesInService).map((code) => (
                               <Chip key={code} label={getBusName(code)} size="small" color="secondary" variant="outlined" />
                             ))
-                            : <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#999' }}>Not specified</Typography>
-                          }
+                            : <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#999' }}>Not specified</Typography>}
                         </Stack>
                       </Box>
                     )}
                   </Grid>
-
-                  {/* Text fields */}
                   {TEXT_HEADER_FIELDS.map((field) => (
                     <Grid key={field.key} size={{ xs: 12, sm: 6 }}>
                       {headerEditing ? (
                         <TextField label={field.label} fullWidth multiline maxRows={3} size="small"
                           value={headerTextForm[field.key as TextHeaderKey]}
-                          onChange={(e) => setHeaderTextForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                        />
+                          onChange={(e) => setHeaderTextForm((prev) => ({ ...prev, [field.key]: e.target.value }))} />
                       ) : (
                         <Box>
                           <Typography variant="caption" color="text.secondary"
@@ -512,14 +595,13 @@ export default function HydroStationLogPage() {
                     </Grid>
                   ))}
                 </Grid>
-
                 {headerEditing && (
                   <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
                     <Button variant="outlined" size="small"
-                      onClick={() => { setHeaderEditing(false); populateHeaderState(log); }}
-                      disabled={savingHeader}>Cancel</Button>
-                    <Button variant="contained" size="small" onClick={handleSaveHeader}
-                      disabled={savingHeader}
+                      onClick={() => { setHeaderEditing(false); populateHeaderState(log); }} disabled={savingHeader}>
+                      Cancel
+                    </Button>
+                    <Button variant="contained" size="small" onClick={handleSaveHeader} disabled={savingHeader}
                       startIcon={savingHeader ? <CircularProgress size={14} color="inherit" /> : <Save />}>
                       {savingHeader ? 'Saving...' : 'Save Header'}
                     </Button>
@@ -529,52 +611,168 @@ export default function HydroStationLogPage() {
             </Collapse>
           </Card>
 
-          {/* ── Running Log ── */}
+          {/* Running Log */}
           <Card sx={{ mb: 3 }}>
             <CardHeader
               title={
                 <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1.5}>
-                  <Typography sx={{ fontWeight: 700 }}>Station Log Entries</Typography>
-                  <Chip label={`${log.entries.length} entries`} size="small" variant="outlined" />
+                  <Typography sx={{ fontWeight: 700 }}>Station Log</Typography>
+                  <Chip label={`${totalEntries} items`} size="small" variant="outlined" />
                 </Stack>
               }
             />
             <Divider />
             <CardContent>
               {entryError && <Alert severity="error" onClose={() => setEntryError(null)} sx={{ mb: 2 }}>{entryError}</Alert>}
+              {conditionError && <Alert severity="error" onClose={() => setConditionError(null)} sx={{ mb: 2 }}>{conditionError}</Alert>}
 
-              {/* Add Entry Bar */}
+              {/* Add Entry + Add Condition buttons */}
               {canCreate && (
-                <Paper variant="outlined" sx={{ p: 1.5, mb: 2.5, borderRadius: 2, backgroundColor: '#F8F9FA' }}>
-                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-                    <TextField label="Time" type="time" size="small" sx={{ width: 120 }}
-                      value={entryForm.entryTime}
-                      onChange={(e) => setEntryForm((prev) => ({ ...prev, entryTime: e.target.value }))}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                    <TextField label="Entry" size="small" fullWidth multiline maxRows={4}
-                      value={entryForm.entryText}
-                      onChange={(e) => setEntryForm((prev) => ({ ...prev, entryText: e.target.value }))}
-                      placeholder="Record an observation, action or event…"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddEntry(); }
-                      }}
-                    />
-                    <Button variant="contained" size="small" sx={{ minWidth: 80, mt: 0.5 }}
-                      startIcon={addingEntry ? <CircularProgress size={14} color="inherit" /> : <Add />}
-                      onClick={handleAddEntry}
-                      disabled={addingEntry || !entryForm.entryTime || !entryForm.entryText.trim()}>
-                      {addingEntry ? '...' : 'Add'}
+                <Stack spacing={1.5} sx={{ mb: 2.5 }}>
+                  {/* Regular entry bar */}
+                  <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, backgroundColor: '#F8F9FA' }}>
+                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+                      <TextField label="Time" type="time" size="small" sx={{ width: 120 }}
+                        value={entryForm.entryTime}
+                        onChange={(e) => setEntryForm((prev) => ({ ...prev, entryTime: e.target.value }))}
+                        slotProps={{ inputLabel: { shrink: true } }} />
+                      <TextField label="Entry" size="small" fullWidth multiline maxRows={4}
+                        value={entryForm.entryText}
+                        onChange={(e) => setEntryForm((prev) => ({ ...prev, entryText: e.target.value }))}
+                        placeholder="Record an observation, action or event…"
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddEntry(); } }} />
+                      <Button variant="contained" size="small" sx={{ minWidth: 80, mt: 0.5 }}
+                        startIcon={addingEntry ? <CircularProgress size={14} color="inherit" /> : <Add />}
+                        onClick={handleAddEntry}
+                        disabled={addingEntry || !entryForm.entryTime || !entryForm.entryText.trim()}>
+                        {addingEntry ? '...' : 'Add'}
+                      </Button>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                      Press Enter to add · Shift+Enter for new line
+                    </Typography>
+                  </Paper>
+
+                  {/* System conditions button */}
+                  <Button variant="outlined" size="small" startIcon={<TableChart />}
+                    onClick={() => { setEditingCondition(null); setConditionForm(emptyCondition); setShowConditionForm(true); }}
+                    sx={{ alignSelf: 'flex-start' }}>
+                    Add System Conditions Snapshot
+                  </Button>
+                </Stack>
+              )}
+
+              {/* Condition Snapshot Form */}
+              {showConditionForm && (
+                <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2, borderColor: '#1B5E20', backgroundColor: '#F1F8F1' }}>
+                  <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#1B5E20' }}>
+                      {editingCondition ? 'Edit System Conditions Snapshot' : 'New System Conditions Snapshot'}
+                    </Typography>
+                    <IconButton size="small" onClick={() => { setShowConditionForm(false); setEditingCondition(null); }}>
+                      <ExpandLess fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField label="Time" type="time" size="small" fullWidth required
+                        value={conditionForm.snapshotTime}
+                        onChange={(e) => setConditionForm((prev) => ({ ...prev, snapshotTime: e.target.value }))}
+                        slotProps={{ inputLabel: { shrink: true } }} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField label="Source" size="small" fullWidth
+                        value={conditionForm.source}
+                        onChange={(e) => setConditionForm((prev) => ({ ...prev, source: e.target.value }))}
+                        placeholder="e.g. SCC/Doffour" />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField label="System Voltage (kV)" type="number" size="small" fullWidth
+                        value={conditionForm.systemVoltageKv}
+                        onChange={(e) => setConditionForm((prev) => ({ ...prev, systemVoltageKv: e.target.value }))}
+                        slotProps={{ htmlInput: { min: 0, step: 0.1 } }} />
+                    </Grid>
+                  </Grid>
+
+                  {/* Station rows */}
+                  <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20' }}>
+                    Station Readings
+                  </Typography>
+                  <Table size="small" sx={{ mt: 1, mb: 1.5 }}>
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: '#E8F5E9' }}>
+                        <TableCell sx={{ fontWeight: 700 }}>Station</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 120 }}>No. of Units</TableCell>
+                        <TableCell sx={{ fontWeight: 700, width: 140 }}>Total Load (MW)</TableCell>
+                        <TableCell sx={{ width: 40 }} />
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {conditionForm.rows.map((row, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>
+                            <FormControl fullWidth size="small">
+                              <Select value={row.plantCode} displayEmpty
+                                onChange={(e) => {
+                                  const plant = allPlants.find((p) => p.plantCode === e.target.value);
+                                  updateConditionRow(idx, 'plantCode', e.target.value);
+                                  updateConditionRow(idx, 'plantName', plant?.plantName ?? e.target.value);
+                                }}>
+                                <MenuItem value="" disabled><em>Select plant…</em></MenuItem>
+                                {allPlants.map((p) => (
+                                  <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </TableCell>
+                          <TableCell>
+                            <TextField size="small" type="number" fullWidth value={row.numberOfUnits}
+                              onChange={(e) => updateConditionRow(idx, 'numberOfUnits', e.target.value)}
+                              slotProps={{ htmlInput: { min: 0 } }} />
+                          </TableCell>
+                          <TableCell>
+                            <TextField size="small" type="number" fullWidth value={row.totalLoadMw}
+                              onChange={(e) => updateConditionRow(idx, 'totalLoadMw', e.target.value)}
+                              slotProps={{ htmlInput: { min: 0, step: 0.01 } }} />
+                          </TableCell>
+                          <TableCell>
+                            <IconButton size="small" color="error" onClick={() => removeConditionRow(idx)}>
+                              <Delete sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {conditionForm.rows.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} align="center" sx={{ py: 2, color: '#999', fontStyle: 'italic' }}>
+                            No stations added yet
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                    <Button size="small" variant="outlined" startIcon={<Add />} onClick={addConditionRow}
+                      sx={{ color: '#1B5E20', borderColor: '#1B5E20' }}>
+                      Add Station Row
+                    </Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Button size="small" variant="outlined"
+                      onClick={() => { setShowConditionForm(false); setEditingCondition(null); }} disabled={savingCondition}>
+                      Cancel
+                    </Button>
+                    <Button size="small" variant="contained" onClick={handleSaveCondition}
+                      disabled={savingCondition || !conditionForm.snapshotTime}
+                      startIcon={savingCondition ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                      sx={{ backgroundColor: '#1B5E20' }}>
+                      {savingCondition ? 'Saving...' : 'Save Snapshot'}
                     </Button>
                   </Stack>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                    Press Enter to add quickly · Shift+Enter for new line
-                  </Typography>
                 </Paper>
               )}
 
-              {/* Entry Timeline */}
-              {log.entries.length === 0 ? (
+              {/* Timeline */}
+              {timeline.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
                   <Typography variant="body2" color="text.secondary">
                     No entries yet. Add the first log entry above.
@@ -582,84 +780,194 @@ export default function HydroStationLogPage() {
                 </Box>
               ) : (
                 <Stack spacing={0}>
-                  {log.entries.map((entry, idx) => (
-                    <Box key={entry.id}>
-                      {editingEntry?.id === entry.id ? (
-                        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, my: 0.5 }}>
-                          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-                            <TextField label="Time" type="time" size="small" sx={{ width: 120 }}
-                              value={editEntryForm.entryTime}
-                              onChange={(e) => setEditEntryForm((prev) => ({ ...prev, entryTime: e.target.value }))}
-                              slotProps={{ inputLabel: { shrink: true } }}
-                            />
-                            <TextField size="small" fullWidth multiline maxRows={6}
-                              value={editEntryForm.entryText}
-                              onChange={(e) => setEditEntryForm((prev) => ({ ...prev, entryText: e.target.value }))}
-                            />
-                            <Stack spacing={0.5}>
-                              <Button size="small" variant="contained" onClick={handleSaveEntry}
-                                disabled={savingEntry}
-                                startIcon={savingEntry ? <CircularProgress size={12} color="inherit" /> : <Save />}>
-                                Save
-                              </Button>
-                              <Button size="small" variant="outlined"
-                                onClick={() => setEditingEntry(null)} disabled={savingEntry}>
-                                Cancel
-                              </Button>
+                  {timeline.map((item, idx) => {
+                    const isLast = idx === timeline.length - 1;
+
+                    // Regular entry
+                    if (item.type === 'entry' && item.entry) {
+                      const entry = item.entry;
+                      return (
+                        <Box key={item.id}>
+                          {editingEntry?.id === entry.id ? (
+                            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, my: 0.5 }}>
+                              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+                                <TextField label="Time" type="time" size="small" sx={{ width: 120 }}
+                                  value={editEntryForm.entryTime}
+                                  onChange={(e) => setEditEntryForm((prev) => ({ ...prev, entryTime: e.target.value }))}
+                                  slotProps={{ inputLabel: { shrink: true } }} />
+                                <TextField size="small" fullWidth multiline maxRows={6}
+                                  value={editEntryForm.entryText}
+                                  onChange={(e) => setEditEntryForm((prev) => ({ ...prev, entryText: e.target.value }))} />
+                                <Stack spacing={0.5}>
+                                  <Button size="small" variant="contained" onClick={handleSaveEntry}
+                                    disabled={savingEntry}
+                                    startIcon={savingEntry ? <CircularProgress size={12} color="inherit" /> : <Save />}>
+                                    Save
+                                  </Button>
+                                  <Button size="small" variant="outlined"
+                                    onClick={() => setEditingEntry(null)} disabled={savingEntry}>
+                                    Cancel
+                                  </Button>
+                                </Stack>
+                              </Stack>
+                            </Paper>
+                          ) : (
+                            <Box sx={{
+                              display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 1, px: 0.5,
+                              borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider',
+                              '&:hover .entry-actions': { opacity: 1 },
+                            }}>
+                              <Typography variant="body2"
+                                sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#1565C0', minWidth: 50, pt: 0.1, fontSize: 13 }}>
+                                {entry.entryTime}
+                              </Typography>
+                              <Typography variant="body2" sx={{ flex: 1, lineHeight: 1.6 }}>{entry.entryText}</Typography>
+                              <Stack direction="row" className="entry-actions"
+                                sx={{ opacity: 0, transition: 'opacity 0.15s', alignItems: 'center' }}>
+                                <Typography variant="caption" color="text.disabled" sx={{ mr: 0.5 }}>{entry.createdByName}</Typography>
+                                {canEdit && (
+                                  <Tooltip title="Edit">
+                                    <IconButton size="small" onClick={() => { setEditingEntry(entry); setEditEntryForm({ entryTime: entry.entryTime, entryText: entry.entryText }); }}>
+                                      <Edit sx={{ fontSize: 14 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                                {canDelete && (
+                                  <Tooltip title="Delete">
+                                    <IconButton size="small" color="error" onClick={() => setDeleteEntry(entry)}>
+                                      <Delete sx={{ fontSize: 14 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                              </Stack>
+                            </Box>
+                          )}
+                        </Box>
+                      );
+                    }
+
+                    // Condition snapshot
+                    if (item.type === 'condition' && item.condition) {
+                      const cond = item.condition;
+                      const expanded = expandedConditions.has(cond.id);
+                      const totalUnits = cond.rows.reduce((s, r) => s + (r.numberOfUnits ?? 0), 0);
+                      const totalLoad = cond.rows.reduce((s, r) => s + (r.totalLoadMw ?? 0), 0);
+
+                      return (
+                        <Box key={item.id} sx={{ borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', py: 0.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 0.5, py: 0.5,
+                            cursor: 'pointer', '&:hover .cond-actions': { opacity: 1 } }}
+                            onClick={() => setExpandedConditions((prev) => {
+                              const next = new Set(prev);
+                              next.has(cond.id) ? next.delete(cond.id) : next.add(cond.id);
+                              return next;
+                            })}>
+                            <Typography variant="body2"
+                              sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#1B5E20', minWidth: 50, fontSize: 13 }}>
+                              {cond.snapshotTime}
+                            </Typography>
+                            <Chip label="System Conditions" size="small" color="success" variant="outlined"
+                              sx={{ fontWeight: 700, fontSize: 11 }} />
+                            {cond.source && (
+                              <Typography variant="caption" color="text.secondary">from {cond.source}</Typography>
+                            )}
+                            <Typography variant="caption" sx={{ color: '#1B5E20', fontWeight: 600 }}>
+                              {totalUnits} units · {totalLoad.toFixed(1)} MW total
+                            </Typography>
+                            {cond.systemVoltageKv && (
+                              <Typography variant="caption" color="text.secondary">
+                                · {cond.systemVoltageKv}kV
+                              </Typography>
+                            )}
+                            <Box sx={{ flex: 1 }} />
+                            <Stack direction="row" className="cond-actions"
+                              sx={{ opacity: 0, transition: 'opacity 0.15s', alignItems: 'center' }}
+                              onClick={(e) => e.stopPropagation()}>
+                              {canEdit && (
+                                <Tooltip title="Edit">
+                                  <IconButton size="small" onClick={() => openEditCondition(cond)}>
+                                    <Edit sx={{ fontSize: 14 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              {canDelete && (
+                                <Tooltip title="Delete">
+                                  <IconButton size="small" color="error" onClick={() => setDeleteCondition(cond)}>
+                                    <Delete sx={{ fontSize: 14 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                             </Stack>
-                          </Stack>
-                        </Paper>
-                      ) : (
-                        <Box sx={{
-                          display: 'flex', alignItems: 'flex-start', gap: 1.5,
-                          py: 1, px: 0.5,
-                          borderBottom: idx < log.entries.length - 1 ? '1px solid' : 'none',
-                          borderColor: 'divider',
-                          '&:hover .entry-actions': { opacity: 1 },
+                            <IconButton size="small">
+                              {expanded ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+                            </IconButton>
+                          </Box>
+                          <Collapse in={expanded}>
+                            <Box sx={{ ml: 8, mb: 1 }}>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow sx={{ backgroundColor: '#E8F5E9' }}>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Station</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Units</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700, fontSize: 12 }}>Load (MW)</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {cond.rows.map((row) => (
+                                    <TableRow key={row.id}>
+                                      <TableCell sx={{ fontSize: 12 }}>{row.plantName}</TableCell>
+                                      <TableCell align="center" sx={{ fontSize: 12 }}>{row.numberOfUnits ?? '—'}</TableCell>
+                                      <TableCell align="right" sx={{ fontSize: 12 }}>{row.totalLoadMw?.toFixed(1) ?? '—'}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                  <TableRow sx={{ backgroundColor: '#E8F5E9' }}>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Total</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>{totalUnits}</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700, fontSize: 12 }}>{totalLoad.toFixed(1)}</TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+                            </Box>
+                          </Collapse>
+                        </Box>
+                      );
+                    }
+
+                    // Shift handover
+                    if (item.type === 'handover') {
+                      const isIncoming = item.handoverType === 'incoming';
+                      return (
+                        <Box key={item.id} sx={{
+                          display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 1, px: 0.5,
+                          borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider',
+                          backgroundColor: '#F3F6FF',
                         }}>
                           <Typography variant="body2"
-                            sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#1565C0',
-                              minWidth: 50, pt: 0.1, fontSize: 13 }}>
-                            {entry.entryTime}
+                            sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#1565C0', minWidth: 50, pt: 0.1, fontSize: 13 }}>
+                            {item.time}
                           </Typography>
-                          <Typography variant="body2" sx={{ flex: 1, lineHeight: 1.6 }}>
-                            {entry.entryText}
+                          <Chip label="Handover" size="small" color="primary" variant="outlined"
+                            sx={{ fontWeight: 700, fontSize: 11 }} />
+                          <Typography variant="body2" sx={{ flex: 1, lineHeight: 1.6,
+                            color: isIncoming ? '#1B5E20' : '#B71C1C', fontStyle: 'italic' }}>
+                            {item.handoverText}
                           </Typography>
-                          <Stack direction="row" className="entry-actions"
-                            sx={{ opacity: 0, transition: 'opacity 0.15s', alignItems: 'center' }}>
-                            <Typography variant="caption" color="text.disabled" sx={{ mr: 0.5 }}>
-                              {entry.createdByName}
-                            </Typography>
-                            {canEdit && (
-                              <Tooltip title="Edit">
-                                <IconButton size="small" onClick={() => openEditEntry(entry)}>
-                                  <Edit sx={{ fontSize: 14 }} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            {canDelete && (
-                              <Tooltip title="Delete">
-                                <IconButton size="small" color="error" onClick={() => setDeleteEntry(entry)}>
-                                  <Delete sx={{ fontSize: 14 }} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Stack>
                         </Box>
-                      )}
-                    </Box>
-                  ))}
+                      );
+                    }
+
+                    return null;
+                  })}
                 </Stack>
               )}
             </CardContent>
           </Card>
 
-          {/* ── Energy Summary ── */}
+          {/* Energy Summary */}
           <Card>
             <Box sx={{
-              px: 2.5, py: 1.5, display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', cursor: 'pointer',
-              backgroundColor: '#1B5E2014',
+              px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              cursor: 'pointer', backgroundColor: '#1B5E2014',
               borderBottom: summaryCollapsed ? 'none' : '1px solid', borderColor: 'divider',
             }} onClick={() => setSummaryCollapsed((p) => !p)}>
               <Typography variant="caption"
@@ -687,22 +995,18 @@ export default function HydroStationLogPage() {
                       <TextField label="Energy Generated (kWh)" type="number" fullWidth size="small"
                         value={summaryForm.energyGeneratedKwh}
                         onChange={(e) => setSummaryForm((prev) => ({ ...prev, energyGeneratedKwh: e.target.value }))}
-                        slotProps={{ htmlInput: { min: 0, step: 0.001 } }}
-                      />
+                        slotProps={{ htmlInput: { min: 0, step: 0.001 } }} />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <TextField label="Shift Leader" fullWidth size="small"
                         value={summaryForm.shiftLeaderName}
                         onChange={(e) => setSummaryForm((prev) => ({ ...prev, shiftLeaderName: e.target.value }))}
-                        placeholder="Name of shift leader"
-                      />
+                        placeholder="Name of shift leader" />
                     </Grid>
                     <Grid size={{ xs: 12 }}>
                       <Stack direction="row" spacing={1.5}>
-                        <Button variant="outlined" size="small"
-                          onClick={() => setSummaryEditing(false)} disabled={savingSummary}>Cancel</Button>
-                        <Button variant="contained" size="small" onClick={handleSaveSummary}
-                          disabled={savingSummary}
+                        <Button variant="outlined" size="small" onClick={() => setSummaryEditing(false)} disabled={savingSummary}>Cancel</Button>
+                        <Button variant="contained" size="small" onClick={handleSaveSummary} disabled={savingSummary}
                           startIcon={savingSummary ? <CircularProgress size={14} color="inherit" /> : <Save />}>
                           {savingSummary ? 'Saving...' : 'Save Summary'}
                         </Button>
@@ -728,8 +1032,7 @@ export default function HydroStationLogPage() {
                         Shift Leader
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
-                        {log.shiftLeaderName ||
-                          <span style={{ color: '#999', fontStyle: 'italic' }}>Not recorded</span>}
+                        {log.shiftLeaderName || <span style={{ color: '#999', fontStyle: 'italic' }}>Not recorded</span>}
                       </Typography>
                     </Grid>
                   </Grid>
@@ -743,9 +1046,16 @@ export default function HydroStationLogPage() {
       <ConfirmDialog
         open={!!deleteEntry}
         title="Delete Log Entry"
-        message={`Delete the entry at ${deleteEntry?.entryTime}: "${deleteEntry?.entryText?.slice(0, 60)}${(deleteEntry?.entryText?.length ?? 0) > 60 ? '…' : ''}"?`}
+        message={`Delete the entry at ${deleteEntry?.entryTime}?`}
         confirmLabel="Delete" loading={deletingEntry}
         onConfirm={handleDeleteEntry} onCancel={() => setDeleteEntry(null)}
+      />
+      <ConfirmDialog
+        open={!!deleteCondition}
+        title="Delete System Conditions Snapshot"
+        message={`Delete the system conditions snapshot at ${deleteCondition?.snapshotTime}?`}
+        confirmLabel="Delete" loading={deletingCondition}
+        onConfirm={handleDeleteCondition} onCancel={() => setDeleteCondition(null)}
       />
     </Box>
   );

@@ -7,6 +7,25 @@ export interface HydroStationLogEntry {
   createdOn: string;
 }
 
+export interface HydroStationLogConditionRow {
+  id: string;
+  plantCode: string;
+  plantName: string;
+  numberOfUnits?: number | null;
+  totalLoadMw?: number | null;
+  sortOrder: number;
+}
+
+export interface HydroStationLogCondition {
+  id: string;
+  snapshotTime: string;
+  source?: string;
+  systemVoltageKv?: number | null;
+  createdByName: string;
+  createdOn: string;
+  rows: HydroStationLogConditionRow[];
+}
+
 export interface HydroStationLog {
   id: string;
   plantCode: string;
@@ -18,7 +37,7 @@ export interface HydroStationLog {
   permitsInEffect?: string;
   applicationsForOutage?: string;
   miscNotes?: string;
-  energyGeneratedKwh?: number;
+  energyGeneratedKwh?: number | null;
   shiftLeaderName?: string;
   createdByName: string;
   createdByEmail: string;
@@ -26,6 +45,7 @@ export interface HydroStationLog {
   updatedByName?: string;
   updatedOn?: string;
   entries: HydroStationLogEntry[];
+  conditions: HydroStationLogCondition[];
 }
 
 export interface CreateHydroStationLogForm {
@@ -58,4 +78,19 @@ export interface CreateHydroStationLogEntryForm {
 export interface UpdateHydroStationLogEntryForm {
   entryTime: string;
   entryText: string;
+}
+
+export interface ConditionRowForm {
+  plantCode: string;
+  plantName: string;
+  numberOfUnits: string;
+  totalLoadMw: string;
+  sortOrder: number;
+}
+
+export interface CreateConditionForm {
+  snapshotTime: string;
+  source: string;
+  systemVoltageKv: string;
+  rows: ConditionRowForm[];
 }

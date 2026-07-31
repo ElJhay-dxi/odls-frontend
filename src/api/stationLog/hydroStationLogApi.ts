@@ -4,8 +4,10 @@ import type {
   CreateHydroStationLogForm,
   UpdateHydroStationLogForm,
   HydroStationLogEntry,
+  HydroStationLogCondition,
   CreateHydroStationLogEntryForm,
   UpdateHydroStationLogEntryForm,
+  CreateConditionForm,
 } from '../../types/hydroStationLog';
 
 const BASE = '/hydrostationlogs';
@@ -38,4 +40,36 @@ export const hydroStationLogApi = {
 
   deleteEntry: (logId: string, entryId: string) =>
     axiosInstance.delete(`${BASE}/${logId}/entries/${entryId}`),
+
+  // Condition snapshots
+  addCondition: (logId: string, data: CreateConditionForm) =>
+    axiosInstance.post<HydroStationLogCondition>(`${BASE}/${logId}/conditions`, {
+      snapshotTime: data.snapshotTime,
+      source: data.source || null,
+      systemVoltageKv: data.systemVoltageKv !== '' ? Number(data.systemVoltageKv) : null,
+      rows: data.rows.map((r, idx) => ({
+        plantCode: r.plantCode,
+        plantName: r.plantName,
+        numberOfUnits: r.numberOfUnits !== '' ? Number(r.numberOfUnits) : null,
+        totalLoadMw: r.totalLoadMw !== '' ? Number(r.totalLoadMw) : null,
+        sortOrder: idx,
+      })),
+    }),
+
+  updateCondition: (logId: string, conditionId: string, data: CreateConditionForm) =>
+    axiosInstance.put<HydroStationLogCondition>(`${BASE}/${logId}/conditions/${conditionId}`, {
+      snapshotTime: data.snapshotTime,
+      source: data.source || null,
+      systemVoltageKv: data.systemVoltageKv !== '' ? Number(data.systemVoltageKv) : null,
+      rows: data.rows.map((r, idx) => ({
+        plantCode: r.plantCode,
+        plantName: r.plantName,
+        numberOfUnits: r.numberOfUnits !== '' ? Number(r.numberOfUnits) : null,
+        totalLoadMw: r.totalLoadMw !== '' ? Number(r.totalLoadMw) : null,
+        sortOrder: idx,
+      })),
+    }),
+
+  deleteCondition: (logId: string, conditionId: string) =>
+    axiosInstance.delete(`${BASE}/${logId}/conditions/${conditionId}`),
 };
