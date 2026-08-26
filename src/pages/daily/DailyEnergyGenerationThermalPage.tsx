@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Save, Search, Edit, Delete, LocalFireDepartment, History } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -17,6 +18,7 @@ import type {
 } from '../../types/dailyEnergyGenerationThermal';
 import { FUEL_TYPE_LABELS } from '../../types/dailyEnergyGenerationThermal';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
+import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const FUEL_TYPES: ThermalFuelType[] = ['NaturalGas', 'DFO'];
 
@@ -29,6 +31,8 @@ const emptyForm: DailyEnergyGenThermalForm = {
 
 export default function DailyEnergyGenerationThermalPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.energy_thermal');
+  const isWrongPlantType = usePlantTypeGuard('thermal');
+  const navigate = useNavigate();
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
@@ -175,6 +179,21 @@ export default function DailyEnergyGenerationThermalPage() {
   const isFormValid = editTarget
     ? updateForm.currentReading !== '' && updateForm.currentReading !== undefined
     : form.plantCode && form.fuelType && form.logDate && form.currentReading !== '';
+
+  // ── Plant type guard ─────────────────────────────────────────────────────────
+  if (isWrongPlantType) return (
+    <Box>
+      <PageHeader
+        title="Daily Energy Generation — Thermal"
+        subtitle="Daily MWh generation readings per thermal plant and fuel type"
+        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Energy Generation (Thermal)' }]}
+      />
+      <Alert severity="error" sx={{ mt: 2 }}
+        action={<Button color="error" size="small" variant="outlined" onClick={() => navigate(-1)}>Go Back</Button>}>
+        You do not have access to this page. Your plant assignment is hydro only.
+      </Alert>
+    </Box>
+  );
 
   return (
     <Box>

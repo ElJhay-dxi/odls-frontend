@@ -24,6 +24,7 @@ const BopEquipmentPage = lazy(() => import('./pages/masterData/BopEquipmentPage'
 const BearingMetalPage = lazy(() => import('./pages/masterData/BearingMetalPage'));
 const BearingDrainPage = lazy(() => import('./pages/masterData/BearingDrainPage'));
 const PlantBusPage = lazy(() => import('./pages/masterData/PlantBusPage'));
+const SafetyDocumentTypesPage = lazy(() => import('./pages/masterData/SafetyDocumentTypesPage'));
 
 // Hourly Readings
 const HourlyHydroReadingPage = lazy(() => import('./pages/hourly/HourlyHydroReadingPage'));
@@ -53,6 +54,7 @@ const HydrologyPage = lazy(() => import('./pages/daily/HydrologyPage'));
 // Station Logs
 const ShiftLogPage = lazy(() => import('./pages/stationLog/ShiftLogPage'));
 const HydroStationLogPage = lazy(() => import('./pages/stationLog/HydroStationLogPage'));
+const ThermalStationLogPage = lazy(() => import('./pages/stationLog/ThermalStationLogPage'));
 
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
@@ -109,7 +111,7 @@ export default function App() {
                   <Route path="master/bearing-metals" element={<G p="master.view"><BearingMetalPage /></G>} />
                   <Route path="master/bearing-drains" element={<G p="master.view"><BearingDrainPage /></G>} />
                   <Route path="master/plant-buses" element={<G p="master.view"><PlantBusPage /></G>} />
-
+                  <Route path="master/safety-document-types" element={<G p="master.view"><SafetyDocumentTypesPage /></G>} />
                   {/* Hourly Readings */}
                   <Route path="hourly/hydro-units" element={<G p="hourly.hydro_units.view"><HourlyHydroReadingPage /></G>} />
                   <Route path="hourly/thermal-units" element={<G p="hourly.thermal_units.view"><HourlyThermalReadingPage /></G>} />
@@ -138,6 +140,7 @@ export default function App() {
                   {/* Station Logs */}
                   <Route path="station-logs/shift-logs" element={<G p="station_logs.shift_logs.view"><ShiftLogPage /></G>} />
                   <Route path="station-logs/hydro" element={<G p="station_logs.hydro.view"><HydroStationLogPage /></G>} />
+                  <Route path="station-logs/thermal" element={<G p="station_logs.thermal.view"><ThermalStationLogPage /></G>} />
 
                   {/* Admin */}
                   <Route path="admin/permissions" element={<G p="permissions.view"><PermissionsPage /></G>} />

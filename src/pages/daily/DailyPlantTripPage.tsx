@@ -41,7 +41,7 @@ const THERMAL_FIELDS = [
 const toInt = (v: unknown) => v === '' || v === undefined || v === null ? 0 : Number(v);
 
 export default function DailyPlantTripPage() {
-  const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.plant_trips');
+  const { canCreate, canEdit /*canDelete*/ } = useSectionPermissions('daily.plant_trips');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 

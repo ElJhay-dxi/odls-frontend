@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   Save, Edit, Delete, Add, WaterDrop, ExpandMore, ExpandLess,
-  Assignment, CheckCircle, Warning, TableChart,
+  Assignment, CheckCircle, TableChart,
 } from '@mui/icons-material';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -28,12 +28,6 @@ import type {
 import type { ShiftLog } from '../../types/shiftLog';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { useUser } from '../../context/UserContext';
-
-const emptyHeader: UpdateHydroStationLogForm = {
-  unitsInService: '', linesInService: '', stationService: '',
-  permitsInEffect: '', applicationsForOutage: '', miscNotes: '',
-  energyGeneratedKwh: null, shiftLeaderName: '',
-};
 
 const emptyEntry: CreateHydroStationLogEntryForm = {
   entryTime: new Date().toTimeString().slice(0, 5),
@@ -120,6 +114,8 @@ export default function HydroStationLogPage() {
   const [savingCondition, setSavingCondition] = useState(false);
   const [conditionError, setConditionError] = useState<string | null>(null);
   const [editingCondition, setEditingCondition] = useState<HydroStationLogCondition | null>(null);
+  const [pasteMode, setPasteMode] = useState(false);
+  const [pasteText, setPasteText] = useState('');
   const [deleteCondition, setDeleteCondition] = useState<HydroStationLogCondition | null>(null);
   const [deletingCondition, setDeletingCondition] = useState(false);
   const [expandedConditions, setExpandedConditions] = useState<Set<string>>(new Set());
@@ -170,9 +166,15 @@ export default function HydroStationLogPage() {
   const loadLog = async () => {
     setLoading(true); setLoadError(null); setLog(null); setShiftHandovers([]);
     try {
-      const [logRes, handoverRes] = await Promise.allSettled([
+      // Previous day date string for fetching overnight shift
+      const prevDate = new Date(selectedDate + 'T12:00:00');
+      prevDate.setDate(prevDate.getDate() - 1);
+      const prevDateStr = prevDate.toISOString().split('T')[0];
+
+      const [logRes, handoverRes, prevHandoverRes] = await Promise.allSettled([
         hydroStationLogApi.getByDate(selectedPlant, selectedDate),
         shiftLogApi.getAll({ plantCode: selectedPlant, date: selectedDate }),
+        shiftLogApi.getAll({ plantCode: selectedPlant, date: prevDateStr }),
       ]);
 
       if (logRes.status === 'fulfilled') {
@@ -183,9 +185,17 @@ export default function HydroStationLogPage() {
         if (status !== 404) setLoadError('Failed to load station log.');
       }
 
-      if (handoverRes.status === 'fulfilled') {
-        setShiftHandovers(handoverRes.value.data);
-      }
+      // Combine current day handovers + previous day's overnight shift (Hydro: C, Thermal: B)
+      const currentHandovers = handoverRes.status === 'fulfilled' ? handoverRes.value.data : [];
+      const prevHandovers = prevHandoverRes.status === 'fulfilled' ? prevHandoverRes.value.data : [];
+
+      // From previous day, only include the overnight shift (last shift that covers midnight)
+      // Include both C (hydro) and B (thermal) overnight shifts from prev day
+      const overnightHandovers = prevHandovers.filter((h) =>
+        h.shiftCode === 'C' || h.shiftCode === 'B'
+      );
+
+      setShiftHandovers([...currentHandovers, ...overnightHandovers]);
     } finally {
       setLoading(false);
     }
@@ -201,12 +211,29 @@ export default function HydroStationLogPage() {
     // Condition snapshots
     (log?.conditions ?? []).forEach((c) => items.push({ id: c.id, time: c.snapshotTime, type: 'condition', condition: c }));
 
-    // Shift handovers — only if date matches
+    // Shift handovers — current day entries + previous day overnight shift at 00:00
     shiftHandovers.forEach((h) => {
       const handoverDate = h.logDate?.split('T')[0];
-      if (handoverDate !== selectedDate) return;
+      const isCurrentDay = handoverDate === selectedDate;
+      const isPrevDayOvernight = !isCurrentDay && (h.shiftCode === 'C' || h.shiftCode === 'B');
 
-      // Incoming officers entry
+      if (!isCurrentDay && !isPrevDayOvernight) return;
+
+      if (isPrevDayOvernight) {
+        // Show overnight shift as opening entry at 00:00
+        if (h.officers.length > 0) {
+          items.push({
+            id: `${h.id}-overnight`,
+            time: '00:00',
+            type: 'handover',
+            handoverType: 'incoming',
+            handoverText: `On duty (overnight): ${h.officers.map((o) => o.officerName).join(', ')}.`,
+          });
+        }
+        return;
+      }
+
+      // Current day handovers
       if (h.officers.length > 0) {
         items.push({
           id: `${h.id}-in`,
@@ -342,6 +369,85 @@ export default function HydroStationLogPage() {
     setShowConditionForm(true);
   };
 
+  const parsePasteText = (text: string) => {
+    const lines = text.trim().split('\n').filter((l) => l.trim());
+    const parsed: { plantName: string; numberOfUnits: string; totalLoadMw: string }[] = [];
+
+    for (const line of lines) {
+      // Tab-separated (Excel copy) or multiple spaces
+      const parts = line.split(/\t|  +/).map((p) => p.trim()).filter(Boolean);
+      if (parts.length < 2) continue;
+      const plantName = parts[0];
+      // Skip header rows
+      if (/^(station|plant|number|units|load)/i.test(plantName)) continue;
+      // Units: second column — treat non-numeric (*** G1 G4 etc.) as blank
+      const rawUnits = parts[1] ?? '';
+      const numberOfUnits = /^\d+$/.test(rawUnits) ? rawUnits : '';
+      // Load: third column
+      const rawLoad = parts[2] ?? '';
+      const totalLoadMw = /^\d+(\.\d+)?$/.test(rawLoad) ? rawLoad : '';
+      if (plantName) parsed.push({ plantName, numberOfUnits, totalLoadMw });
+    }
+
+    // Fuzzy match paste station name against registered plants
+    const fuzzyMatch = (pasteName: string) => {
+      const lower = pasteName.toLowerCase();
+
+      // 1. Extract station code from brackets e.g. "(KT67)" "(BU54)" "(AT91)"
+      // This is the most reliable match — codes are unique
+      const codeMatch = pasteName.match(/\(([A-Z]{2}\d{2,})\)/i);
+      if (codeMatch) {
+        const code = codeMatch[1].toUpperCase();
+        const byCode = allPlants.find((pl) =>
+          pl.plantCode.toUpperCase() === code ||
+          pl.plantCode.toUpperCase().includes(code) ||
+          code.includes(pl.plantCode.toUpperCase())
+        );
+        if (byCode) return byCode;
+      }
+
+      // 2. Exact plant name match (case insensitive)
+      const byExact = allPlants.find((pl) =>
+        pl.plantName.toLowerCase() === lower
+      );
+      if (byExact) return byExact;
+
+      // 3. Paste name starts with plant name (e.g. "AKOSOMBO" matches "Akosombo Power Station")
+      const byPrefix = allPlants.find((pl) => {
+        const plLower = pl.plantName.toLowerCase();
+        // Only match if the paste name is the beginning of the plant name or vice versa
+        // and the matching portion is at least 5 chars to avoid false positives
+        return (lower.length >= 5 && plLower.startsWith(lower)) ||
+               (plLower.length >= 5 && lower.startsWith(plLower));
+      });
+      if (byPrefix) return byPrefix;
+
+      return null;
+    };
+
+    // Match and deduplicate — each registered plant can only appear once
+    const usedPlantCodes = new Set<string>();
+    const rows = parsed
+      .map((p) => ({ match: fuzzyMatch(p.plantName), p }))
+      .filter(({ match }) => {
+        if (!match) return false;
+        if (usedPlantCodes.has(match.plantCode)) return false;
+        usedPlantCodes.add(match.plantCode);
+        return true;
+      })
+      .map(({ match, p }, idx) => ({
+        plantCode: match!.plantCode,
+        plantName: match!.plantName,
+        numberOfUnits: p.numberOfUnits,
+        totalLoadMw: p.totalLoadMw,
+        sortOrder: idx,
+      }));
+
+    setConditionForm((prev) => ({ ...prev, rows }));
+    setPasteMode(false);
+    setPasteText('');
+  };
+
   const handleSaveCondition = async () => {
     if (!log || !conditionForm.snapshotTime) return;
     setSavingCondition(true); setConditionError(null);
@@ -363,6 +469,8 @@ export default function HydroStationLogPage() {
       }
       setConditionForm(emptyCondition);
       setShowConditionForm(false);
+      setPasteMode(false);
+      setPasteText('');
     } catch { setConditionError('Failed to save condition snapshot.'); }
     finally { setSavingCondition(false); }
   };
@@ -669,7 +777,7 @@ export default function HydroStationLogPage() {
                     <Typography variant="body2" sx={{ fontWeight: 700, color: '#1B5E20' }}>
                       {editingCondition ? 'Edit System Conditions Snapshot' : 'New System Conditions Snapshot'}
                     </Typography>
-                    <IconButton size="small" onClick={() => { setShowConditionForm(false); setEditingCondition(null); }}>
+                    <IconButton size="small" onClick={() => { setShowConditionForm(false); setEditingCondition(null); setPasteMode(false); setPasteText(''); }}>
                       <ExpandLess fontSize="small" />
                     </IconButton>
                   </Stack>
@@ -695,9 +803,46 @@ export default function HydroStationLogPage() {
                   </Grid>
 
                   {/* Station rows */}
-                  <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20' }}>
-                    Station Readings
-                  </Typography>
+                  <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20' }}>
+                      Station Readings
+                    </Typography>
+                    <Button size="small" variant={pasteMode ? 'contained' : 'outlined'}
+                      onClick={() => { setPasteMode((p) => !p); setPasteText(''); }}
+                      sx={{ fontSize: 11, color: pasteMode ? 'white' : '#1B5E20', borderColor: '#1B5E20',
+                        backgroundColor: pasteMode ? '#1B5E20' : 'transparent' }}>
+                      {pasteMode ? 'Cancel Paste' : '📋 Paste from Excel'}
+                    </Button>
+                  </Stack>
+
+                  {pasteMode && (
+                    <Box sx={{ mb: 1.5 }}>
+                      <TextField
+                        fullWidth multiline rows={6} size="small"
+                        value={pasteText}
+                        onChange={(e) => setPasteText(e.target.value)}
+                        onPaste={(e) => {
+                          const text = e.clipboardData.getData('text');
+                          setPasteText(text);
+                          setTimeout(() => parsePasteText(text), 50);
+                        }}
+                        placeholder={"Copy the station readings table from Excel and paste here.\nExpected columns: Station Name | Units | Load (MW)"}
+                        sx={{ fontFamily: 'monospace', fontSize: 12 }}
+                      />
+                      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                        <Button size="small" variant="contained"
+                          onClick={() => parsePasteText(pasteText)}
+                          disabled={!pasteText.trim()}
+                          sx={{ backgroundColor: '#1B5E20' }}>
+                          Parse & Fill Rows
+                        </Button>
+                        <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                          Paste automatically fills rows — review and adjust before saving.
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  )}
+
                   <Table size="small" sx={{ mt: 1, mb: 1.5 }}>
                     <TableHead>
                       <TableRow sx={{ backgroundColor: '#E8F5E9' }}>
@@ -719,9 +864,11 @@ export default function HydroStationLogPage() {
                                   updateConditionRow(idx, 'plantName', plant?.plantName ?? e.target.value);
                                 }}>
                                 <MenuItem value="" disabled><em>Select plant…</em></MenuItem>
-                                {allPlants.map((p) => (
-                                  <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
-                                ))}
+                                {allPlants
+                                  .filter((p) => p.plantCode === row.plantCode || !conditionForm.rows.some((r, ri) => ri !== idx && r.plantCode === p.plantCode))
+                                  .map((p) => (
+                                    <MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>
+                                  ))}
                               </Select>
                             </FormControl>
                           </TableCell>
@@ -758,7 +905,7 @@ export default function HydroStationLogPage() {
                     </Button>
                     <Box sx={{ flex: 1 }} />
                     <Button size="small" variant="outlined"
-                      onClick={() => { setShowConditionForm(false); setEditingCondition(null); }} disabled={savingCondition}>
+                      onClick={() => { setShowConditionForm(false); setEditingCondition(null); setPasteMode(false); setPasteText(''); }} disabled={savingCondition}>
                       Cancel
                     </Button>
                     <Button size="small" variant="contained" onClick={handleSaveCondition}

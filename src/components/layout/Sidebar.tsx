@@ -18,7 +18,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   path?: string;
-  permission?: string;   // required permission code to show this item
+  permission?: string;
   children?: NavItem[];
 }
 
@@ -48,6 +48,7 @@ const navItems: NavItem[] = [
       { label: 'Bearing Metals', icon: <Settings />, path: '/master/bearing-metals', permission: 'master.view' },
       { label: 'Bearing Drains', icon: <Settings />, path: '/master/bearing-drains', permission: 'master.view' },
       { label: 'Plant Buses', icon: <Settings />, path: '/master/plant-buses', permission: 'master.view' },
+      { label: 'Safety Document Types', icon: <Assignment />, path: '/master/safety-document-types', permission: 'master.view' },
     ],
   },
   {
@@ -123,6 +124,26 @@ const navItems: NavItem[] = [
   },
 ];
 
+// Paths that are hydro-only — hidden from thermal-only users
+const HYDRO_ONLY_PATHS = [
+  '/daily/energy-generation-hydro',
+  '/daily/water-system',
+  '/hydrology',
+  '/station-logs/hydro',
+  '/hourly/hydro-units',
+];
+
+// Paths that are thermal-only — hidden from hydro-only users
+const THERMAL_ONLY_PATHS = [
+  '/daily/energy-generation-thermal',
+  '/daily/lco-readings',
+  '/daily/dfo-readings',
+  '/daily/natural-gas-turbine',
+  '/daily/natural-gas-chromatograph',
+  '/station-logs/thermal',
+  '/hourly/thermal-units',
+];
+
 interface SidebarProps {
   open: boolean;
 }
@@ -141,15 +162,22 @@ export default function Sidebar({ open }: SidebarProps) {
 
   const isActive = (path?: string) => path && location.pathname === path;
 
-  // Filter items the user has permission to see
   const canSee = (item: NavItem): boolean => {
-    if (!item.permission) return true; // no permission required — always show
+    if (!item.permission) return true;
     if (!hasPermission(item.permission)) return false;
-    // For plant-restricted users, hide station log pages that don't match their plant type
+
+    // Only apply plant-type filtering to plant-restricted users with a known classification
     if (isPlantUser && userPlantClassifications.length > 0) {
-      if (item.path === '/station-logs/hydro' && !userPlantClassifications.includes('hydro')) return false;
-      if (item.path === '/station-logs/thermal' && !userPlantClassifications.includes('thermal')) return false;
+      const isThermalOnly = !userPlantClassifications.includes('hydro');
+      const isHydroOnly = !userPlantClassifications.includes('thermal');
+
+      // Thermal-only users cannot see hydro paths
+      if (isThermalOnly && item.path && HYDRO_ONLY_PATHS.includes(item.path)) return false;
+
+      // Hydro-only users cannot see thermal paths
+      if (isHydroOnly && item.path && THERMAL_ONLY_PATHS.includes(item.path)) return false;
     }
+
     return true;
   };
 
@@ -160,7 +188,7 @@ export default function Sidebar({ open }: SidebarProps) {
         ...item,
         children: item.children ? filterItems(item.children) : undefined,
       }))
-      .filter((item) => !item.children || item.children.length > 0); // hide parent if all children hidden
+      .filter((item) => !item.children || item.children.length > 0);
 
   const visibleItems = filterItems(navItems);
 
@@ -184,43 +212,18 @@ export default function Sidebar({ open }: SidebarProps) {
                 borderRadius: 1.5,
                 mb: 0.3,
                 color: isActive(item.path) ? '#F0A500' : 'rgba(255,255,255,0.78)',
-                backgroundColor: isActive(item.path)
-                  ? 'rgba(240,165,0,0.12)'
-                  : 'transparent',
-                '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.08)',
-                  color: '#FFFFFF',
-                },
+                backgroundColor: isActive(item.path) ? 'rgba(240,165,0,0.12)' : 'transparent',
+                '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)', color: '#FFFFFF' },
                 transition: 'all 0.15s ease',
               }}
             >
-              <ListItemIcon
-                sx={{
-                  minWidth: 36,
-                  color: isActive(item.path) ? '#F0A500' : 'rgba(255,255,255,0.6)',
-                  '& svg': { fontSize: depth === 0 ? '1.3rem' : '1.1rem' },
-                }}
-              >
+              <ListItemIcon sx={{ minWidth: 36, color: isActive(item.path) ? '#F0A500' : 'rgba(255,255,255,0.6)', '& svg': { fontSize: depth === 0 ? '1.3rem' : '1.1rem' } }}>
                 {item.icon}
               </ListItemIcon>
               {open && (
-                <ListItemText
-                  primary={item.label}
-                  slotProps={{
-                    primary: {
-                      sx: {
-                        fontSize: depth === 0 ? '0.875rem' : '0.813rem',
-                        fontWeight: depth === 0 ? 600 : 400,
-                      },
-                    },
-                  }}
-                />
+                <ListItemText primary={item.label} slotProps={{ primary: { sx: { fontSize: depth === 0 ? '0.875rem' : '0.813rem', fontWeight: depth === 0 ? 600 : 400 } } }} />
               )}
-              {open && hasChildren && (
-                isExpanded
-                  ? <ExpandLess sx={{ fontSize: '1rem', opacity: 0.7 }} />
-                  : <ExpandMore sx={{ fontSize: '1rem', opacity: 0.7 }} />
-              )}
+              {open && hasChildren && (isExpanded ? <ExpandLess sx={{ fontSize: '1rem', opacity: 0.7 }} /> : <ExpandMore sx={{ fontSize: '1rem', opacity: 0.7 }} />)}
             </ListItemButton>
           </Tooltip>
 
@@ -250,57 +253,29 @@ export default function Sidebar({ open }: SidebarProps) {
         },
       }}
     >
-      {/* Logo area */}
-      <Box
-        sx={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          px: 2,
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-        }}
-      >
+      <Box sx={{ height: 64, display: 'flex', alignItems: 'center', px: 2, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <ElectricBolt sx={{ color: '#F0A500', fontSize: '1.6rem', mr: open ? 1.5 : 0 }} />
         {open && (
           <Box>
-            <Typography variant="subtitle1" sx={{ color: '#FFFFFF', fontWeight: 700, lineHeight: 1.2, fontSize: '0.95rem' }}>
-              ODL System
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>
-              Operational Data Logging
-            </Typography>
+            <Typography variant="subtitle1" sx={{ color: '#FFFFFF', fontWeight: 700, lineHeight: 1.2, fontSize: '0.95rem' }}>ODL System</Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>Operational Data Logging</Typography>
           </Box>
         )}
       </Box>
 
       <Box sx={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, py: 1 }}>
-        <List disablePadding>
-          {renderItems(visibleItems)}
-        </List>
+        <List disablePadding>{renderItems(visibleItems)}</List>
       </Box>
 
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
       <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Box
-          sx={{
-            width: 32, height: 32, borderRadius: '50%',
-            backgroundColor: '#F0A500',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <Typography variant="caption" sx={{ fontWeight: 700, color: '#000' }}>
-            {profile?.fullName?.charAt(0)?.toUpperCase() ?? 'U'}
-          </Typography>
+        <Box sx={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#F0A500', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: '#000' }}>{profile?.fullName?.charAt(0)?.toUpperCase() ?? 'U'}</Typography>
         </Box>
         {open && (
           <Box>
-            <Typography variant="caption" sx={{ color: '#FFF', fontWeight: 600, display: 'block', fontSize: '0.75rem' }}>
-              {profile?.fullName ?? 'User'}
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.68rem' }}>
-              {profile?.roleName ?? ''}
-            </Typography>
+            <Typography variant="caption" sx={{ color: '#FFF', fontWeight: 600, display: 'block', fontSize: '0.75rem' }}>{profile?.fullName ?? 'User'}</Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.68rem' }}>{profile?.roleName ?? ''}</Typography>
           </Box>
         )}
       </Box>

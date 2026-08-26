@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Save, Search, Edit, Delete, LocalFireDepartment, History } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -15,6 +16,7 @@ import { dailyNaturalGasTurbineApi } from '../../api/daily/dailyNaturalGasTurbin
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { DailyNaturalGasTurbine, DailyNaturalGasTurbineForm } from '../../types/dailyNaturalGasTurbine';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
+import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const emptyForm: DailyNaturalGasTurbineForm = {
   plantCode: '', unitCode: '',
@@ -22,11 +24,13 @@ const emptyForm: DailyNaturalGasTurbineForm = {
   logTime: '', currentReading: '', heatingValue: '',
 };
 
-const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
+//const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
 const fmt = (v?: number, dec = 2) => v != null ? v.toFixed(dec) : '—';
 
 export default function DailyNaturalGasTurbinePage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.gas_turbine');
+  const isWrongPlantType = usePlantTypeGuard('thermal');
+  const navigate = useNavigate();
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
   const [allUnits, setAllUnits] = useState<PlantUnit[]>([]);
@@ -202,6 +206,21 @@ export default function DailyNaturalGasTurbinePage() {
   const isFormValid = editTarget
     ? updateForm.currentReading !== '' && updateForm.heatingValue !== ''
     : form.plantCode && form.unitCode && form.logDate && form.currentReading !== '' && form.heatingValue !== '';
+
+  // ── Plant type guard ─────────────────────────────────────────────────────────
+  if (isWrongPlantType) return (
+    <Box>
+      <PageHeader
+        title="Daily Natural Gas — Turbine Meter"
+        subtitle="Daily natural gas meter readings with heat rate computations per thermal unit"
+        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Natural Gas (Turbine Meter)' }]}
+      />
+      <Alert severity="error" sx={{ mt: 2 }}
+        action={<Button color="error" size="small" variant="outlined" onClick={() => navigate(-1)}>Go Back</Button>}>
+        You do not have access to this page. Your plant assignment is hydro only.
+      </Alert>
+    </Box>
+  );
 
   return (
     <Box>

@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Save, Search, Edit, Delete, LocalGasStation, History } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -14,6 +15,7 @@ import { dailyLcoReadingApi } from '../../api/daily/dailyLcoReadingApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { DailyLcoReading, DailyLcoReadingForm } from '../../types/dailyLcoReading';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
+import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const emptyForm: DailyLcoReadingForm = {
   plantCode: '',
@@ -23,6 +25,8 @@ const emptyForm: DailyLcoReadingForm = {
 
 export default function DailyLcoReadingPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.lco');
+  const isWrongPlantType = usePlantTypeGuard('thermal');
+  const navigate = useNavigate();
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
@@ -162,6 +166,21 @@ export default function DailyLcoReadingPage() {
   const isFormValid = editTarget
     ? updateForm.currentReading !== '' && updateForm.currentReading !== undefined
     : form.plantCode && form.logDate && form.currentReading !== '';
+
+  // ── Plant type guard ─────────────────────────────────────────────────────────
+  if (isWrongPlantType) return (
+    <Box>
+      <PageHeader
+        title="Daily LCO Readings"
+        subtitle="Daily Light Crude Oil tank readings per plant"
+        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'LCO Readings' }]}
+      />
+      <Alert severity="error" sx={{ mt: 2 }}
+        action={<Button color="error" size="small" variant="outlined" onClick={() => navigate(-1)}>Go Back</Button>}>
+        You do not have access to this page. Your plant assignment is hydro only.
+      </Alert>
+    </Box>
+  );
 
   return (
     <Box>

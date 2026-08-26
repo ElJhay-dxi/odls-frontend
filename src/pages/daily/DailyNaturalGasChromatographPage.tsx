@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Save, Search, Edit, Delete, LocalFireDepartment, History } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -18,6 +19,7 @@ import type {
   DailyNaturalGasChromatographForm,
 } from '../../types/dailyNaturalGasChromatograph';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
+import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const emptyForm: DailyNaturalGasChromatographForm = {
   plantCode: '', unitCode: '',
@@ -31,6 +33,8 @@ const fmt = (v?: number, dec = 2) => v != null ? v.toFixed(dec) : '—';
 
 export default function DailyNaturalGasChromatographPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.gas_chromatograph');
+  const isWrongPlantType = usePlantTypeGuard('thermal');
+  const navigate = useNavigate();
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
   const [allUnits, setAllUnits] = useState<PlantUnit[]>([]);
@@ -194,6 +198,21 @@ export default function DailyNaturalGasChromatographPage() {
     ? updateForm.readingMMscf !== '' && updateForm.heatingValue !== ''
     : form.plantCode && form.unitCode && form.logDate &&
       form.readingMMscf !== '' && form.heatingValue !== '';
+
+  // ── Plant type guard ─────────────────────────────────────────────────────────
+  if (isWrongPlantType) return (
+    <Box>
+      <PageHeader
+        title="Daily Natural Gas — Chromatograph"
+        subtitle="Daily chromatograph readings in MMscf"
+        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Natural Gas (Chromatograph)' }]}
+      />
+      <Alert severity="error" sx={{ mt: 2 }}
+        action={<Button color="error" size="small" variant="outlined" onClick={() => navigate(-1)}>Go Back</Button>}>
+        You do not have access to this page. Your plant assignment is hydro only.
+      </Alert>
+    </Box>
+  );
 
   return (
     <Box>
