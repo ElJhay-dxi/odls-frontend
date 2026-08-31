@@ -64,6 +64,7 @@ const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
 const RolesPage = lazy(() => import('./pages/admin/RolesPage'));
 const RolePermissionsPage = lazy(() => import('./pages/admin/RolePermissionsPage'));
 const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
+const AuditLogPage = lazy(() => import('./pages/admin/AuditLogPage'));
 
 function PageLoader() {
   return (
@@ -147,6 +148,7 @@ export default function App() {
                   <Route path="admin/roles" element={<G p="roles.view"><RolesPage /></G>} />
                   <Route path="admin/role-permissions" element={<G p="roles.edit"><RolePermissionsPage /></G>} />
                   <Route path="admin/users" element={<G p="users.view"><UsersPage /></G>} />
+                  <Route path="admin/audit-log" element={<G p="admin.audit.view"><AuditLogPage /></G>} />
 
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>

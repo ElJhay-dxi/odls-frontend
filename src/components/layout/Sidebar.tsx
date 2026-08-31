@@ -120,6 +120,7 @@ const navItems: NavItem[] = [
       { label: 'Roles', icon: <AdminPanelSettings />, path: '/admin/roles', permission: 'roles.view' },
       { label: 'Role Permissions', icon: <Security />, path: '/admin/role-permissions', permission: 'roles.edit' },
       { label: 'Users', icon: <People />, path: '/admin/users', permission: 'users.view' },
+      { label: 'Audit Trail', icon: <Security />, path: '/admin/audit-log', permission: 'admin.audit.view' },
     ],
   },
 ];
