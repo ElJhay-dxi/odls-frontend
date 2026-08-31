@@ -10,6 +10,7 @@ import {
   ExpandMore, ExpandLess, History, Add, Remove,
 } from '@mui/icons-material';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -19,6 +20,7 @@ import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { BearingMetal, BearingDrain, BearingMetalReadingRow, BearingDrainReadingRow } from '../../types/bearings';
 import type { HourlyThermalReading, CreateHourlyThermalReadingForm } from '../../types/hourlyReadings';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
+import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 type FormKey = keyof CreateHourlyThermalReadingForm;
 type NumericFormKey = Exclude<FormKey, 'plantCode' | 'unitCode' | 'logDate' | 'logHour' | 'remarks'>;
@@ -139,6 +141,8 @@ const SECTIONS: Section[] = [
 
 export default function HourlyThermalReadingPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.thermal_units');
+  const isWrongPlantType = usePlantTypeGuard('thermal');
+  const navigate = useNavigate();
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
@@ -351,6 +355,21 @@ export default function HourlyThermalReadingPage() {
   const currentUnitCode = editTarget ? editTarget.unitCode : form.unitCode;
   const availableMetals = bearingMetals.filter((b) => !metalRows.some((r) => r.bearingCode === b.bearingCode));
   const availableDrains = bearingDrains.filter((d) => !drainRows.some((r) => r.drainCode === d.drainCode));
+
+  // ── Plant type guard ─────────────────────────────────────────────────────────
+  if (isWrongPlantType) return (
+    <Box>
+      <PageHeader
+        title="Hourly Unit Readings — Thermal"
+        subtitle="Record hourly operational parameters for thermal generating units"
+        breadcrumbs={[{ label: 'Hourly Readings' }, { label: 'Unit Readings (Thermal)' }]}
+      />
+      <Alert severity="error" sx={{ mt: 2 }}
+        action={<Button color="error" size="small" variant="outlined" onClick={() => navigate(-1)}>Go Back</Button>}>
+        You do not have access to this page. Your plant assignment is hydro only.
+      </Alert>
+    </Box>
+  );
 
   return (
     <Box>

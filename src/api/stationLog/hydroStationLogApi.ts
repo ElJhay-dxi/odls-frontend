@@ -1,5 +1,6 @@
 import axiosInstance from '../axiosInstance';
 import type {
+  HydroStationLogPermit, HydroStationLogPermitForm,
   HydroStationLog,
   CreateHydroStationLogForm,
   UpdateHydroStationLogForm,
@@ -71,5 +72,35 @@ export const hydroStationLogApi = {
     }),
 
   deleteCondition: (logId: string, conditionId: string) =>
-    axiosInstance.delete(`${BASE}/${logId}/conditions/${conditionId}`),
+  axiosInstance.delete(`${BASE}/${logId}/conditions/${conditionId}`),
+  
+  // Permits
+  addPermit: (logId: string, data: HydroStationLogPermitForm) =>
+    axiosInstance.post<HydroStationLogPermit>(`${BASE}/${logId}/permits`, {
+      permitTypeCode: data.permitTypeCode || null,
+      permitTypeName: data.permitTypeName || null,
+      permitNumber: data.permitNumber || null,
+      workOrderNumber: data.workOrderNumber || null,
+      permitHolder: data.permitHolder || null,
+      workDescription: data.workDescription || null,
+      startDate: data.startDate || null,
+      completionDate: data.completionDate || null,
+      sortOrder: data.sortOrder,
+    }),
+
+  updatePermit: (logId: string, permitId: string, data: HydroStationLogPermitForm) =>
+    axiosInstance.put<HydroStationLogPermit>(`${BASE}/${logId}/permits/${permitId}`, {
+      permitTypeCode: data.permitTypeCode || null,
+      permitTypeName: data.permitTypeName || null,
+      permitNumber: data.permitNumber || null,
+      workOrderNumber: data.workOrderNumber || null,
+      permitHolder: data.permitHolder || null,
+      workDescription: data.workDescription || null,
+      startDate: data.startDate || null,
+      completionDate: data.completionDate || null,
+      sortOrder: data.sortOrder,
+    }),
+
+  deletePermit: (logId: string, permitId: string) =>
+    axiosInstance.delete(`${BASE}/${logId}/permits/${permitId}`),
 };

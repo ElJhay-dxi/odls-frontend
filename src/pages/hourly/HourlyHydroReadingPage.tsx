@@ -10,6 +10,7 @@ import {
   ExpandMore, ExpandLess, History,
 } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -22,6 +23,7 @@ import type {
   UpdateHourlyHydroReadingForm,
 } from '../../types/hourlyReadings';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
+import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
 
@@ -86,6 +88,8 @@ const SECTIONS = [
 
 export default function HourlyHydroReadingPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('hourly.hydro_units');
+  const isWrongPlantType = usePlantTypeGuard('hydro');
+  const navigate = useNavigate();
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [units, setUnits] = useState<PlantUnit[]>([]);
   const [filteredUnits, setFilteredUnits] = useState<PlantUnit[]>([]);
@@ -270,6 +274,21 @@ export default function HourlyHydroReadingPage() {
   const isFormValid = editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour;
   const toggleSection = (title: string) =>
     setCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
+
+  // ── Plant type guard ─────────────────────────────────────────────────────────
+  if (isWrongPlantType) return (
+    <Box>
+      <PageHeader
+        title="Hourly Unit Readings — Hydro"
+        subtitle="Record hourly operational parameters for hydro generating units"
+        breadcrumbs={[{ label: 'Hourly Readings' }, { label: 'Unit Readings (Hydro)' }]}
+      />
+      <Alert severity="error" sx={{ mt: 2 }}
+        action={<Button color="error" size="small" variant="outlined" onClick={() => navigate(-1)}>Go Back</Button>}>
+        You do not have access to this page. Your plant assignment is thermal only.
+      </Alert>
+    </Box>
+  );
 
   return (
     <Box>

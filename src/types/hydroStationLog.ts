@@ -26,6 +26,31 @@ export interface HydroStationLogCondition {
   rows: HydroStationLogConditionRow[];
 }
 
+export interface HydroStationLogPermit {
+  id: string;
+  permitTypeCode?: string;
+  permitTypeName?: string;
+  permitNumber?: string;
+  workOrderNumber?: string;
+  permitHolder?: string;
+  workDescription?: string;
+  startDate?: string;
+  completionDate?: string;
+  sortOrder: number;
+}
+
+export interface HydroStationLogPermitForm {
+  permitTypeCode: string;
+  permitTypeName: string;
+  permitNumber: string;
+  workOrderNumber: string;
+  permitHolder: string;
+  workDescription: string;
+  startDate: string;
+  completionDate: string;
+  sortOrder: number;
+}
+
 export interface HydroStationLog {
   id: string;
   plantCode: string;
@@ -45,6 +70,7 @@ export interface HydroStationLog {
   updatedByName?: string;
   updatedOn?: string;
   entries: HydroStationLogEntry[];
+  permits: HydroStationLogPermit[];
   conditions: HydroStationLogCondition[];
 }
 

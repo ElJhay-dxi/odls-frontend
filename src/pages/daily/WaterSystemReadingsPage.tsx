@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { Save, Search, Edit, Delete, Water, History } from '@mui/icons-material';
 import { useEffect, useState, useCallback, type SyntheticEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -16,6 +17,7 @@ import {
 import type { PowerPlant } from '../../types/masterData';
 import type { WaterMeterReading, DeminWaterTankLevel } from '../../types/waterSystem';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
+import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const TABS = [
   { label: 'a) FW Inflow', key: 'fwInflow' },
@@ -80,6 +82,8 @@ function MeterSubForm({ priorRecord, loadingPrior, editTarget, currentReading,
 
 export default function WaterSystemReadingsPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.water_system');
+  const isWrongPlantType = usePlantTypeGuard('thermal');
+  const navigate = useNavigate();
   const [tabIndex, setTabIndex] = useState(0);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
@@ -340,6 +344,21 @@ export default function WaterSystemReadingsPage() {
       </TableRow>
     );
   };
+
+  // ── Plant type guard ─────────────────────────────────────────────────────────
+  if (isWrongPlantType) return (
+    <Box>
+      <PageHeader
+        title="Water System Readings"
+        subtitle="Daily water system readings for thermal plants — sections a through f"
+        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Water System' }]}
+      />
+      <Alert severity="error" sx={{ mt: 2 }}
+        action={<Button color="error" size="small" variant="outlined" onClick={() => navigate(-1)}>Go Back</Button>}>
+        You do not have access to this page. Your plant assignment is hydro only.
+      </Alert>
+    </Box>
+  );
 
   return (
     <Box>

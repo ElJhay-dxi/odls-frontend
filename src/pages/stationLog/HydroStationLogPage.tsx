@@ -17,14 +17,17 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { plantBusApi } from '../../api/hourly/hourlyBusVoltageApi';
 import { hydroStationLogApi } from '../../api/stationLog/hydroStationLogApi';
+import { safetyDocumentTypeApi } from '../../api/masterData/safetyDocumentTypeApi';
 import { shiftLogApi } from '../../api/stationLog/shiftLogApi';
 import type { PowerPlant, PlantUnit } from '../../types/masterData';
 import type { PlantBus } from '../../types/plantBus';
 import type {
   HydroStationLog, HydroStationLogEntry, HydroStationLogCondition,
+  HydroStationLogPermit, HydroStationLogPermitForm,
   UpdateHydroStationLogForm, CreateHydroStationLogEntryForm,
   UpdateHydroStationLogEntryForm, CreateConditionForm, ConditionRowForm,
 } from '../../types/hydroStationLog';
+import type { SafetyDocumentType } from '../../types/safetyDocumentType';
 import type { ShiftLog } from '../../types/shiftLog';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { useUser } from '../../context/UserContext';
@@ -43,7 +46,6 @@ const emptyCondition: CreateConditionForm = {
 
 const TEXT_HEADER_FIELDS = [
   { key: 'stationService',        label: 'Station Service' },
-  { key: 'permitsInEffect',       label: 'Permits in Effect' },
   { key: 'applicationsForOutage', label: 'Applications for Outage' },
   { key: 'miscNotes',             label: 'Miscellaneous Notes' },
 ] as const;
@@ -72,6 +74,7 @@ export default function HydroStationLogPage() {
     && !userPlantClassifications.includes('hydro');
 
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const [permitTypes, setPermitTypes] = useState<SafetyDocumentType[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
   const [allPlants, setAllPlants] = useState<PowerPlant[]>([]);
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
@@ -97,6 +100,20 @@ export default function HydroStationLogPage() {
   const [savingHeader, setSavingHeader] = useState(false);
   const [headerError, setHeaderError] = useState<string | null>(null);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
+  // Permits
+  const emptyPermitForm: HydroStationLogPermitForm = {
+    permitTypeCode: '', permitTypeName: '', permitNumber: '', workOrderNumber: '',
+    permitHolder: '', workDescription: '', startDate: '', completionDate: '', sortOrder: 0,
+  };
+  const [permitForm, setPermitForm] = useState<HydroStationLogPermitForm>(emptyPermitForm);
+  const [editingPermit, setEditingPermit] = useState<HydroStationLogPermit | null>(null);
+  const [showPermitForm, setShowPermitForm] = useState(false);
+  const [savingPermit, setSavingPermit] = useState(false);
+  const [deletePermit, setDeletePermit] = useState<HydroStationLogPermit | null>(null);
+  const [deletingPermit, setDeletingPermit] = useState(false);
+  const [permitError, setPermitError] = useState<string | null>(null);
+  const [permitsCollapsed, setPermitsCollapsed] = useState(false);
 
   // Entry
   const [entryForm, setEntryForm] = useState<CreateHydroStationLogEntryForm>(emptyEntry);
@@ -127,6 +144,7 @@ export default function HydroStationLogPage() {
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
 
   useEffect(() => {
+    safetyDocumentTypeApi.getAll({ activeOnly: true, classification: 'Hydro' }).then((res) => setPermitTypes(res.data));
     powerPlantApi.getAll().then((res) => {
       setAllPlants(res.data);
       setPlants(res.data.filter((p) => p.classificationType?.toLowerCase() === 'hydro'));
@@ -202,6 +220,34 @@ export default function HydroStationLogPage() {
   };
 
   // Build merged timeline
+  const handleSavePermit = async () => {
+    if (!log) return;
+    setSavingPermit(true); setPermitError(null);
+    try {
+      if (editingPermit) {
+        const res = await hydroStationLogApi.updatePermit(log.id, editingPermit.id, permitForm);
+        setLog((p) => p ? { ...p, permits: p.permits.map((d) => d.id === editingPermit.id ? res.data : d) } : p);
+        setEditingPermit(null);
+      } else {
+        const res = await hydroStationLogApi.addPermit(log.id, { ...permitForm, sortOrder: log.permits.length });
+        setLog((p) => p ? { ...p, permits: [...p.permits, res.data] } : p);
+      }
+      setPermitForm(emptyPermitForm); setShowPermitForm(false);
+    } catch { setPermitError('Failed to save permit.'); }
+    finally { setSavingPermit(false); }
+  };
+
+  const handleDeletePermit = async () => {
+    if (!log || !deletePermit) return;
+    setDeletingPermit(true);
+    try {
+      await hydroStationLogApi.deletePermit(log.id, deletePermit.id);
+      setLog((p) => p ? { ...p, permits: p.permits.filter((d) => d.id !== deletePermit.id) } : p);
+      setDeletePermit(null);
+    } catch { setPermitError('Failed to delete permit.'); }
+    finally { setDeletingPermit(false); }
+  };
+
   const buildTimeline = (): TimelineItem[] => {
     const items: TimelineItem[] = [];
 
@@ -719,6 +765,151 @@ export default function HydroStationLogPage() {
             </Collapse>
           </Card>
 
+
+          {/* ── Permits in Effect ── */}
+          <Card sx={{ mb: 3 }}>
+            <Box sx={{
+              px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              cursor: 'pointer', backgroundColor: '#E6510014',
+              borderBottom: permitsCollapsed ? 'none' : '1px solid', borderColor: 'divider',
+            }} onClick={() => setPermitsCollapsed((p) => !p)}>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#E65100' }}>
+                  Permits in Effect
+                </Typography>
+                <Chip label={`${log.permits.length}`} size="small" variant="outlined" sx={{ color: '#E65100', borderColor: '#E65100' }} />
+              </Stack>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                {canCreate && (
+                  <Tooltip title="Add permit">
+                    <IconButton size="small" onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingPermit(null); setPermitForm(emptyPermitForm); setShowPermitForm(true);
+                    }}><Add fontSize="small" /></IconButton>
+                  </Tooltip>
+                )}
+                <IconButton size="small">{permitsCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
+              </Stack>
+            </Box>
+            <Collapse in={!permitsCollapsed}>
+              <CardContent>
+                {permitError && <Alert severity="error" onClose={() => setPermitError(null)} sx={{ mb: 2 }}>{permitError}</Alert>}
+                {showPermitForm && (
+                  <Paper variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2, borderColor: '#E65100', backgroundColor: '#FFF3E0' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#E65100', mb: 1.5 }}>
+                      {editingPermit ? 'Edit Permit' : 'New Permit'}
+                    </Typography>
+                    <Grid container spacing={1.5}>
+                      <Grid size={{ xs: 12 }}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Permit Type</InputLabel>
+                          <Select label="Permit Type" value={permitForm.permitTypeCode}
+                            onChange={(e) => {
+                              const selected = permitTypes.find((t) => t.code === e.target.value);
+                              setPermitForm((p) => ({ ...p, permitTypeCode: selected?.code ?? '', permitTypeName: selected?.name ?? '' }));
+                            }}>
+                            <MenuItem value=""><em>Select type…</em></MenuItem>
+                            {permitTypes.map((t) => (
+                              <MenuItem key={t.id} value={t.code}>
+                                <Chip label={t.code} size="small" variant="outlined" sx={{ mr: 1, fontFamily: 'monospace', fontSize: 11 }} />
+                                {t.name}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 3 }}>
+                        <TextField label="Permit #" size="small" fullWidth value={permitForm.permitNumber}
+                          onChange={(e) => setPermitForm((p) => ({ ...p, permitNumber: e.target.value }))} placeholder="e.g. LWC #1864" />
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 3 }}>
+                        <TextField label="Work Order #" size="small" fullWidth value={permitForm.workOrderNumber}
+                          onChange={(e) => setPermitForm((p) => ({ ...p, workOrderNumber: e.target.value }))} />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField label="Permit Holder" size="small" fullWidth value={permitForm.permitHolder}
+                          onChange={(e) => setPermitForm((p) => ({ ...p, permitHolder: e.target.value }))} />
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <TextField label="Description of Work" size="small" fullWidth multiline rows={2}
+                          value={permitForm.workDescription}
+                          onChange={(e) => setPermitForm((p) => ({ ...p, workDescription: e.target.value }))} />
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 3 }}>
+                        <TextField label="Start Date" type="date" size="small" fullWidth value={permitForm.startDate}
+                          onChange={(e) => setPermitForm((p) => ({ ...p, startDate: e.target.value }))}
+                          slotProps={{ inputLabel: { shrink: true } }} />
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 9 }}>
+                        <TextField label="Completion Date / Status" size="small" fullWidth value={permitForm.completionDate}
+                          onChange={(e) => setPermitForm((p) => ({ ...p, completionDate: e.target.value }))}
+                          placeholder="e.g. Till work is completed" />
+                      </Grid>
+                    </Grid>
+                    <Stack direction="row" spacing={1.5} sx={{ mt: 1.5 }}>
+                      <Button size="small" variant="outlined" onClick={() => { setShowPermitForm(false); setEditingPermit(null); }} disabled={savingPermit}>Cancel</Button>
+                      <Button size="small" variant="contained" sx={{ backgroundColor: '#E65100' }} onClick={handleSavePermit}
+                        disabled={savingPermit} startIcon={savingPermit ? <CircularProgress size={14} color="inherit" /> : <Save />}>
+                        {savingPermit ? 'Saving...' : 'Save'}
+                      </Button>
+                    </Stack>
+                  </Paper>
+                )}
+                {log.permits.length === 0 && !showPermitForm ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2, fontStyle: 'italic' }}>
+                    No permits in effect.
+                  </Typography>
+                ) : (
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: '#FFF3E0' }}>
+                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Permit #</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Work Order</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Permit Holder</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Description</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Start</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Completion</TableCell>
+                        <TableCell align="right" sx={{ width: 80 }} />
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {log.permits.map((permit) => (
+                        <TableRow key={permit.id} hover>
+                          <TableCell sx={{ fontSize: 12 }}>
+                            {permit.permitTypeCode
+                              ? <Chip label={permit.permitTypeCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
+                              : <Typography variant="caption" color="text.disabled">—</Typography>}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>{permit.permitNumber ?? '—'}</TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>{permit.workOrderNumber ?? '—'}</TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>{permit.permitHolder ?? '—'}</TableCell>
+                          <TableCell sx={{ fontSize: 12, maxWidth: 200 }}>{permit.workDescription ?? '—'}</TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>
+                            {permit.startDate ? new Date(permit.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>{permit.completionDate ?? '—'}</TableCell>
+                          <TableCell align="right">
+                            {canEdit && (
+                              <Tooltip title="Edit"><IconButton size="small" onClick={() => {
+                                setEditingPermit(permit);
+                                setPermitForm({ permitTypeCode: permit.permitTypeCode ?? '', permitTypeName: permit.permitTypeName ?? '', permitNumber: permit.permitNumber ?? '', workOrderNumber: permit.workOrderNumber ?? '', permitHolder: permit.permitHolder ?? '', workDescription: permit.workDescription ?? '', startDate: permit.startDate?.split('T')[0] ?? '', completionDate: permit.completionDate ?? '', sortOrder: permit.sortOrder });
+                                setShowPermitForm(true);
+                              }}><Edit sx={{ fontSize: 14 }} /></IconButton></Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => setDeletePermit(permit)}><Delete sx={{ fontSize: 14 }} /></IconButton></Tooltip>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Collapse>
+          </Card>
+
           {/* Running Log */}
           <Card sx={{ mb: 3 }}>
             <CardHeader
@@ -1204,6 +1395,10 @@ export default function HydroStationLogPage() {
         confirmLabel="Delete" loading={deletingCondition}
         onConfirm={handleDeleteCondition} onCancel={() => setDeleteCondition(null)}
       />
+      <ConfirmDialog open={!!deletePermit} title="Delete Permit"
+        message={`Delete permit ${deletePermit?.permitNumber ?? ''}?`}
+        confirmLabel="Delete" loading={deletingPermit}
+        onConfirm={handleDeletePermit} onCancel={() => setDeletePermit(null)} />
     </Box>
   );
 }

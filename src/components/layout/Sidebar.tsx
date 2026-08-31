@@ -128,7 +128,6 @@ const navItems: NavItem[] = [
 // Paths that are hydro-only — hidden from thermal-only users
 const HYDRO_ONLY_PATHS = [
   '/daily/energy-generation-hydro',
-  '/daily/water-system',
   '/hydrology',
   '/station-logs/hydro',
   '/hourly/hydro-units',
@@ -141,6 +140,7 @@ const THERMAL_ONLY_PATHS = [
   '/daily/dfo-readings',
   '/daily/natural-gas-turbine',
   '/daily/natural-gas-chromatograph',
+  '/daily/water-system',
   '/station-logs/thermal',
   '/hourly/thermal-units',
 ];
