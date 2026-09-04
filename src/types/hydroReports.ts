@@ -9,12 +9,8 @@ export interface HydroDailyPlantReportRow {
   tailraceLevelM?: number;
   netHeadM?: number;
   shiftLeader?: string;
-  generationNotes?: string;
-  energyMeterReading?: number;
-  energyDifference?: number;
-  progressiveTotal?: number;
-  averagePowerFactor?: number;
   peakLoadMw?: number;
+  averagePowerFactor?: number;
 }
 
 // ─── Hourly Summary ─────────────────────────────────────────────────────────
@@ -29,48 +25,39 @@ export interface HydroHourlySummaryRow {
   frequency?: number;
   powerFactor?: number;
   gatePosition?: number;
-  turbineDischarge?: number;
-  remarks?: string;
 }
 
 // ─── Availability & Outage ──────────────────────────────────────────────────
-export interface HydroAvailabilityRow {
+export interface HydroAvailabilityDayRow {
   date: string;
-  serviceHours?: number;
-  runHours?: number;
-  reserveShutdownHours?: number;
-  forcedOutageHours?: number;
-  maintenanceOutageHours?: number;
-  plannedOutageHours?: number;
+  serviceHours: number;
+  runHours: number;
+  reserveShutdownHours: number;
+  forcedOutageHours: number;
+  maintenanceOutageHours: number;
+  plannedOutageHours: number;
 }
 
 export interface HydroTripRow {
   date: string;
-  pls?: number;
-  shutdown?: number;
-  lowLoad?: number;
-  highLoad?: number;
-  preIgnition?: number;
-  preSynchronization?: number;
-  partial?: number;
-  full?: number;
-  total?: number;
+  pls: number;
+  shutdown: number;
+  lowLoadTrip: number;
+  highLoadTrip: number;
+  preIgnition: number;
+  preSync: number;
+  partialLoadTrip: number;
+  fullLoadTrip: number;
+  totalTrips: number;
 }
 
 export interface HydroReliabilityRow {
   date: string;
-  mtbf?: number;
-  successfulStarts?: number;
-  unsuccessfulStarts?: number;
-  startAttempts?: number;
+  mtbf: number;
+  successfulStarts: number;
+  unsuccessfulStarts: number;
+  startAttempts: number;
   startingReliabilityPct?: number;
-}
-
-export interface HydroLoadFactorRow {
-  date: string;
-  averageLoadMw?: number;
-  peakLoadMw?: number;
-  loadFactorPct?: number;
 }
 
 export interface HydroAvailabilitySummary {
@@ -89,8 +76,7 @@ export interface HydroAvailabilityReport {
   dateFrom: string;
   dateTo: string;
   summary: HydroAvailabilitySummary;
-  availability: HydroAvailabilityRow[];
+  availability: HydroAvailabilityDayRow[];
   trips: HydroTripRow[];
   reliability: HydroReliabilityRow[];
-  loadFactor: HydroLoadFactorRow[];
 }

@@ -29,6 +29,7 @@ export function useSectionPermissions(section: string) {
     canCreate: hasPermission(`${section}.create`),
     canEdit:   hasPermission(`${section}.edit`),
     canDelete: hasPermission(`${section}.delete`),
+    canExport: hasPermission(`${section}.export`),
   };
 }
 

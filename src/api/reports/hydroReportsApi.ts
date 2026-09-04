@@ -29,17 +29,9 @@ export const getHydroReportsApi = {
       params: rangeParams(plantCode, dateFrom, dateTo),
     }),
 
-  // Blob downloads go through axiosInstance (not window.open) so the MSAL bearer
-  // token from the request interceptor is attached — the export endpoints require auth.
-  exportExcel: (kind: HydroReportKind, plantCode: string, dateFrom: string, dateTo: string) =>
-    axiosInstance.get(`${BASE}/${kind}/export/excel`, {
-      params: rangeParams(plantCode, dateFrom, dateTo),
-      responseType: 'blob',
-    }),
-
-  exportPdf: (kind: HydroReportKind, plantCode: string, dateFrom: string, dateTo: string) =>
-    axiosInstance.get(`${BASE}/${kind}/export/pdf`, {
-      params: rangeParams(plantCode, dateFrom, dateTo),
-      responseType: 'blob',
-    }),
+  // Opens the backend's generated workbook directly in a new tab/download.
+  exportExcel: (report: HydroReportKind, plantCode: string, dateFrom: string, dateTo: string) => {
+    const params = new URLSearchParams({ plantCode, dateFrom, dateTo });
+    window.open(`${import.meta.env.VITE_API_BASE_URL}/hydroreports/${report}/export/excel?${params}`);
+  },
 };
