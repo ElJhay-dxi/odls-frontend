@@ -108,8 +108,10 @@ const navItems: NavItem[] = [
   {
     label: 'Reports',
     icon: <BarChart />,
-    path: '/reports',
     permission: 'reports.view',
+    children: [
+      { label: 'Hydro Reports', icon: <WaterDrop />, path: '/reports/hydro', permission: 'reports.view' },
+    ],
   },
   {
     label: 'Admin',
@@ -131,6 +133,7 @@ const HYDRO_ONLY_PATHS = [
   '/hydrology',
   '/station-logs/hydro',
   '/hourly/hydro-units',
+  '/reports/hydro',
 ];
 
 // Paths that are thermal-only — hidden from hydro-only users

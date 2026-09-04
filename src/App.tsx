@@ -59,6 +59,9 @@ const ThermalStationLogPage = lazy(() => import('./pages/stationLog/ThermalStati
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 
+// Reports
+const HydroReportsPage = lazy(() => import('./pages/reports/HydroReportsPage'));
+
 // Admin
 const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
 const RolesPage = lazy(() => import('./pages/admin/RolesPage'));
@@ -142,6 +145,9 @@ export default function App() {
                   <Route path="station-logs/shift-logs" element={<G p="station_logs.shift_logs.view"><ShiftLogPage /></G>} />
                   <Route path="station-logs/hydro" element={<G p="station_logs.hydro.view"><HydroStationLogPage /></G>} />
                   <Route path="station-logs/thermal" element={<G p="station_logs.thermal.view"><ThermalStationLogPage /></G>} />
+
+                  {/* Reports */}
+                  <Route path="reports/hydro" element={<G p="reports.view"><HydroReportsPage /></G>} />
 
                   {/* Admin */}
                   <Route path="admin/permissions" element={<G p="permissions.view"><PermissionsPage /></G>} />
