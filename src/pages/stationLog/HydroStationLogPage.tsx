@@ -24,6 +24,7 @@ import type { PlantBus } from '../../types/plantBus';
 import type {
   HydroStationLog, HydroStationLogEntry, HydroStationLogCondition,
   HydroStationLogPermit, HydroStationLogPermitForm,
+  HydroGenerationRowForm,
   UpdateHydroStationLogForm, CreateHydroStationLogEntryForm,
   UpdateHydroStationLogEntryForm, CreateConditionForm, ConditionRowForm,
 } from '../../types/hydroStationLog';
@@ -142,6 +143,19 @@ export default function HydroStationLogPage() {
   const [summaryForm, setSummaryForm] = useState({ energyGeneratedKwh: '', shiftLeaderName: '' });
   const [savingSummary, setSavingSummary] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+  const [summarySaveSuccess, setSummarySaveSuccess] = useState(false);
+  const [summarySaveError, setSummarySaveError] = useState<string | null>(null);
+  const [totalGenerationMwh, setTotalGenerationMwh] = useState('');
+  const [totalStationServiceMwh, setTotalStationServiceMwh] = useState('');
+  const [netGenerationMwh, setNetGenerationMwh] = useState('');
+  const [forebayLevelM, setForebayLevelM] = useState('');
+  const [tailraceLevelM, setTailraceLevelM] = useState('');
+  const [netHeadM, setNetHeadM] = useState('');
+  const [generationNotes, setGenerationNotes] = useState('');
+  const [generationRows, setGenerationRows] = useState<HydroGenerationRowForm[]>([]);
+  const [savingGenerationRows, setSavingGenerationRows] = useState(false);
+  const [generationRowsSaveSuccess, setGenerationRowsSaveSuccess] = useState(false);
+  const [generationRowsSaveError, setGenerationRowsSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     safetyDocumentTypeApi.getAll({ activeOnly: true, classification: 'Hydro' }).then((res) => setPermitTypes(res.data));
@@ -179,6 +193,13 @@ export default function HydroStationLogPage() {
       energyGeneratedKwh: data.energyGeneratedKwh?.toString() ?? '',
       shiftLeaderName: data.shiftLeaderName ?? '',
     });
+    setTotalGenerationMwh(data.totalGenerationMwh?.toString() ?? '');
+    setTotalStationServiceMwh(data.totalStationServiceMwh?.toString() ?? '');
+    setNetGenerationMwh(data.netGenerationMwh?.toString() ?? '');
+    setForebayLevelM(data.forebayLevelM?.toString() ?? '');
+    setTailraceLevelM(data.tailraceLevelM?.toString() ?? '');
+    setNetHeadM(data.netHeadM?.toString() ?? '');
+    setGenerationNotes(data.generationNotes ?? '');
   };
 
   const loadLog = async () => {
@@ -246,6 +267,38 @@ export default function HydroStationLogPage() {
       setDeletePermit(null);
     } catch { setPermitError('Failed to delete permit.'); }
     finally { setDeletingPermit(false); }
+  };
+
+  const handleSaveSummaryTotals = async () => {
+    if (!log) return;
+    setSavingSummary(true); setSummarySaveSuccess(false); setSummarySaveError(null);
+    try {
+      const res = await hydroStationLogApi.update(log.id, {
+        ...buildHeaderPayload(),
+        energyGeneratedKwh: summaryForm.energyGeneratedKwh !== '' ? summaryForm.energyGeneratedKwh : null,
+        shiftLeaderName: summaryForm.shiftLeaderName,
+        totalGenerationMwh: totalGenerationMwh || null,
+        totalStationServiceMwh: totalStationServiceMwh || null,
+        netGenerationMwh: netGenerationMwh || null,
+        forebayLevelM: forebayLevelM || null,
+        tailraceLevelM: tailraceLevelM || null,
+        netHeadM: netHeadM || null,
+        generationNotes,
+      });
+      setLog(res.data); setSummaryEditing(false); setSummarySaveSuccess(true);
+    } catch { setSummarySaveError('Failed to save summary.'); }
+    finally { setSavingSummary(false); }
+  };
+
+  const handleSaveGenerationRows = async () => {
+    if (!log) return;
+    setSavingGenerationRows(true); setGenerationRowsSaveSuccess(false); setGenerationRowsSaveError(null);
+    try {
+      const res = await hydroStationLogApi.saveGenerationRows(log.id, generationRows);
+      setLog((p) => p ? { ...p, generationRows: res.data } : p);
+      setGenerationRowsSaveSuccess(true);
+    } catch { setGenerationRowsSaveError('Failed to save breakdown rows.'); }
+    finally { setSavingGenerationRows(false); }
   };
 
   const buildTimeline = (): TimelineItem[] => {
@@ -327,6 +380,13 @@ export default function HydroStationLogPage() {
     ...headerTextForm,
     energyGeneratedKwh: log?.energyGeneratedKwh != null ? log.energyGeneratedKwh.toString() : null,
     shiftLeaderName: log?.shiftLeaderName ?? '',
+    totalGenerationMwh: totalGenerationMwh || null,
+    totalStationServiceMwh: totalStationServiceMwh || null,
+    netGenerationMwh: netGenerationMwh || null,
+    forebayLevelM: forebayLevelM || null,
+    tailraceLevelM: tailraceLevelM || null,
+    netHeadM: netHeadM || null,
+    generationNotes,
   });
 
   const handleSaveHeader = async () => {
@@ -532,21 +592,7 @@ export default function HydroStationLogPage() {
     finally { setDeletingCondition(false); }
   };
 
-  const handleSaveSummary = async () => {
-    if (!log) return;
-    setSavingSummary(true);
-    try {
-      const res = await hydroStationLogApi.update(log.id, {
-        unitsInService: log.unitsInService ?? '', linesInService: log.linesInService ?? '',
-        stationService: log.stationService ?? '', permitsInEffect: log.permitsInEffect ?? '',
-        applicationsForOutage: log.applicationsForOutage ?? '', miscNotes: log.miscNotes ?? '',
-        energyGeneratedKwh: summaryForm.energyGeneratedKwh !== '' ? summaryForm.energyGeneratedKwh : null,
-        shiftLeaderName: summaryForm.shiftLeaderName,
-      });
-      setLog(res.data); setSummaryEditing(false);
-    } catch { setEntryError('Failed to save summary.'); }
-    finally { setSavingSummary(false); }
-  };
+
 
   const getUnitName = (code: string) => plantUnits.find((u) => u.unitCode === code)?.unitName ?? code;
   const getBusName = (code: string) => plantBuses.find((b) => b.busCode === code)?.busName ?? code;
@@ -1327,53 +1373,154 @@ export default function HydroStationLogPage() {
             </Box>
             <Collapse in={!summaryCollapsed}>
               <CardContent>
-                {summaryEditing ? (
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField label="Energy Generated (kWh)" type="number" fullWidth size="small"
-                        value={summaryForm.energyGeneratedKwh}
-                        onChange={(e) => setSummaryForm((prev) => ({ ...prev, energyGeneratedKwh: e.target.value }))}
-                        slotProps={{ htmlInput: { min: 0, step: 0.001 } }} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField label="Shift Leader" fullWidth size="small"
-                        value={summaryForm.shiftLeaderName}
-                        onChange={(e) => setSummaryForm((prev) => ({ ...prev, shiftLeaderName: e.target.value }))}
-                        placeholder="Name of shift leader" />
-                    </Grid>
-                    <Grid size={{ xs: 12 }}>
-                      <Stack direction="row" spacing={1.5}>
-                        <Button variant="outlined" size="small" onClick={() => setSummaryEditing(false)} disabled={savingSummary}>Cancel</Button>
-                        <Button variant="contained" size="small" onClick={handleSaveSummary} disabled={savingSummary}
-                          startIcon={savingSummary ? <CircularProgress size={14} color="inherit" /> : <Save />}>
-                          {savingSummary ? 'Saving...' : 'Save Summary'}
-                        </Button>
-                      </Stack>
-                    </Grid>
+                {summarySaveSuccess && <Alert severity="success" onClose={() => setSummarySaveSuccess(false)} sx={{ mb: 2 }}>Summary saved successfully.</Alert>}
+                {summarySaveError && <Alert severity="error" onClose={() => setSummarySaveError(null)} sx={{ mb: 2 }}>{summarySaveError}</Alert>}
+
+                {/* Fixed top-level fields */}
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20', mb: 1.5, display: 'block' }}>Generation Totals</Typography>
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField label="Energy Generated" type="number" fullWidth size="small"
+                      value={summaryForm.energyGeneratedKwh}
+                      onChange={(e) => setSummaryForm((prev) => ({ ...prev, energyGeneratedKwh: e.target.value }))}
+                      disabled={!canEdit || !summaryEditing}
+                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">kWh</Typography> } }} />
                   </Grid>
-                ) : (
-                  <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="caption" color="text.secondary"
-                        sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        Energy Generated
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#1B5E20', mt: 0.5 }}>
-                        {log.energyGeneratedKwh != null
-                          ? `${log.energyGeneratedKwh.toLocaleString()} kWh`
-                          : <span style={{ color: '#999', fontSize: 16, fontWeight: 400, fontStyle: 'italic' }}>Not recorded</span>}
-                      </Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="caption" color="text.secondary"
-                        sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        Shift Leader
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
-                        {log.shiftLeaderName || <span style={{ color: '#999', fontStyle: 'italic' }}>Not recorded</span>}
-                      </Typography>
-                    </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField label="Total Generation" type="number" fullWidth size="small"
+                      value={totalGenerationMwh} onChange={(e) => setTotalGenerationMwh(e.target.value)}
+                      disabled={!canEdit || !summaryEditing}
+                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
                   </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Station Service" type="number" fullWidth size="small"
+                      value={totalStationServiceMwh} onChange={(e) => setTotalStationServiceMwh(e.target.value)}
+                      disabled={!canEdit || !summaryEditing}
+                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Net Generation" type="number" fullWidth size="small"
+                      value={netGenerationMwh} onChange={(e) => setNetGenerationMwh(e.target.value)}
+                      disabled={!canEdit || !summaryEditing}
+                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Shift Leader" fullWidth size="small"
+                      value={summaryForm.shiftLeaderName}
+                      onChange={(e) => setSummaryForm((prev) => ({ ...prev, shiftLeaderName: e.target.value }))}
+                      disabled={!canEdit || !summaryEditing}
+                      placeholder="Name of shift leader" />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Forebay Level" type="number" fullWidth size="small"
+                      value={forebayLevelM} onChange={(e) => setForebayLevelM(e.target.value)}
+                      disabled={!canEdit || !summaryEditing}
+                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">m</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Tailrace Level" type="number" fullWidth size="small"
+                      value={tailraceLevelM} onChange={(e) => setTailraceLevelM(e.target.value)}
+                      disabled={!canEdit || !summaryEditing}
+                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">m</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Net Head" type="number" fullWidth size="small"
+                      value={netHeadM} onChange={(e) => setNetHeadM(e.target.value)}
+                      disabled={!canEdit || !summaryEditing}
+                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">m</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField label="Notes" fullWidth size="small" multiline maxRows={3}
+                      value={generationNotes} onChange={(e) => setGenerationNotes(e.target.value)}
+                      disabled={!canEdit || !summaryEditing}
+                      placeholder="Any additional generation notes..." />
+                  </Grid>
+                </Grid>
+                {summaryEditing && canEdit && (
+                  <Stack direction="row" spacing={1.5} sx={{ mb: 3 }}>
+                    <Button variant="outlined" size="small" onClick={() => setSummaryEditing(false)} disabled={savingSummary}>Cancel</Button>
+                    <Button variant="contained" size="small" onClick={handleSaveSummaryTotals} disabled={savingSummary}
+                      startIcon={savingSummary ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                      sx={{ backgroundColor: '#1B5E20' }}>
+                      {savingSummary ? 'Saving...' : 'Save Totals'}
+                    </Button>
+                  </Stack>
+                )}
+                {!summaryEditing && canEdit && (
+                  <Button size="small" variant="outlined" startIcon={<Edit />} sx={{ mb: 2, color: '#1B5E20', borderColor: '#1B5E20' }}
+                    onClick={() => setSummaryEditing(true)}>
+                    Edit Totals
+                  </Button>
+                )}
+
+                <Divider sx={{ mb: 2 }} />
+
+                {/* Per-unit breakdown rows */}
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20', mb: 1.5, display: 'block' }}>Per-Unit Breakdown</Typography>
+                {generationRowsSaveSuccess && <Alert severity="success" onClose={() => setGenerationRowsSaveSuccess(false)} sx={{ mb: 1.5 }}>Breakdown saved.</Alert>}
+                {generationRowsSaveError && <Alert severity="error" onClose={() => setGenerationRowsSaveError(null)} sx={{ mb: 1.5 }}>{generationRowsSaveError}</Alert>}
+                <Table size="small" sx={{ mb: 1.5 }}>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: '#E8F5E9' }}>
+                      <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
+                      <TableCell sx={{ fontWeight: 700, width: 160 }}>Value</TableCell>
+                      <TableCell sx={{ fontWeight: 700, width: 100 }}>Unit</TableCell>
+                      {canEdit && <TableCell sx={{ width: 40 }} />}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {generationRows.map((row, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <FormControl size="small" fullWidth disabled={!canEdit}>
+                            <Select value={row.description} displayEmpty
+                              onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], description: e.target.value }; setGenerationRows(r); }}
+                              renderValue={(val) => val || <em style={{ color: '#999' }}>Select unit…</em>}>
+                              {plantUnits.length > 0 && (
+                                <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
+                                  Plant Units
+                                </Typography>
+                              )}
+                              {plantUnits.map((u) => (
+                                <MenuItem key={u.unitCode} value={u.unitName}>
+                                  <Chip label={u.unitCode} size="small" variant="outlined" sx={{ mr: 1, fontFamily: 'monospace', fontSize: 11 }} />
+                                  {u.unitName}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </TableCell>
+                        <TableCell>
+                          <TextField size="small" type="number" fullWidth value={row.value} disabled={!canEdit}
+                            onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], value: e.target.value }; setGenerationRows(r); }} />
+                        </TableCell>
+                        <TableCell>
+                          <FormControl size="small" fullWidth disabled={!canEdit}>
+                            <Select value={row.unit} onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], unit: e.target.value }; setGenerationRows(r); }}>
+                              <MenuItem value="kWh">kWh</MenuItem>
+                              <MenuItem value="MWh">MWh</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </TableCell>
+                        {canEdit && <TableCell><IconButton size="small" color="error" onClick={() => setGenerationRows((p) => p.filter((_, i) => i !== idx))}><Delete sx={{ fontSize: 16 }} /></IconButton></TableCell>}
+                      </TableRow>
+                    ))}
+                    {generationRows.length === 0 && <TableRow><TableCell colSpan={4} align="center" sx={{ py: 2, color: '#999', fontStyle: 'italic' }}>No per-unit breakdown rows yet</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+                {canEdit && (
+                  <Stack direction="row" spacing={1.5}>
+                    <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#1B5E20', borderColor: '#1B5E20' }}
+                      onClick={() => setGenerationRows((p) => [...p, { description: '', value: '', unit: 'MWh', sortOrder: p.length }])}>
+                      Add Row
+                    </Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Button size="small" variant="contained" sx={{ backgroundColor: '#1B5E20' }}
+                      onClick={handleSaveGenerationRows} disabled={savingGenerationRows}
+                      startIcon={savingGenerationRows ? <CircularProgress size={14} color="inherit" /> : <Save />}>
+                      {savingGenerationRows ? 'Saving...' : 'Save Breakdown'}
+                    </Button>
+                  </Stack>
                 )}
               </CardContent>
             </Collapse>

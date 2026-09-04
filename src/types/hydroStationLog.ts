@@ -26,6 +26,21 @@ export interface HydroStationLogCondition {
   rows: HydroStationLogConditionRow[];
 }
 
+export interface HydroStationLogGenerationRow {
+  id: string;
+  description: string;
+  value?: number | null;
+  unit?: string;
+  sortOrder: number;
+}
+
+export interface HydroGenerationRowForm {
+  description: string;
+  value: string;
+  unit: string;
+  sortOrder: number;
+}
+
 export interface HydroStationLogPermit {
   id: string;
   permitTypeCode?: string;
@@ -70,8 +85,17 @@ export interface HydroStationLog {
   updatedByName?: string;
   updatedOn?: string;
   entries: HydroStationLogEntry[];
+  // End of day summary
+  totalGenerationMwh?: number | null;
+  totalStationServiceMwh?: number | null;
+  netGenerationMwh?: number | null;
+  forebayLevelM?: number | null;
+  tailraceLevelM?: number | null;
+  netHeadM?: number | null;
+  generationNotes?: string;
   permits: HydroStationLogPermit[];
   conditions: HydroStationLogCondition[];
+  generationRows: HydroStationLogGenerationRow[];
 }
 
 export interface CreateHydroStationLogForm {
@@ -94,6 +118,13 @@ export interface UpdateHydroStationLogForm {
   miscNotes: string;
   energyGeneratedKwh: string | null;
   shiftLeaderName: string;
+  totalGenerationMwh: string | null;
+  totalStationServiceMwh: string | null;
+  netGenerationMwh: string | null;
+  forebayLevelM: string | null;
+  tailraceLevelM: string | null;
+  netHeadM: string | null;
+  generationNotes: string;
 }
 
 export interface CreateHydroStationLogEntryForm {

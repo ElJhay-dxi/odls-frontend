@@ -1,5 +1,6 @@
 import axiosInstance from '../axiosInstance';
 import type {
+  HydroStationLogGenerationRow, HydroGenerationRowForm,
   HydroStationLogPermit, HydroStationLogPermitForm,
   HydroStationLog,
   CreateHydroStationLogForm,
@@ -27,7 +28,16 @@ export const hydroStationLogApi = {
     axiosInstance.post<HydroStationLog>(BASE, data),
 
   update: (id: string, data: UpdateHydroStationLogForm) =>
-    axiosInstance.put<HydroStationLog>(`${BASE}/${id}`, data),
+    axiosInstance.put<HydroStationLog>(`${BASE}/${id}`, {
+      ...data,
+      energyGeneratedKwh: data.energyGeneratedKwh !== '' ? data.energyGeneratedKwh : null,
+      totalGenerationMwh: data.totalGenerationMwh !== '' ? data.totalGenerationMwh : null,
+      totalStationServiceMwh: data.totalStationServiceMwh !== '' ? data.totalStationServiceMwh : null,
+      netGenerationMwh: data.netGenerationMwh !== '' ? data.netGenerationMwh : null,
+      forebayLevelM: data.forebayLevelM !== '' ? data.forebayLevelM : null,
+      tailraceLevelM: data.tailraceLevelM !== '' ? data.tailraceLevelM : null,
+      netHeadM: data.netHeadM !== '' ? data.netHeadM : null,
+    }),
 
   delete: (id: string) =>
     axiosInstance.delete(`${BASE}/${id}`),
@@ -72,8 +82,19 @@ export const hydroStationLogApi = {
     }),
 
   deleteCondition: (logId: string, conditionId: string) =>
-  axiosInstance.delete(`${BASE}/${logId}/conditions/${conditionId}`),
-  
+    axiosInstance.delete(`${BASE}/${logId}/conditions/${conditionId}`),
+
+  // Generation Rows
+  saveGenerationRows: (logId: string, rows: HydroGenerationRowForm[]) =>
+    axiosInstance.post<HydroStationLogGenerationRow[]>(`${BASE}/${logId}/generationrows`, {
+      rows: rows.map((r, i) => ({
+        description: r.description,
+        value: r.value !== '' ? Number(r.value) : null,
+        unit: r.unit || null,
+        sortOrder: i,
+      })),
+    }),
+
   // Permits
   addPermit: (logId: string, data: HydroStationLogPermitForm) =>
     axiosInstance.post<HydroStationLogPermit>(`${BASE}/${logId}/permits`, {
