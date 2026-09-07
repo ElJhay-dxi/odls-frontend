@@ -6,7 +6,7 @@ import {
   Dashboard, Factory, ElectricBolt, AccountTree,
   ExpandLess, ExpandMore, Tune, WaterDrop,
   Science, Assignment, BarChart, Settings, LocationOn,
-  AdminPanelSettings, Security, People,
+  AdminPanelSettings, Security, People, OilBarrel,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -67,17 +67,13 @@ const navItems: NavItem[] = [
     label: 'Daily Readings',
     icon: <Assignment />,
     children: [
-      { label: 'Energy Generation (Hydro)', icon: <WaterDrop />, path: '/daily/energy-generation-hydro', permission: 'daily.energy_hydro.view' },
-      { label: 'Energy Generation (Thermal)', icon: <ElectricBolt />, path: '/daily/energy-generation-thermal', permission: 'daily.energy_thermal.view' },
-      { label: 'Reactive Power', icon: <ElectricBolt />, path: '/daily/reactive-power', permission: 'daily.reactive_power.view' },
-      { label: 'LCO Readings', icon: <Tune />, path: '/daily/lco-readings', permission: 'daily.lco.view' },
-      { label: 'DFO Readings', icon: <Tune />, path: '/daily/dfo-readings', permission: 'daily.dfo.view' },
-      { label: 'Natural Gas (Turbine)', icon: <Tune />, path: '/daily/natural-gas-turbine', permission: 'daily.gas_turbine.view' },
-      { label: 'Natural Gas (Chromatograph)', icon: <Tune />, path: '/daily/natural-gas-chromatograph', permission: 'daily.gas_chromatograph.view' },
+      { label: 'Energy Readings (Hydro)', icon: <WaterDrop />, path: '/daily/energy-generation-hydro', permission: 'daily.energy_hydro.view' },
+      { label: 'Energy Readings (Thermal)', icon: <ElectricBolt />, path: '/daily/energy-generation-thermal', permission: 'daily.energy_thermal.view' },
+      { label: 'Fuel Readings', icon: <OilBarrel />, path: '/daily/fuel-readings', permission: 'daily.fuel_readings.view' },
       { label: 'Station Energy Consumption', icon: <Tune />, path: '/daily/station-energy-consumption', permission: 'daily.station_energy.view' },
       { label: 'SCC System Readings', icon: <Tune />, path: '/daily/scc-readings', permission: 'daily.scc.view' },
-      { label: 'Plant Availability', icon: <BarChart />, path: '/daily/plant-availability', permission: 'daily.plant_availability.view' },
-      { label: 'Plant Trips', icon: <Assignment />, path: '/daily/plant-trips', permission: 'daily.plant_trips.view' },
+      { label: 'Plant Availability', icon: <BarChart />, path: '/daily/unit-availability', permission: 'daily.plant_availability.view' },
+      { label: 'Plant Trips', icon: <Assignment />, path: '/daily/unit-trips', permission: 'daily.plant_trips.view' },
       { label: 'Reliability Metrics', icon: <BarChart />, path: '/daily/plant-reliability', permission: 'daily.plant_reliability.view' },
       { label: 'Plant Load Factor', icon: <BarChart />, path: '/daily/plant-load-factor', permission: 'daily.plant_load_factor.view' },
       { label: 'Water System', icon: <WaterDrop />, path: '/daily/water-system', permission: 'daily.water_system.view' },
@@ -139,10 +135,7 @@ const HYDRO_ONLY_PATHS = [
 // Paths that are thermal-only — hidden from hydro-only users
 const THERMAL_ONLY_PATHS = [
   '/daily/energy-generation-thermal',
-  '/daily/lco-readings',
-  '/daily/dfo-readings',
-  '/daily/natural-gas-turbine',
-  '/daily/natural-gas-chromatograph',
+  '/daily/fuel-readings',
   '/daily/water-system',
   '/station-logs/thermal',
   '/hourly/thermal-units',
@@ -156,7 +149,7 @@ export default function Sidebar({ open }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, hasPermission, isPlantUser, userPlantClassifications } = useUser();
-  const [expanded, setExpanded] = useState<string[]>(['Master Data']);
+  const [expanded, setExpanded] = useState<string[]>(['Dashboard']);
 
   const toggleExpand = (label: string) => {
     setExpanded((prev) =>

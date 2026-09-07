@@ -3,20 +3,23 @@ import {
   CircularProgress, Alert, Typography, MenuItem, FormControl,
   InputLabel, Select, Grid, Divider, Chip, Stack, Paper,
   Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, IconButton, Tooltip,
+  TableRow, IconButton, Tooltip, Collapse,
 } from '@mui/material';
-import { Save, Search, Edit, Delete, LocalFireDepartment, History } from '@mui/icons-material';
+import { Save, Search, Edit, Delete, LocalFireDepartment, History, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { dailyEnergyGenerationThermalApi } from '../../api/daily/dailyEnergyGenerationThermalApi';
+import { dailyReactivePowerApi } from '../../api/daily/dailyReactivePowerApi';
 import type { PowerPlant } from '../../types/masterData';
 import type {
   DailyEnergyGenerationThermal, DailyEnergyGenThermalForm, ThermalFuelType,
 } from '../../types/dailyEnergyGenerationThermal';
 import { FUEL_TYPE_LABELS } from '../../types/dailyEnergyGenerationThermal';
+import type { DailyReactivePower } from '../../types/dailyReactivePower';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
@@ -28,6 +31,12 @@ const emptyForm: DailyEnergyGenThermalForm = {
   logDate: new Date().toISOString().split('T')[0],
   currentReading: '',
 };
+
+interface ThermalHistoryRow {
+  logDate: string;
+  energy: DailyEnergyGenerationThermal | null;
+  reactivePower: DailyReactivePower | null;
+}
 
 export default function DailyEnergyGenerationThermalPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.energy_thermal');
@@ -50,12 +59,23 @@ export default function DailyEnergyGenerationThermalPage() {
 
   const [filterPlant, setFilterPlant] = useState('');
   const [filterFuelType, setFilterFuelType] = useState<ThermalFuelType | ''>('');
-  const [records, setRecords] = useState<DailyEnergyGenerationThermal[]>([]);
+  const [records, setRecords] = useState<ThermalHistoryRow[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
-  const [deleteTarget, setDeleteTarget] = useState<DailyEnergyGenerationThermal | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ThermalHistoryRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Reactive Power (embedded) ────────────────────────────────────────────────
+  const [reactivePowerReading, setReactivePowerReading] = useState<DailyReactivePower | null>(null);
+  const [reactivePowerForm, setReactivePowerForm] = useState<{ currentReading: number | string }>({ currentReading: '' });
+  const [reactivePowerManualPreviousReading, setReactivePowerManualPreviousReading] = useState('');
+  const [reactivePowerPriorRecord, setReactivePowerPriorRecord] = useState<DailyReactivePower | null>(null);
+  const [loadingReactivePower, setLoadingReactivePower] = useState(false);
+  const [savingReactivePower, setSavingReactivePower] = useState(false);
+  const [reactivePowerError, setReactivePowerError] = useState<string | null>(null);
+  const [reactivePowerSuccess, setReactivePowerSuccess] = useState(false);
+  const [reactivePowerCollapsed, setReactivePowerCollapsed] = useState(false);
 
   useEffect(() => {
     powerPlantApi.getAll().then((res) => {
@@ -94,11 +114,27 @@ export default function DailyEnergyGenerationThermalPage() {
     setLoadingRecords(true);
     setRecordsError(null);
     try {
-      const res = await dailyEnergyGenerationThermalApi.getAll({
-        plantCode: filterPlant,
-        fuelType: filterFuelType || undefined,
-      });
-      setRecords(res.data.sort((a, b) => b.logDate.localeCompare(a.logDate)));
+      const [energyRes, reactivePowerRes] = await Promise.allSettled([
+        dailyEnergyGenerationThermalApi.getAll({ plantCode: filterPlant, fuelType: filterFuelType || undefined }),
+        dailyReactivePowerApi.getAll({ plantCode: filterPlant }),
+      ]);
+      const energyList = energyRes.status === 'fulfilled' ? energyRes.value.data : [];
+      const reactivePowerList = reactivePowerRes.status === 'fulfilled' ? reactivePowerRes.value.data : [];
+
+      const merged: ThermalHistoryRow[] = energyList.map((e) => ({
+        logDate: e.logDate,
+        energy: e,
+        reactivePower: reactivePowerList.find((r) => r.logDate.split('T')[0] === e.logDate.split('T')[0]) ?? null,
+      }));
+      const reactivePowerOnly: ThermalHistoryRow[] = reactivePowerList
+        .filter((r) => !energyList.some((e) => e.logDate.split('T')[0] === r.logDate.split('T')[0]))
+        .map((r) => ({ logDate: r.logDate, energy: null, reactivePower: r }));
+
+      setRecords([...merged, ...reactivePowerOnly].sort((a, b) => b.logDate.localeCompare(a.logDate)));
+
+      if (energyRes.status === 'rejected' && reactivePowerRes.status === 'rejected') {
+        setRecordsError('Failed to load records.');
+      }
     } catch {
       setRecordsError('Failed to load records.');
     } finally {
@@ -107,6 +143,89 @@ export default function DailyEnergyGenerationThermalPage() {
   }, [filterPlant, filterFuelType]);
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
+
+  // ── Reactive Power: load alongside the energy reading for the selected plant + date ──
+  const rpPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
+  const rpLogDate = editTarget ? editTarget.logDate?.split('T')[0] : form.logDate;
+
+  const fetchReactivePower = useCallback(async () => {
+    if (!rpPlantCode || !rpLogDate) {
+      setReactivePowerReading(null);
+      setReactivePowerForm({ currentReading: '' });
+      setReactivePowerPriorRecord(null);
+      return;
+    }
+    setLoadingReactivePower(true);
+    try {
+      const [exactRes, allRes] = await Promise.allSettled([
+        dailyReactivePowerApi.getAll({ plantCode: rpPlantCode, date: rpLogDate }),
+        dailyReactivePowerApi.getAll({ plantCode: rpPlantCode }),
+      ]);
+      // Handle 404 / failure the same way as an empty result — show an empty form ready to create
+      const exact = exactRes.status === 'fulfilled' ? (exactRes.value.data[0] ?? null) : null;
+      setReactivePowerReading(exact);
+      setReactivePowerForm({ currentReading: exact ? exact.currentReading : '' });
+      if (!exact && allRes.status === 'fulfilled') {
+        const prior = allRes.value.data
+          .filter((r) => r.logDate.split('T')[0] < rpLogDate)
+          .sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
+        setReactivePowerPriorRecord(prior ?? null);
+        if (prior) setReactivePowerManualPreviousReading('');
+      } else {
+        setReactivePowerPriorRecord(null);
+      }
+    } catch {
+      setReactivePowerReading(null);
+      setReactivePowerPriorRecord(null);
+    } finally {
+      setLoadingReactivePower(false);
+    }
+  }, [rpPlantCode, rpLogDate]);
+
+  useEffect(() => { fetchReactivePower(); }, [fetchReactivePower]);
+
+  const isReactivePowerFirstEntry = !reactivePowerReading && !reactivePowerPriorRecord && !loadingReactivePower;
+  const previewReactivePowerPreviousReading = reactivePowerReading
+    ? reactivePowerReading.previousReading
+    : reactivePowerPriorRecord
+    ? reactivePowerPriorRecord.currentReading
+    : Number(reactivePowerManualPreviousReading) || 0;
+  const previewReactivePowerPriorProgressiveTotal = reactivePowerReading
+    ? reactivePowerReading.progressiveTotal - reactivePowerReading.difference
+    : (reactivePowerPriorRecord?.progressiveTotal ?? 0);
+  const reactivePowerCurrentReadingVal = Number(reactivePowerForm.currentReading) || 0;
+  const previewReactivePowerDifference = reactivePowerCurrentReadingVal - previewReactivePowerPreviousReading;
+  const previewReactivePowerProgressiveTotal = previewReactivePowerPriorProgressiveTotal + previewReactivePowerDifference;
+
+  const handleSaveReactivePower = async () => {
+    setSavingReactivePower(true);
+    setReactivePowerError(null);
+    setReactivePowerSuccess(false);
+    try {
+      if (reactivePowerReading) {
+        await dailyReactivePowerApi.update(reactivePowerReading.id, {
+          currentReading: Number(reactivePowerForm.currentReading),
+        });
+      } else {
+        await dailyReactivePowerApi.create({
+          plantCode: rpPlantCode,
+          logDate: rpLogDate,
+          previousReading: isReactivePowerFirstEntry ? Number(reactivePowerManualPreviousReading) : undefined,
+          currentReading: Number(reactivePowerForm.currentReading),
+        });
+        setReactivePowerManualPreviousReading('');
+      }
+      setReactivePowerSuccess(true);
+      fetchReactivePower();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setReactivePowerError(msg ?? 'Failed to save. Please try again.');
+    } finally {
+      setSavingReactivePower(false);
+    }
+  };
+
+  const isReactivePowerFormValid = reactivePowerForm.currentReading !== '' && reactivePowerForm.currentReading !== undefined;
 
   const isFirstEntry = !editTarget && !priorRecord && !loadingPrior;
   const previewPreviousReading = editTarget
@@ -130,6 +249,15 @@ export default function DailyEnergyGenerationThermalPage() {
   };
 
   const cancelEdit = () => { setEditTarget(null); setUpdateForm({ currentReading: '' }); };
+
+  const openMergedEdit = (row: ThermalHistoryRow) => {
+    if (row.energy) {
+      openEdit(row.energy);
+    } else {
+      cancelEdit();
+      setForm((prev) => ({ ...prev, plantCode: filterPlant || prev.plantCode, logDate: row.logDate.split('T')[0] }));
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -166,7 +294,10 @@ export default function DailyEnergyGenerationThermalPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await dailyEnergyGenerationThermalApi.delete(deleteTarget.id);
+      const tasks: Promise<unknown>[] = [];
+      if (deleteTarget.energy) tasks.push(dailyEnergyGenerationThermalApi.delete(deleteTarget.energy.id));
+      if (deleteTarget.reactivePower) tasks.push(dailyReactivePowerApi.delete(deleteTarget.reactivePower.id));
+      await Promise.all(tasks);
       setDeleteTarget(null);
       fetchRecords();
     } catch {
@@ -184,9 +315,9 @@ export default function DailyEnergyGenerationThermalPage() {
   if (isWrongPlantType) return (
     <Box>
       <PageHeader
-        title="Daily Energy Generation — Thermal"
-        subtitle="Daily MWh generation readings per thermal plant and fuel type"
-        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Energy Generation (Thermal)' }]}
+        title="Energy Readings (Thermal)"
+        subtitle="Daily energy generation and reactive power readings"
+        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Energy Readings (Thermal)' }]}
       />
       <Alert severity="error" sx={{ mt: 2 }}
         action={<Button color="error" size="small" variant="outlined" onClick={() => navigate(-1)}>Go Back</Button>}>
@@ -198,9 +329,9 @@ export default function DailyEnergyGenerationThermalPage() {
   return (
     <Box>
       <PageHeader
-        title="Daily Energy Generation — Thermal"
-        subtitle="Daily MWh generation readings per thermal plant and fuel type with automatic progressive totals"
-        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Energy Generation (Thermal)' }]}
+        title="Energy Readings (Thermal)"
+        subtitle="Daily energy generation and reactive power readings"
+        breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Energy Readings (Thermal)' }]}
       />
 
       <Grid container spacing={3}>
@@ -351,6 +482,82 @@ export default function DailyEnergyGenerationThermalPage() {
               </Stack>
             </CardContent>
           </Card>
+
+          <Card sx={{ mt: 3 }}>
+            <Box sx={{
+              px: 2.5, py: 1.5,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              cursor: 'pointer',
+              backgroundColor: '#1565C014',
+              borderBottom: reactivePowerCollapsed ? 'none' : '1px solid',
+              borderColor: 'divider',
+            }} onClick={() => setReactivePowerCollapsed((p) => !p)}>
+              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1565C0' }}>
+                Reactive Power (MVArh)
+              </Typography>
+              <IconButton size="small">
+                {reactivePowerCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}
+              </IconButton>
+            </Box>
+            <Collapse in={!reactivePowerCollapsed} timeout="auto" unmountOnExit>
+              <CardContent>
+                {reactivePowerError && <Alert severity="error" onClose={() => setReactivePowerError(null)} sx={{ mb: 2 }}>{reactivePowerError}</Alert>}
+                {reactivePowerSuccess && <Alert severity="success" onClose={() => setReactivePowerSuccess(false)} sx={{ mb: 2 }}>Reactive power reading saved successfully.</Alert>}
+
+                {!rpPlantCode || !rpLogDate ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Select a power plant and log date above to manage reactive power readings.
+                  </Typography>
+                ) : (
+                  <>
+                    <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+                        Meter Readings (MVarh)
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                          <TextField label="Previous Reading" fullWidth disabled
+                            value={loadingReactivePower ? '…' : previewReactivePowerPreviousReading.toFixed(2)}
+                            helperText="Auto-carried from prior day" />
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                          <TextField label="Current Reading" type="number" fullWidth required
+                            value={reactivePowerForm.currentReading}
+                            onChange={(e) => setReactivePowerForm({ currentReading: e.target.value })}
+                            slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MVarh</Typography> } }} />
+                        </Grid>
+                      </Grid>
+                    </Paper>
+
+                    <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2, backgroundColor: 'action.hover' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+                        Computed Preview
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                          <Typography variant="caption" color="text.secondary">Difference</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewReactivePowerDifference.toFixed(2)} MVarh</Typography>
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                          <Typography variant="caption" color="text.secondary">Progressive Total</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewReactivePowerProgressiveTotal.toFixed(2)} MVarh</Typography>
+                        </Grid>
+                      </Grid>
+                    </Paper>
+
+                    {(reactivePowerReading ? canEdit : canCreate) && (
+                      <Button variant="contained" onClick={handleSaveReactivePower}
+                        disabled={savingReactivePower || !isReactivePowerFormValid}
+                        startIcon={savingReactivePower ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                        sx={{ minWidth: 140 }}>
+                        {savingReactivePower ? 'Saving...' : reactivePowerReading ? 'Update Reading' : 'Save Reading'}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Collapse>
+          </Card>
         </Grid>
 
         {/* ── Right: Records ── */}
@@ -403,60 +610,79 @@ export default function DailyEnergyGenerationThermalPage() {
                 <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>
               )}
 
-              {records.length === 0 && !loadingRecords ? (
+              {loadingRecords ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress size={28} />
+                </Box>
+              ) : records.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
                   <LocalFireDepartment sx={{ fontSize: '2rem', color: 'text.disabled', mb: 1 }} />
                   <Typography variant="body2" color="text.secondary">
-                    {filterPlant ? 'No records found.' : 'Select a plant and click Load.'}
+                    {filterPlant ? 'No readings recorded for this plant yet.' : 'Select a plant and click Load.'}
                   </Typography>
                 </Box>
               ) : (
                 <TableContainer sx={{ maxHeight: 480 }}>
                   <Table size="small" stickyHeader>
                     <TableHead>
-                      <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Fuel</TableCell>
-                        <TableCell>Current</TableCell>
-                        <TableCell>Diff</TableCell>
-                        <TableCell>Progressive</TableCell>
-                        <TableCell align="right">Actions</TableCell>
+                      <TableRow sx={{ '& th': { backgroundColor: '#FFF3E0' } }}>
+                        <TableCell rowSpan={2} sx={{ verticalAlign: 'bottom' }}>Date</TableCell>
+                        <TableCell colSpan={3} align="center" sx={{ fontWeight: 700 }}>Energy Generation</TableCell>
+                        <TableCell colSpan={2} align="center" sx={{ fontWeight: 700 }}>Reactive Power (MVArh)</TableCell>
+                        <TableCell rowSpan={2} align="right" sx={{ verticalAlign: 'bottom' }}>Actions</TableCell>
+                      </TableRow>
+                      <TableRow sx={{ '& th': { backgroundColor: '#FFF3E0' } }}>
+                        <TableCell>Fuel Type</TableCell>
+                        <TableCell>Energy Generated (MWh)</TableCell>
+                        <TableCell>Progressive Total (MWh)</TableCell>
+                        <TableCell>Reactive Energy (MVArh)</TableCell>
+                        <TableCell>Reactive Progressive Total</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {records.map((row) => (
-                        <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
+                      {records.map((row, idx) => (
+                        <TableRow
+                          key={`${row.logDate}-${row.energy?.id ?? row.reactivePower?.id}`}
+                          selected={!!row.energy && editTarget?.id === row.energy.id}
+                          hover
+                          sx={{ backgroundColor: idx % 2 === 1 ? 'action.hover' : 'inherit' }}
+                        >
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {row.logDate.split('T')[0]}
+                              {dayjs(row.logDate).format('DD MMM YYYY')}
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              label={FUEL_TYPE_LABELS[row.fuelType]}
-                              size="small"
-                              color={row.fuelType === 'NaturalGas' ? 'primary' : 'secondary'}
-                              variant="outlined"
-                              sx={{ fontSize: 11 }}
-                            />
+                            {row.energy ? (
+                              <Chip
+                                label={FUEL_TYPE_LABELS[row.energy.fuelType]}
+                                size="small"
+                                color={row.energy.fuelType === 'NaturalGas' ? 'primary' : 'secondary'}
+                                variant="outlined"
+                                sx={{ fontSize: 11 }}
+                              />
+                            ) : '—'}
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2">{row.currentReading.toFixed(1)}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color={row.difference < 0 ? 'error.main' : 'text.primary'}>
-                              {row.difference.toFixed(1)}
-                            </Typography>
+                            <Typography variant="body2">{row.energy ? row.energy.currentReading.toFixed(1) : '—'}</Typography>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {row.progressiveTotal.toFixed(1)}
+                              {row.energy ? row.energy.progressiveTotal.toFixed(1) : '—'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">{row.reactivePower ? row.reactivePower.currentReading.toFixed(1) : '—'}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {row.reactivePower ? row.reactivePower.progressiveTotal.toFixed(1) : '—'}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
                             {canEdit && (
                               <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                              <IconButton size="small" color="primary" onClick={() => openMergedEdit(row)}>
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
@@ -483,7 +709,7 @@ export default function DailyEnergyGenerationThermalPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Reading"
-        message={`Delete the ${deleteTarget ? FUEL_TYPE_LABELS[deleteTarget.fuelType] : ''} reading for ${deleteTarget?.plantCode} on ${deleteTarget?.logDate?.split('T')[0]}? This will recompute progressive totals for any later readings of the same fuel type.`}
+        message={`Delete the reading${deleteTarget?.energy && deleteTarget?.reactivePower ? 's' : ''}${deleteTarget?.energy ? ` (${FUEL_TYPE_LABELS[deleteTarget.energy.fuelType]})` : ''} for ${deleteTarget?.energy?.plantCode ?? deleteTarget?.reactivePower?.plantCode ?? filterPlant} on ${deleteTarget?.logDate?.split('T')[0]}? This will recompute progressive totals for any later readings of the same fuel type.`}
         confirmLabel="Delete" loading={deleting}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />

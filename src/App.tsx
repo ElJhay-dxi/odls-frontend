@@ -37,15 +37,11 @@ const PeakPeriodPage = lazy(() => import('./pages/hourly/PeakPeriodPage'));
 // Daily Readings
 const DailyEnergyGenerationHydroPage = lazy(() => import('./pages/daily/DailyEnergyGenerationHydroPage'));
 const DailyEnergyGenerationThermalPage = lazy(() => import('./pages/daily/DailyEnergyGenerationThermalPage'));
-const DailyReactivePowerPage = lazy(() => import('./pages/daily/DailyReactivePowerPage'));
-const DailyLcoReadingPage = lazy(() => import('./pages/daily/DailyLcoReadingPage'));
-const DailyDfoReadingPage = lazy(() => import('./pages/daily/DailyDfoReadingPage'));
-const DailyNaturalGasTurbinePage = lazy(() => import('./pages/daily/DailyNaturalGasTurbinePage'));
-const DailyNaturalGasChromatographPage = lazy(() => import('./pages/daily/DailyNaturalGasChromatographPage'));
+const FuelReadingsPage = lazy(() => import('./pages/daily/FuelReadingsPage'));
 const DailyStationEnergyConsumptionPage = lazy(() => import('./pages/daily/DailyStationEnergyConsumptionPage'));
 const DailySccReadingPage = lazy(() => import('./pages/daily/DailySccReadingPage'));
-const DailyPlantAvailabilityPage = lazy(() => import('./pages/daily/DailyPlantAvailabilityPage'));
-const DailyPlantTripPage = lazy(() => import('./pages/daily/DailyPlantTripPage'));
+const DailyUnitAvailabilityPage = lazy(() => import('./pages/daily/DailyUnitAvailabilityPage'));
+const DailyUnitTripsPage = lazy(() => import('./pages/daily/DailyUnitTripsPage'));
 const DailyPlantReliabilityPage = lazy(() => import('./pages/daily/DailyPlantReliabilityPage'));
 const DailyPlantLoadFactorPage = lazy(() => import('./pages/daily/DailyPlantLoadFactorPage'));
 const WaterSystemReadingsPage = lazy(() => import('./pages/daily/WaterSystemReadingsPage'));
@@ -127,15 +123,11 @@ export default function App() {
                   {/* Daily Readings */}
                   <Route path="daily/energy-generation-hydro" element={<G p="daily.energy_hydro.view"><DailyEnergyGenerationHydroPage /></G>} />
                   <Route path="daily/energy-generation-thermal" element={<G p="daily.energy_thermal.view"><DailyEnergyGenerationThermalPage /></G>} />
-                  <Route path="daily/reactive-power" element={<G p="daily.reactive_power.view"><DailyReactivePowerPage /></G>} />
-                  <Route path="daily/lco-readings" element={<G p="daily.lco.view"><DailyLcoReadingPage /></G>} />
-                  <Route path="daily/dfo-readings" element={<G p="daily.dfo.view"><DailyDfoReadingPage /></G>} />
-                  <Route path="daily/natural-gas-turbine" element={<G p="daily.gas_turbine.view"><DailyNaturalGasTurbinePage /></G>} />
-                  <Route path="daily/natural-gas-chromatograph" element={<G p="daily.gas_chromatograph.view"><DailyNaturalGasChromatographPage /></G>} />
+                  <Route path="daily/fuel-readings" element={<G p="daily.fuel_readings.view"><FuelReadingsPage /></G>} />
                   <Route path="daily/station-energy-consumption" element={<G p="daily.station_energy.view"><DailyStationEnergyConsumptionPage /></G>} />
                   <Route path="daily/scc-readings" element={<G p="daily.scc.view"><DailySccReadingPage /></G>} />
-                  <Route path="daily/plant-availability" element={<G p="daily.plant_availability.view"><DailyPlantAvailabilityPage /></G>} />
-                  <Route path="daily/plant-trips" element={<G p="daily.plant_trips.view"><DailyPlantTripPage /></G>} />
+                  <Route path="daily/unit-availability" element={<G p="daily.plant_availability.view"><DailyUnitAvailabilityPage /></G>} />
+                  <Route path="daily/unit-trips" element={<G p="daily.plant_trips.view"><DailyUnitTripsPage /></G>} />
                   <Route path="daily/plant-reliability" element={<G p="daily.plant_reliability.view"><DailyPlantReliabilityPage /></G>} />
                   <Route path="daily/plant-load-factor" element={<G p="daily.plant_load_factor.view"><DailyPlantLoadFactorPage /></G>} />
                   <Route path="daily/water-system" element={<G p="daily.water_system.view"><WaterSystemReadingsPage /></G>} />
