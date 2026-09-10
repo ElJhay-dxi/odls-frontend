@@ -2,6 +2,8 @@ export interface DailyEnergyGenerationHydro {
   id: string;
   plantName: string;
   plantCode: string;
+  unitCode: string;
+  unitName: string;
   logDate: string;
   previousReading: number;
   currentReading: number;
@@ -18,6 +20,8 @@ export interface DailyEnergyGenerationHydro {
 
 export interface DailyEnergyGenHydroForm {
   plantCode: string;
+  unitCode: string;
+  unitName: string;
   logDate: string;
   currentReading: number | string;
   averagePowerFactor: number | string;

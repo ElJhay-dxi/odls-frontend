@@ -2,6 +2,8 @@ export interface DailyReactivePower {
   id: string;
   plantName: string;
   plantCode: string;
+  unitCode: string;
+  unitName: string;
   classificationType: string;
   logDate: string;
   previousReading: number;
@@ -15,6 +17,8 @@ export interface DailyReactivePower {
 
 export interface DailyReactivePowerForm {
   plantCode: string;
+  unitCode: string;
+  unitName: string;
   logDate: string;
   currentReading: number | string;
 }

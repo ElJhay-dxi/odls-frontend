@@ -1,39 +1,66 @@
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
-  InputLabel, Select, Grid, Divider, Chip, Stack, Paper,
+  InputLabel, Select, Grid, Divider, Chip, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, IconButton, Tooltip, Collapse,
+  TableRow, IconButton, Tooltip,
 } from '@mui/material';
-import { Save, Search, Edit, Delete, WaterDrop, History, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { Save, Delete, Edit, WaterDrop, History, CheckCircle } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
+import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { dailyEnergyGenerationHydroApi } from '../../api/daily/dailyEnergyGenerationHydroApi';
 import { dailyReactivePowerApi } from '../../api/daily/dailyReactivePowerApi';
-import type { PowerPlant } from '../../types/masterData';
-import type { DailyEnergyGenerationHydro, DailyEnergyGenHydroForm } from '../../types/dailyEnergyGenerationHydro';
+import type { PowerPlant, PlantUnit } from '../../types/masterData';
+import type { DailyEnergyGenerationHydro } from '../../types/dailyEnergyGenerationHydro';
 import type { DailyReactivePower } from '../../types/dailyReactivePower';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
-const emptyForm: DailyEnergyGenHydroForm = {
-  plantCode: '',
-  logDate: new Date().toISOString().split('T')[0],
+interface UnitForm {
+  id?: string;
+  previousReading: string;
+  currentReading: string;
+  averagePowerFactor: string;
+  progressiveTotal: string;
+  averageLoad: string;
+}
+
+const emptyUnitForm: UnitForm = {
+  previousReading: '',
   currentReading: '',
   averagePowerFactor: '',
-  akosomboPeakLoadMW: '',
-  akosomboPeakLoadTime: '',
+  progressiveTotal: '',
+  averageLoad: '',
 };
 
-const toNum = (v: unknown) => v === '' || v === undefined || v === null ? undefined : Number(v);
+interface ReactiveUnitForm {
+  id?: string;
+  previousReading: string;
+  currentReading: string;
+  progressiveTotal: string;
+  difference: string;
+}
 
-interface HydroHistoryRow {
+const emptyReactiveUnitForm: ReactiveUnitForm = {
+  previousReading: '',
+  currentReading: '',
+  progressiveTotal: '',
+  difference: '',
+};
+
+interface HistoryGroup {
   logDate: string;
-  energy: DailyEnergyGenerationHydro | null;
+  records: DailyEnergyGenerationHydro[];
+  unitsRecorded: number;
+  totalCurrentReading: number;
+  totalDifference: number;
+  totalProgressiveTotal: number;
+  avgPowerFactor: number | null;
   reactivePower: DailyReactivePower | null;
 }
 
@@ -45,32 +72,25 @@ export default function DailyEnergyGenerationHydroPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [form, setForm] = useState<DailyEnergyGenHydroForm>(emptyForm);
-  const [updateForm, setUpdateForm] = useState<Partial<DailyEnergyGenHydroForm>>({});
-  const [editTarget, setEditTarget] = useState<DailyEnergyGenerationHydro | null>(null);
-  const [manualPreviousReading, setManualPreviousReading] = useState('');
-  const [priorRecord, setPriorRecord] = useState<DailyEnergyGenerationHydro | null>(null);
-  const [loadingPrior, setLoadingPrior] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [filterPlant, setFilterPlant] = useState('');
-  const [records, setRecords] = useState<HydroHistoryRow[]>([]);
-  const [loadingRecords, setLoadingRecords] = useState(false);
-  const [recordsError, setRecordsError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<HydroHistoryRow | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [selectedPlant, setSelectedPlant] = useState('');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // ── Reactive Power (embedded) ────────────────────────────────────────────────
-  const [reactivePowerReading, setReactivePowerReading] = useState<DailyReactivePower | null>(null);
-  const [reactivePowerForm, setReactivePowerForm] = useState<{ currentReading: number | string }>({ currentReading: '' });
-  const [reactivePowerManualPreviousReading, setReactivePowerManualPreviousReading] = useState('');
-  const [reactivePowerPriorRecord, setReactivePowerPriorRecord] = useState<DailyReactivePower | null>(null);
-  const [loadingReactivePower, setLoadingReactivePower] = useState(false);
-  const [savingReactivePower, setSavingReactivePower] = useState(false);
-  const [reactivePowerError, setReactivePowerError] = useState<string | null>(null);
-  const [reactivePowerSuccess, setReactivePowerSuccess] = useState(false);
-  const [reactivePowerCollapsed, setReactivePowerCollapsed] = useState(false);
+  const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
+  const [loadingUnits, setLoadingUnits] = useState(false);
+
+  const [peakLoadMw, setPeakLoadMw] = useState('');
+  const [peakLoadTime, setPeakLoadTime] = useState('');
+
+  const [unitForms, setUnitForms] = useState<Record<string, UnitForm>>({});
+  const [reactiveUnitForms, setReactiveUnitForms] = useState<Record<string, ReactiveUnitForm>>({});
+  const [unitSaveStatus, setUnitSaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
+  const [savedUnits, setSavedUnits] = useState<Set<string>>(new Set());
+
+  const [history, setHistory] = useState<HistoryGroup[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<HistoryGroup | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     powerPlantApi.getAll().then((res) => {
@@ -79,203 +99,259 @@ export default function DailyEnergyGenerationHydroPage() {
   }, []);
 
   useEffect(() => {
-    if (autoPlantCode) {
-      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
-      setFilterPlant(autoPlantCode);
-    }
+    if (autoPlantCode) setSelectedPlant(autoPlantCode);
   }, [autoPlantCode]);
 
-  useEffect(() => {
-    if (editTarget || !form.plantCode || !form.logDate) { setPriorRecord(null); return; }
-    setLoadingPrior(true);
-    dailyEnergyGenerationHydroApi.getAll({ plantCode: form.plantCode })
-      .then((res) => {
-        const prior = res.data.filter((r) => r.logDate.split('T')[0] < form.logDate).sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
-        setPriorRecord(prior ?? null);
-        if (prior) setManualPreviousReading('');
-      })
-      .catch(() => setPriorRecord(null))
-      .finally(() => setLoadingPrior(false));
-  }, [form.plantCode, form.logDate, editTarget]);
+  // ── Load plant units + existing unit records for the selected plant/date ─────
+  const loadUnitData = useCallback(() => {
+    if (!selectedPlant || !selectedDate) {
+      setPlantUnits([]); setUnitForms({}); setReactiveUnitForms({}); setSavedUnits(new Set()); setUnitSaveStatus({});
+      return;
+    }
+    setLoadingUnits(true);
+    Promise.allSettled([
+      plantUnitApi.getByPlant(selectedPlant),
+      dailyEnergyGenerationHydroApi.getByDate(selectedPlant, selectedDate),
+      dailyReactivePowerApi.getByDate(selectedPlant, selectedDate),
+    ]).then(([unitsRes, recordsRes, reactiveRes]) => {
+      const units = unitsRes.status === 'fulfilled' ? unitsRes.value.data : [];
+      const records = recordsRes.status === 'fulfilled' ? recordsRes.value.data : [];
+      const reactiveRecords = reactiveRes.status === 'fulfilled' ? reactiveRes.value.data : [];
 
-  const fetchRecords = useCallback(async () => {
-    if (!filterPlant) return;
-    setLoadingRecords(true); setRecordsError(null);
+      setPlantUnits(units);
+
+      const forms: Record<string, UnitForm> = {};
+      const reactiveForms: Record<string, ReactiveUnitForm> = {};
+      const saved = new Set<string>();
+      for (const unit of units) {
+        const record = records.find((r) => r.unitCode === unit.unitCode);
+        if (record) {
+          forms[unit.unitCode] = {
+            id: record.id,
+            previousReading: record.previousReading?.toString() ?? '',
+            currentReading: record.currentReading?.toString() ?? '',
+            averagePowerFactor: record.averagePowerFactor?.toString() ?? '',
+            progressiveTotal: record.progressiveTotal?.toString() ?? '',
+            averageLoad: record.averageLoad?.toFixed(3) ?? '',
+          };
+          saved.add(unit.unitCode);
+        } else {
+          forms[unit.unitCode] = { ...emptyUnitForm };
+        }
+
+        const reactiveRecord = reactiveRecords.find((r) => r.unitCode === unit.unitCode);
+        reactiveForms[unit.unitCode] = reactiveRecord ? {
+          id: reactiveRecord.id,
+          previousReading: reactiveRecord.previousReading?.toString() ?? '',
+          currentReading: reactiveRecord.currentReading?.toString() ?? '',
+          progressiveTotal: reactiveRecord.progressiveTotal?.toString() ?? '',
+          difference: reactiveRecord.difference?.toFixed(3) ?? '',
+        } : { ...emptyReactiveUnitForm };
+      }
+      setUnitForms(forms);
+      setReactiveUnitForms(reactiveForms);
+      setSavedUnits(saved);
+      setUnitSaveStatus({});
+
+      const peakRecord = records.find((r) => r.akosomboPeakLoadMW != null);
+      setPeakLoadMw(peakRecord?.akosomboPeakLoadMW?.toString() ?? '');
+      setPeakLoadTime(peakRecord?.akosomboPeakLoadTime?.slice(0, 5) ?? '');
+    }).finally(() => setLoadingUnits(false));
+  }, [selectedPlant, selectedDate]);
+
+  useEffect(() => { loadUnitData(); }, [loadUnitData]);
+
+  // ── History ────────────────────────────────────────────────────────────────
+  const fetchHistory = useCallback(async () => {
+    if (!selectedPlant) { setHistory([]); return; }
+    setLoadingHistory(true); setHistoryError(null);
     try {
       const [energyRes, reactivePowerRes] = await Promise.allSettled([
-        dailyEnergyGenerationHydroApi.getAll({ plantCode: filterPlant }),
-        dailyReactivePowerApi.getAll({ plantCode: filterPlant }),
+        dailyEnergyGenerationHydroApi.getAll({ plantCode: selectedPlant }),
+        dailyReactivePowerApi.getAll({ plantCode: selectedPlant }),
       ]);
       const energyList = energyRes.status === 'fulfilled' ? energyRes.value.data : [];
       const reactivePowerList = reactivePowerRes.status === 'fulfilled' ? reactivePowerRes.value.data : [];
 
-      const merged: HydroHistoryRow[] = energyList.map((e) => ({
-        logDate: e.logDate,
-        energy: e,
-        reactivePower: reactivePowerList.find((r) => r.logDate.split('T')[0] === e.logDate.split('T')[0]) ?? null,
-      }));
-      const reactivePowerOnly: HydroHistoryRow[] = reactivePowerList
-        .filter((r) => !energyList.some((e) => e.logDate.split('T')[0] === r.logDate.split('T')[0]))
-        .map((r) => ({ logDate: r.logDate, energy: null, reactivePower: r }));
+      const map = new Map<string, DailyEnergyGenerationHydro[]>();
+      energyList.forEach((r) => {
+        const d = r.logDate.split('T')[0];
+        if (!map.has(d)) map.set(d, []);
+        map.get(d)!.push(r);
+      });
 
-      setRecords([...merged, ...reactivePowerOnly].sort((a, b) => b.logDate.localeCompare(a.logDate)));
+      const groups: HistoryGroup[] = Array.from(map.entries()).map(([logDate, records]) => {
+        const withPowerFactor = records.filter((r) => r.averagePowerFactor != null);
+        return {
+          logDate,
+          records,
+          unitsRecorded: records.length,
+          totalCurrentReading: records.reduce((s, r) => s + (r.currentReading ?? 0), 0),
+          totalDifference: records.reduce((s, r) => s + (r.difference ?? 0), 0),
+          totalProgressiveTotal: records.reduce((s, r) => s + (r.progressiveTotal ?? 0), 0),
+          avgPowerFactor: withPowerFactor.length
+            ? withPowerFactor.reduce((s, r) => s + (r.averagePowerFactor ?? 0), 0) / withPowerFactor.length
+            : null,
+          reactivePower: reactivePowerList.find((r) => r.logDate.split('T')[0] === logDate) ?? null,
+        };
+      });
+
+      setHistory(groups.sort((a, b) => b.logDate.localeCompare(a.logDate)));
 
       if (energyRes.status === 'rejected' && reactivePowerRes.status === 'rejected') {
-        setRecordsError('Failed to load records.');
+        setHistoryError('Failed to load history.');
       }
-    } catch { setRecordsError('Failed to load records.'); }
-    finally { setLoadingRecords(false); }
-  }, [filterPlant]);
+    } catch { setHistoryError('Failed to load history.'); }
+    finally { setLoadingHistory(false); }
+  }, [selectedPlant]);
 
-  useEffect(() => { fetchRecords(); }, [fetchRecords]);
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
-  // ── Reactive Power: load alongside the energy reading for the selected plant + date ──
-  const rpPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
-  const rpLogDate = editTarget ? editTarget.logDate?.split('T')[0] : form.logDate;
+  // ── Unit cards ─────────────────────────────────────────────────────────────
+  const computeDifference = (unitCode: string) => {
+    const form = unitForms[unitCode];
+    if (!form) return '';
+    const prev = parseFloat(form.previousReading) || 0;
+    const curr = parseFloat(form.currentReading) || 0;
+    return (curr - prev).toFixed(3);
+  };
 
-  const fetchReactivePower = useCallback(async () => {
-    if (!rpPlantCode || !rpLogDate) {
-      setReactivePowerReading(null);
-      setReactivePowerForm({ currentReading: '' });
-      setReactivePowerPriorRecord(null);
-      return;
-    }
-    setLoadingReactivePower(true);
+  const computeReactiveDifference = (unitCode: string) => {
+    const form = reactiveUnitForms[unitCode];
+    if (!form) return '';
+    const prev = parseFloat(form.previousReading) || 0;
+    const curr = parseFloat(form.currentReading) || 0;
+    return (curr - prev).toFixed(3);
+  };
+
+  const handleUnitFieldChange = (unitCode: string, field: keyof UnitForm, value: string) => {
+    setUnitForms((prev) => ({ ...prev, [unitCode]: { ...prev[unitCode], [field]: value } }));
+    setSavedUnits((prev) => { const next = new Set(prev); next.delete(unitCode); return next; });
+    setUnitSaveStatus((prev) => ({ ...prev, [unitCode]: 'idle' }));
+  };
+
+  const handleReactiveFieldChange = (unitCode: string, field: keyof ReactiveUnitForm, value: string) => {
+    setReactiveUnitForms((prev) => ({ ...prev, [unitCode]: { ...prev[unitCode], [field]: value } }));
+    setSavedUnits((prev) => { const next = new Set(prev); next.delete(unitCode); return next; });
+    setUnitSaveStatus((prev) => ({ ...prev, [unitCode]: 'idle' }));
+  };
+
+  const handleSaveUnit = async (unit: PlantUnit) => {
+    const energyForm = unitForms[unit.unitCode];
+    const reactiveForm = reactiveUnitForms[unit.unitCode];
+    if (!energyForm) return;
+
+    setUnitSaveStatus((prev) => ({ ...prev, [unit.unitCode]: 'saving' }));
     try {
-      const [exactRes, allRes] = await Promise.allSettled([
-        dailyReactivePowerApi.getAll({ plantCode: rpPlantCode, date: rpLogDate }),
-        dailyReactivePowerApi.getAll({ plantCode: rpPlantCode }),
-      ]);
-      // Handle 404 / failure the same way as an empty result — show an empty form ready to create
-      const exact = exactRes.status === 'fulfilled' ? (exactRes.value.data[0] ?? null) : null;
-      setReactivePowerReading(exact);
-      setReactivePowerForm({ currentReading: exact ? exact.currentReading : '' });
-      if (!exact && allRes.status === 'fulfilled') {
-        const prior = allRes.value.data
-          .filter((r) => r.logDate.split('T')[0] < rpLogDate)
-          .sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
-        setReactivePowerPriorRecord(prior ?? null);
-        if (prior) setReactivePowerManualPreviousReading('');
+      let energyRes;
+      if (energyForm.id) {
+        energyRes = await dailyEnergyGenerationHydroApi.update(energyForm.id, {
+          currentReading: parseFloat(energyForm.currentReading) || 0,
+          averagePowerFactor: energyForm.averagePowerFactor ? parseFloat(energyForm.averagePowerFactor) : null,
+          akosomboPeakLoadMW: peakLoadMw ? parseFloat(peakLoadMw) : null,
+          akosomboPeakLoadTime: peakLoadTime || null,
+        });
       } else {
-        setReactivePowerPriorRecord(null);
+        energyRes = await dailyEnergyGenerationHydroApi.create({
+          plantCode: selectedPlant,
+          unitCode: unit.unitCode,
+          unitName: unit.unitName,
+          logDate: selectedDate,
+          currentReading: parseFloat(energyForm.currentReading) || 0,
+          previousReading: energyForm.previousReading ? parseFloat(energyForm.previousReading) : undefined,
+          averagePowerFactor: energyForm.averagePowerFactor ? parseFloat(energyForm.averagePowerFactor) : null,
+          akosomboPeakLoadMW: peakLoadMw ? parseFloat(peakLoadMw) : null,
+          akosomboPeakLoadTime: peakLoadTime || null,
+        });
       }
+
+      // Save reactive power reading (only if currentReading has a value)
+      let reactiveRes = null;
+      if (reactiveForm?.currentReading) {
+        if (reactiveForm.id) {
+          reactiveRes = await dailyReactivePowerApi.update(reactiveForm.id, {
+            currentReading: parseFloat(reactiveForm.currentReading) || 0,
+          });
+        } else {
+          reactiveRes = await dailyReactivePowerApi.create({
+            plantCode: selectedPlant,
+            unitCode: unit.unitCode,
+            unitName: unit.unitName,
+            logDate: selectedDate,
+            currentReading: parseFloat(reactiveForm.currentReading) || 0,
+            previousReading: reactiveForm.previousReading ? parseFloat(reactiveForm.previousReading) : undefined,
+          });
+        }
+      }
+
+      setUnitForms((prev) => ({
+        ...prev,
+        [unit.unitCode]: {
+          ...prev[unit.unitCode],
+          id: energyRes.data.id,
+          progressiveTotal: energyRes.data.progressiveTotal?.toString() ?? '',
+          averageLoad: energyRes.data.averageLoad?.toFixed(3) ?? '',
+          previousReading: energyRes.data.previousReading?.toString() ?? '',
+        },
+      }));
+
+      if (reactiveRes) {
+        setReactiveUnitForms((prev) => ({
+          ...prev,
+          [unit.unitCode]: {
+            ...prev[unit.unitCode],
+            id: reactiveRes.data.id,
+            progressiveTotal: reactiveRes.data.progressiveTotal?.toString() ?? '',
+            difference: reactiveRes.data.difference?.toFixed(3) ?? '',
+            previousReading: reactiveRes.data.previousReading?.toString() ?? '',
+          },
+        }));
+      }
+
+      setUnitSaveStatus((prev) => ({ ...prev, [unit.unitCode]: 'saved' }));
+      setSavedUnits((prev) => new Set([...prev, unit.unitCode]));
+      fetchHistory();
     } catch {
-      setReactivePowerReading(null);
-      setReactivePowerPriorRecord(null);
-    } finally {
-      setLoadingReactivePower(false);
-    }
-  }, [rpPlantCode, rpLogDate]);
-
-  useEffect(() => { fetchReactivePower(); }, [fetchReactivePower]);
-
-  const isReactivePowerFirstEntry = !reactivePowerReading && !reactivePowerPriorRecord && !loadingReactivePower;
-  const previewReactivePowerPreviousReading = reactivePowerReading
-    ? reactivePowerReading.previousReading
-    : reactivePowerPriorRecord
-    ? reactivePowerPriorRecord.currentReading
-    : Number(reactivePowerManualPreviousReading) || 0;
-  const previewReactivePowerPriorProgressiveTotal = reactivePowerReading
-    ? reactivePowerReading.progressiveTotal - reactivePowerReading.difference
-    : (reactivePowerPriorRecord?.progressiveTotal ?? 0);
-  const reactivePowerCurrentReadingVal = Number(reactivePowerForm.currentReading) || 0;
-  const previewReactivePowerDifference = reactivePowerCurrentReadingVal - previewReactivePowerPreviousReading;
-  const previewReactivePowerProgressiveTotal = previewReactivePowerPriorProgressiveTotal + previewReactivePowerDifference;
-
-  const handleSaveReactivePower = async () => {
-    setSavingReactivePower(true);
-    setReactivePowerError(null);
-    setReactivePowerSuccess(false);
-    try {
-      if (reactivePowerReading) {
-        await dailyReactivePowerApi.update(reactivePowerReading.id, {
-          currentReading: Number(reactivePowerForm.currentReading),
-        });
-      } else {
-        await dailyReactivePowerApi.create({
-          plantCode: rpPlantCode,
-          logDate: rpLogDate,
-          previousReading: isReactivePowerFirstEntry ? Number(reactivePowerManualPreviousReading) : undefined,
-          currentReading: Number(reactivePowerForm.currentReading),
-        });
-        setReactivePowerManualPreviousReading('');
-      }
-      setReactivePowerSuccess(true);
-      fetchReactivePower();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setReactivePowerError(msg ?? 'Failed to save. Please try again.');
-    } finally {
-      setSavingReactivePower(false);
+      setUnitSaveStatus((prev) => ({ ...prev, [unit.unitCode]: 'error' }));
     }
   };
 
-  const isReactivePowerFormValid = reactivePowerForm.currentReading !== '' && reactivePowerForm.currentReading !== undefined;
+  // ── Plant summary (live, from unitForms) ─────────────────────────────────────
+  const summaryTotalCurrentReading = plantUnits.reduce((s, u) => s + (parseFloat(unitForms[u.unitCode]?.currentReading) || 0), 0);
+  const summaryTotalDifference = plantUnits.reduce((s, u) => s + (parseFloat(computeDifference(u.unitCode)) || 0), 0);
+  const summaryTotalProgressiveTotal = plantUnits.reduce((s, u) => s + (parseFloat(unitForms[u.unitCode]?.progressiveTotal ?? '') || 0), 0);
+  const powerFactorValues = plantUnits
+    .map((u) => unitForms[u.unitCode]?.averagePowerFactor)
+    .filter((v): v is string => !!v && v !== '')
+    .map(Number);
+  const summaryAvgPowerFactor = powerFactorValues.length
+    ? powerFactorValues.reduce((s, v) => s + v, 0) / powerFactorValues.length
+    : null;
 
-  const activeForm = editTarget ? (updateForm as unknown as Record<string, unknown>) : (form as unknown as Record<string, unknown>);
-  const fv = (key: string) => String(activeForm[key] ?? '');
-  const setField = (key: string, val: string) => {
-    if (editTarget) setUpdateForm((prev) => ({ ...prev, [key]: val }));
-    else setForm((prev) => ({ ...prev, [key]: val } as DailyEnergyGenHydroForm));
-  };
+  const summaryTotalReactiveCurrentReading = plantUnits.reduce((s, u) => s + (parseFloat(reactiveUnitForms[u.unitCode]?.currentReading) || 0), 0);
+  const summaryTotalReactiveDifference = plantUnits.reduce((s, u) => s + (parseFloat(computeReactiveDifference(u.unitCode)) || 0), 0);
+  const summaryTotalReactiveProgressiveTotal = plantUnits.reduce((s, u) => s + (parseFloat(reactiveUnitForms[u.unitCode]?.progressiveTotal ?? '') || 0), 0);
 
-  const isFirstEntry = !editTarget && !priorRecord && !loadingPrior;
-  const previewPreviousReading = editTarget ? editTarget.previousReading : priorRecord ? priorRecord.currentReading : Number(manualPreviousReading) || 0;
-  const previewPriorProgressiveTotal = editTarget ? editTarget.progressiveTotal - editTarget.difference : (priorRecord?.progressiveTotal ?? 0);
-  const currentReadingVal = Number(fv('currentReading')) || 0;
-  const previewDifference = currentReadingVal - previewPreviousReading;
-  const previewProgressiveTotal = previewPriorProgressiveTotal + previewDifference;
-  const previewAverageLoad = previewDifference / 24;
-
-  const openEdit = (row: DailyEnergyGenerationHydro) => {
-    setEditTarget(row); setSaveError(null); setSaveSuccess(false);
-    setUpdateForm({ currentReading: row.currentReading, averagePowerFactor: row.averagePowerFactor ?? '', akosomboPeakLoadMW: row.akosomboPeakLoadMW ?? '', akosomboPeakLoadTime: row.akosomboPeakLoadTime?.slice(0, 5) ?? '' });
-  };
-
-  const cancelEdit = () => { setEditTarget(null); setUpdateForm({}); };
-
-  const openMergedEdit = (row: HydroHistoryRow) => {
-    if (row.energy) {
-      openEdit(row.energy);
-    } else {
-      cancelEdit();
-      setForm((prev) => ({ ...prev, plantCode: filterPlant || prev.plantCode, logDate: row.logDate.split('T')[0] }));
-    }
-  };
-
-  const handleSave = async () => {
-    setSaving(true); setSaveError(null); setSaveSuccess(false);
-    try {
-      if (editTarget) {
-        await dailyEnergyGenerationHydroApi.update(editTarget.id, { currentReading: Number(updateForm.currentReading), averagePowerFactor: toNum(updateForm.averagePowerFactor), akosomboPeakLoadMW: toNum(updateForm.akosomboPeakLoadMW), akosomboPeakLoadTime: updateForm.akosomboPeakLoadTime || undefined });
-        cancelEdit();
-      } else {
-        await dailyEnergyGenerationHydroApi.create({ plantCode: form.plantCode, logDate: form.logDate, previousReading: isFirstEntry ? Number(manualPreviousReading) : undefined, currentReading: Number(form.currentReading), averagePowerFactor: toNum(form.averagePowerFactor), akosomboPeakLoadMW: toNum(form.akosomboPeakLoadMW), akosomboPeakLoadTime: form.akosomboPeakLoadTime || undefined });
-        setForm(emptyForm); setManualPreviousReading('');
-      }
-      setSaveSuccess(true); fetchRecords();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setSaveError(msg ?? 'Failed to save. Please try again.');
-    } finally { setSaving(false); }
-  };
-
+  // ── Delete (all unit energy + reactive power records for a date) ────────────
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !selectedPlant) return;
     setDeleting(true);
     try {
-      const tasks: Promise<unknown>[] = [];
-      if (deleteTarget.energy) tasks.push(dailyEnergyGenerationHydroApi.delete(deleteTarget.energy.id));
-      if (deleteTarget.reactivePower) tasks.push(dailyReactivePowerApi.delete(deleteTarget.reactivePower.id));
-      await Promise.all(tasks);
-      setDeleteTarget(null); fetchRecords();
-    } catch { setRecordsError('Failed to delete record.'); }
+      const [energyRecords, reactiveRecords] = await Promise.allSettled([
+        dailyEnergyGenerationHydroApi.getByDate(selectedPlant, deleteTarget.logDate),
+        dailyReactivePowerApi.getByDate(selectedPlant, deleteTarget.logDate),
+      ]);
+      const energyDeletes = energyRecords.status === 'fulfilled'
+        ? energyRecords.value.data.map((r) => dailyEnergyGenerationHydroApi.delete(r.id)) : [];
+      const reactiveDeletes = reactiveRecords.status === 'fulfilled'
+        ? reactiveRecords.value.data.map((r) => dailyReactivePowerApi.delete(r.id)) : [];
+      await Promise.all([...energyDeletes, ...reactiveDeletes]);
+      setDeleteTarget(null);
+      fetchHistory();
+      if (deleteTarget.logDate === selectedDate) loadUnitData();
+    } catch { setHistoryError('Failed to delete records for this date.'); }
     finally { setDeleting(false); }
   };
-
-  const isFormValid = editTarget
-    ? updateForm.currentReading !== '' && updateForm.currentReading !== undefined
-    : form.plantCode && form.logDate && form.currentReading !== '';
 
   // ── Plant type guard ─────────────────────────────────────────────────────────
   if (isWrongPlantType) return (
@@ -290,6 +366,9 @@ export default function DailyEnergyGenerationHydroPage() {
     </Box>
   );
 
+  const showEmptyState = !selectedPlant;
+  const showNoUnits = !!selectedPlant && plantUnits.length === 0 && !loadingUnits;
+
   return (
     <Box>
       <PageHeader
@@ -298,175 +377,261 @@ export default function DailyEnergyGenerationHydroPage() {
         breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Energy Readings (Hydro)' }]}
       />
 
-      <Grid container spacing={3}>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <Card>
-            <CardHeader title={
-              <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1.5}>
-                <WaterDrop sx={{ color: '#1565C0' }} />
-                <Typography sx={{ fontWeight: 700 }}>
-                  {editTarget ? `Editing: ${editTarget.plantCode} — ${editTarget.logDate?.split('T')[0]}` : 'New Daily Reading'}
-                </Typography>
-                {editTarget && <Chip label="Edit Mode" size="small" color="warning" onDelete={cancelEdit} />}
-              </Stack>
-            } />
-            <Divider />
+      {/* Plant + Date selector */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} sx={{ alignItems: 'center' }}>
+            <Grid size={{ xs: 12, sm: 5 }}>
+              <FormControl fullWidth required disabled={plantLocked}>
+                <InputLabel>Power Plant</InputLabel>
+                <Select label="Power Plant" value={selectedPlant} onChange={(e) => setSelectedPlant(e.target.value)}>
+                  {availablePlants.map((p: PowerPlant) => (
+                    <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField label="Log Date" type="date" fullWidth required
+                value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }} />
+            </Grid>
+            {loadingUnits && (
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <CircularProgress size={18} />
+                  <Typography variant="body2" color="text.secondary">Loading…</Typography>
+                </Stack>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {showEmptyState ? (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <WaterDrop sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+          <Typography variant="body1" color="text.secondary">
+            Select a plant and date to load energy readings.
+          </Typography>
+        </Box>
+      ) : showNoUnits ? (
+        <Alert severity="info">No units configured for this plant.</Alert>
+      ) : (
+        <>
+          {/* Plant Peak Load */}
+          <Card sx={{ mb: 3 }} variant="outlined">
+            <Box sx={{ px: 2.5, py: 1.5, backgroundColor: '#E3F2FD', borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1565C0' }}>
+                Plant Peak Load
+              </Typography>
+            </Box>
             <CardContent>
-              {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
-              {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>Reading saved successfully.</Alert>}
-
-              <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Log Identity</Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
-                      <InputLabel>Power Plant</InputLabel>
-                      <Select label="Power Plant" value={editTarget ? editTarget.plantCode : form.plantCode} onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
-                        {availablePlants.map((p: PowerPlant) => (<MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Log Date" type="date" fullWidth required value={editTarget ? editTarget.logDate?.split('T')[0] : form.logDate} onChange={(e) => setForm((prev) => ({ ...prev, logDate: e.target.value }))} disabled={!!editTarget} slotProps={{ inputLabel: { shrink: true } }} />
-                  </Grid>
+              <Grid container spacing={2} sx={{ alignItems: 'center' }}>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <TextField label="Peak Load (MW)" type="number" size="small" fullWidth
+                    value={peakLoadMw} onChange={(e) => setPeakLoadMw(e.target.value)}
+                    slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+                    disabled={!canEdit} />
                 </Grid>
-              </Paper>
-
-              <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Meter Readings (MWh)</Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Previous Reading" fullWidth disabled value={loadingPrior ? '…' : previewPreviousReading.toFixed(2)} helperText="Auto-carried from prior day" />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Current Reading" type="number" fullWidth required value={fv('currentReading')} onChange={(e) => setField('currentReading', e.target.value)} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Average Power Factor" type="number" fullWidth value={fv('averagePowerFactor')} onChange={(e) => setField('averagePowerFactor', e.target.value)} />
-                  </Grid>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <TextField label="Peak Load Time" type="time" size="small" fullWidth
+                    value={peakLoadTime} onChange={(e) => setPeakLoadTime(e.target.value)}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                    disabled={!canEdit} />
                 </Grid>
-              </Paper>
-
-              <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Peak Load (MW)</Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Peak Load" type="number" fullWidth value={fv('akosomboPeakLoadMW')} onChange={(e) => setField('akosomboPeakLoadMW', e.target.value)} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MW</Typography> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Peak Load Time" type="time" fullWidth value={fv('akosomboPeakLoadTime')} onChange={(e) => setField('akosomboPeakLoadTime', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                  </Grid>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Peak load is recorded once per plant per day and applied to all unit records.
+                  </Typography>
                 </Grid>
-              </Paper>
-
-              <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2, backgroundColor: 'action.hover' }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Computed Preview</Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <Typography variant="caption" color="text.secondary">Difference</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewDifference.toFixed(2)} MWh</Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <Typography variant="caption" color="text.secondary">Progressive Total</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewProgressiveTotal.toFixed(2)} MWh</Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <Typography variant="caption" color="text.secondary">Average Load</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewAverageLoad.toFixed(2)} MW</Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              <Stack direction="row" spacing={1.5}>
-                {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
-                {(editTarget ? canEdit : canCreate) && (
-                  <Button variant="contained" onClick={handleSave} disabled={saving || !isFormValid}
-                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />} sx={{ minWidth: 140 }}>
-                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                  </Button>
-                )}
-              </Stack>
+              </Grid>
             </CardContent>
           </Card>
 
-          <Card sx={{ mt: 3 }}>
-            <Box sx={{
-              px: 2.5, py: 1.5,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              cursor: 'pointer',
-              backgroundColor: '#1565C014',
-              borderBottom: reactivePowerCollapsed ? 'none' : '1px solid',
-              borderColor: 'divider',
-            }} onClick={() => setReactivePowerCollapsed((p) => !p)}>
-              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1565C0' }}>
-                Reactive Power (MVArh)
-              </Typography>
-              <IconButton size="small">
-                {reactivePowerCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}
-              </IconButton>
-            </Box>
-            <Collapse in={!reactivePowerCollapsed} timeout="auto" unmountOnExit>
-              <CardContent>
-                {reactivePowerError && <Alert severity="error" onClose={() => setReactivePowerError(null)} sx={{ mb: 2 }}>{reactivePowerError}</Alert>}
-                {reactivePowerSuccess && <Alert severity="success" onClose={() => setReactivePowerSuccess(false)} sx={{ mb: 2 }}>Reactive power reading saved successfully.</Alert>}
+          {/* Unit cards */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {plantUnits.map((unit) => {
+              const form = unitForms[unit.unitCode];
+              const status = unitSaveStatus[unit.unitCode] ?? 'idle';
+              return (
+                <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={unit.unitCode}>
+                  <Card variant="outlined" sx={{ height: '100%' }}>
+                    <Box sx={{
+                      px: 2, py: 1.5,
+                      backgroundColor: '#E3F2FD',
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}>
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{unit.unitName}</Typography>
+                        <Chip label={unit.unitCode} size="small" variant="outlined"
+                          sx={{ fontFamily: 'monospace', fontSize: 11 }} />
+                      </Stack>
+                      {savedUnits.has(unit.unitCode) && (
+                        <Chip label="Saved" size="small" color="success" icon={<CheckCircle />} />
+                      )}
+                    </Box>
 
-                {!rpPlantCode || !rpLogDate ? (
-                  <Typography variant="body2" color="text.secondary">
-                    Select a power plant and log date above to manage reactive power readings.
+                    <CardContent>
+                      <Grid container spacing={1.5}>
+                        <Grid size={{ xs: 12 }}>
+                          <TextField label="Previous Reading (kWh)" size="small" fullWidth
+                            value={form?.previousReading ?? ''}
+                            disabled
+                            slotProps={{ input: { readOnly: true } }}
+                            helperText="Auto-carried from previous day's current reading" />
+                        </Grid>
+
+                        <Grid size={{ xs: 12 }}>
+                          <TextField label="Current Reading (kWh)" type="number" size="small" fullWidth
+                            value={form?.currentReading ?? ''}
+                            onChange={(e) => handleUnitFieldChange(unit.unitCode, 'currentReading', e.target.value)}
+                            disabled={!canEdit}
+                            slotProps={{ htmlInput: { min: 0, step: 0.001 } }} />
+                        </Grid>
+
+                        <Grid size={{ xs: 6 }}>
+                          <TextField label="Difference (kWh)" size="small" fullWidth
+                            value={computeDifference(unit.unitCode)}
+                            disabled
+                            slotProps={{ input: { readOnly: true } }} />
+                        </Grid>
+                        <Grid size={{ xs: 6 }}>
+                          <TextField label="Progressive Total" size="small" fullWidth
+                            value={form?.progressiveTotal ?? ''}
+                            disabled
+                            slotProps={{ input: { readOnly: true } }}
+                            helperText="From server after save" />
+                        </Grid>
+
+                        <Grid size={{ xs: 6 }}>
+                          <TextField label="Avg Power Factor" type="number" size="small" fullWidth
+                            value={form?.averagePowerFactor ?? ''}
+                            onChange={(e) => handleUnitFieldChange(unit.unitCode, 'averagePowerFactor', e.target.value)}
+                            disabled={!canEdit}
+                            slotProps={{ htmlInput: { min: 0, max: 1, step: 0.001 } }} />
+                        </Grid>
+                        <Grid size={{ xs: 6 }}>
+                          <TextField label="Average Load (MW)" size="small" fullWidth
+                            value={form?.averageLoad ?? ''}
+                            disabled
+                            slotProps={{ input: { readOnly: true } }} />
+                        </Grid>
+                      </Grid>
+
+                      <Divider sx={{ my: 1.5 }}>
+                        <Chip label="Reactive Power (MVArh)" size="small" variant="outlined" sx={{ fontSize: 10 }} />
+                      </Divider>
+
+                      <Grid container spacing={1.5}>
+                        <Grid size={{ xs: 12 }}>
+                          <TextField label="Previous Reading (MVArh)" size="small" fullWidth
+                            value={reactiveUnitForms[unit.unitCode]?.previousReading ?? ''}
+                            disabled
+                            slotProps={{ input: { readOnly: true } }}
+                            helperText="Auto-carried from previous day" />
+                        </Grid>
+                        <Grid size={{ xs: 12 }}>
+                          <TextField label="Current Reading (MVArh)" type="number" size="small" fullWidth
+                            value={reactiveUnitForms[unit.unitCode]?.currentReading ?? ''}
+                            onChange={(e) => handleReactiveFieldChange(unit.unitCode, 'currentReading', e.target.value)}
+                            disabled={!canEdit}
+                            slotProps={{ htmlInput: { min: 0, step: 0.001 } }} />
+                        </Grid>
+                        <Grid size={{ xs: 6 }}>
+                          <TextField label="Difference (MVArh)" size="small" fullWidth
+                            value={computeReactiveDifference(unit.unitCode)}
+                            disabled
+                            slotProps={{ input: { readOnly: true } }} />
+                        </Grid>
+                        <Grid size={{ xs: 6 }}>
+                          <TextField label="Progressive Total (MVArh)" size="small" fullWidth
+                            value={reactiveUnitForms[unit.unitCode]?.progressiveTotal ?? ''}
+                            disabled
+                            slotProps={{ input: { readOnly: true } }}
+                            helperText="From server after save" />
+                        </Grid>
+                      </Grid>
+
+                      {status === 'error' && (
+                        <Alert severity="error" sx={{ mt: 1.5, py: 0 }}>Failed to save. Please try again.</Alert>
+                      )}
+
+                      {canCreate && (
+                        <Button size="small" variant="contained" fullWidth
+                          sx={{ mt: 1.5, backgroundColor: '#1565C0' }}
+                          onClick={() => handleSaveUnit(unit)}
+                          disabled={status === 'saving'}
+                          startIcon={status === 'saving'
+                            ? <CircularProgress size={14} color="inherit" />
+                            : <Save />}>
+                          {status === 'saving' ? 'Saving...' : 'Save'}
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+
+          {/* Plant Summary */}
+          <Card variant="outlined" sx={{ mb: 3, borderLeft: '4px solid #1565C0' }}>
+            <CardHeader title={`Plant Summary — ${dayjs(selectedDate).format('DD MMM YYYY')}`} />
+            <Divider />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+                  <Typography variant="caption" color="text.secondary">Total Current Reading</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{summaryTotalCurrentReading.toFixed(3)}</Typography>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+                  <Typography variant="caption" color="text.secondary">Total Difference</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{summaryTotalDifference.toFixed(3)}</Typography>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+                  <Typography variant="caption" color="text.secondary">Total Progressive Total</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{summaryTotalProgressiveTotal.toFixed(3)}</Typography>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+                  <Typography variant="caption" color="text.secondary">Average Power Factor</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    {summaryAvgPowerFactor != null ? summaryAvgPowerFactor.toFixed(3) : '—'}
                   </Typography>
-                ) : (
-                  <>
-                    <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                        Meter Readings (MVarh)
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <TextField label="Previous Reading" fullWidth disabled
-                            value={loadingReactivePower ? '…' : previewReactivePowerPreviousReading.toFixed(2)}
-                            helperText="Auto-carried from prior day" />
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <TextField label="Current Reading" type="number" fullWidth required
-                            value={reactivePowerForm.currentReading}
-                            onChange={(e) => setReactivePowerForm({ currentReading: e.target.value })}
-                            slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MVarh</Typography> } }} />
-                        </Grid>
-                      </Grid>
-                    </Paper>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+                  <Typography variant="caption" color="text.secondary">Units Recorded</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{savedUnits.size} / {plantUnits.length}</Typography>
+                </Grid>
+              </Grid>
 
-                    <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2, backgroundColor: 'action.hover' }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                        Computed Preview
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <Typography variant="caption" color="text.secondary">Difference</Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewReactivePowerDifference.toFixed(2)} MVarh</Typography>
-                        </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                          <Typography variant="caption" color="text.secondary">Progressive Total</Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewReactivePowerProgressiveTotal.toFixed(2)} MVarh</Typography>
-                        </Grid>
-                      </Grid>
-                    </Paper>
-
-                    {(reactivePowerReading ? canEdit : canCreate) && (
-                      <Button variant="contained" onClick={handleSaveReactivePower}
-                        disabled={savingReactivePower || !isReactivePowerFormValid}
-                        startIcon={savingReactivePower ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                        sx={{ minWidth: 140 }}>
-                        {savingReactivePower ? 'Saving...' : reactivePowerReading ? 'Update Reading' : 'Save Reading'}
-                      </Button>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Collapse>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="caption" color="text.secondary"
+                sx={{ display: 'block', mb: 1.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Reactive Power
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Typography variant="caption" color="text.secondary">Total Reactive Current Reading</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{summaryTotalReactiveCurrentReading.toFixed(3)}</Typography>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Typography variant="caption" color="text.secondary">Total Reactive Difference</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{summaryTotalReactiveDifference.toFixed(3)}</Typography>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Typography variant="caption" color="text.secondary">Total Reactive Progressive Total</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{summaryTotalReactiveProgressiveTotal.toFixed(3)}</Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
           </Card>
-        </Grid>
 
-        <Grid size={{ xs: 12, lg: 6 }}>
+          {/* History */}
           <Card>
             <CardHeader title={
               <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
@@ -476,30 +641,17 @@ export default function DailyEnergyGenerationHydroPage() {
             } />
             <Divider />
             <CardContent>
-              <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                <FormControl size="small" fullWidth>
-                  <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
-                    <MenuItem value="">Select plant…</MenuItem>
-                    {availablePlants.map((p: PowerPlant) => (<MenuItem key={p.id} value={p.plantCode}>{p.plantName}</MenuItem>))}
-                  </Select>
-                </FormControl>
-                <Button variant="outlined" size="small" startIcon={loadingRecords ? <CircularProgress size={14} /> : <Search />} onClick={fetchRecords} disabled={!filterPlant || loadingRecords}>
-                  {loadingRecords ? 'Loading...' : 'Load'}
-                </Button>
-              </Stack>
+              {historyError && <Alert severity="error" onClose={() => setHistoryError(null)} sx={{ mb: 1.5 }}>{historyError}</Alert>}
 
-              {recordsError && <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>}
-
-              {loadingRecords ? (
+              {loadingHistory ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress size={28} />
                 </Box>
-              ) : records.length === 0 ? (
+              ) : history.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
                   <WaterDrop sx={{ fontSize: '2rem', color: 'text.disabled', mb: 1 }} />
                   <Typography variant="body2" color="text.secondary">
-                    {filterPlant ? 'No readings recorded for this plant yet.' : 'Select a plant and click Load.'}
+                    No readings recorded for this plant yet.
                   </Typography>
                 </Box>
               ) : (
@@ -507,36 +659,48 @@ export default function DailyEnergyGenerationHydroPage() {
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow sx={{ '& th': { backgroundColor: '#E3F2FD' } }}>
-                        <TableCell rowSpan={2} sx={{ verticalAlign: 'bottom' }}>Date</TableCell>
-                        <TableCell colSpan={3} align="center" sx={{ fontWeight: 700 }}>Energy Generation</TableCell>
-                        <TableCell colSpan={2} align="center" sx={{ fontWeight: 700 }}>Reactive Power (MVArh)</TableCell>
-                        <TableCell rowSpan={2} align="right" sx={{ verticalAlign: 'bottom' }}>Actions</TableCell>
-                      </TableRow>
-                      <TableRow sx={{ '& th': { backgroundColor: '#E3F2FD' } }}>
-                        <TableCell>Energy Generated (MWh)</TableCell>
-                        <TableCell>Progressive Total (MWh)</TableCell>
-                        <TableCell>Avg Power Factor</TableCell>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Units Recorded</TableCell>
+                        <TableCell>Total Difference</TableCell>
+                        <TableCell>Total Progressive Total</TableCell>
                         <TableCell>Reactive Energy (MVArh)</TableCell>
-                        <TableCell>Reactive Progressive Total</TableCell>
+                        <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {records.map((row, idx) => (
+                      {history.map((group, idx) => (
                         <TableRow
-                          key={row.logDate}
-                          selected={!!row.energy && editTarget?.id === row.energy.id}
+                          key={group.logDate}
                           hover
-                          sx={{ backgroundColor: idx % 2 === 1 ? 'action.hover' : 'inherit' }}
+                          selected={group.logDate === selectedDate}
+                          sx={{ cursor: 'pointer', backgroundColor: idx % 2 === 1 ? 'action.hover' : 'inherit' }}
+                          onClick={() => setSelectedDate(group.logDate)}
                         >
-                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{dayjs(row.logDate).format('DD MMM YYYY')}</Typography></TableCell>
-                          <TableCell><Typography variant="body2">{row.energy ? row.energy.currentReading.toFixed(1) : '—'}</Typography></TableCell>
-                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.energy ? row.energy.progressiveTotal.toFixed(1) : '—'}</Typography></TableCell>
-                          <TableCell><Typography variant="body2">{row.energy?.averagePowerFactor != null ? row.energy.averagePowerFactor.toFixed(2) : '—'}</Typography></TableCell>
-                          <TableCell><Typography variant="body2">{row.reactivePower ? row.reactivePower.currentReading.toFixed(1) : '—'}</Typography></TableCell>
-                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.reactivePower ? row.reactivePower.progressiveTotal.toFixed(1) : '—'}</Typography></TableCell>
+                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{dayjs(group.logDate).format('DD MMM YYYY')}</Typography></TableCell>
+                          <TableCell><Typography variant="body2">{group.unitsRecorded} / {plantUnits.length}</Typography></TableCell>
+                          <TableCell><Typography variant="body2">{group.totalDifference.toFixed(1)}</Typography></TableCell>
+                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{group.totalProgressiveTotal.toFixed(1)}</Typography></TableCell>
+                          <TableCell><Typography variant="body2">{group.reactivePower ? group.reactivePower.currentReading.toFixed(1) : '—'}</Typography></TableCell>
                           <TableCell align="right">
-                            {canEdit && <Tooltip title="Edit"><IconButton size="small" color="primary" onClick={() => openMergedEdit(row)}><Edit fontSize="small" /></IconButton></Tooltip>}
-                            {canDelete && <Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => setDeleteTarget(row)}><Delete fontSize="small" /></IconButton></Tooltip>}
+                            {canEdit && (
+                              <Tooltip title="Load for editing">
+                                <IconButton size="small" onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedDate(group.logDate.split('T')[0]);
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}>
+                                  <Edit sx={{ fontSize: 14 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canDelete && (
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error"
+                                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(group); }}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -546,11 +710,11 @@ export default function DailyEnergyGenerationHydroPage() {
               )}
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </>
+      )}
 
-      <ConfirmDialog open={!!deleteTarget} title="Delete Reading"
-        message={`Delete the reading${deleteTarget?.energy && deleteTarget?.reactivePower ? 's' : ''} for ${deleteTarget?.energy?.plantCode ?? deleteTarget?.reactivePower?.plantCode ?? filterPlant} on ${deleteTarget?.logDate?.split('T')[0]}? This will recompute progressive totals for any later readings.`}
+      <ConfirmDialog open={!!deleteTarget} title="Delete Readings"
+        message={`Delete all unit readings for ${selectedPlant} on ${deleteTarget?.logDate}? This will recompute progressive totals for any later readings.`}
         confirmLabel="Delete" loading={deleting} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
     </Box>
   );

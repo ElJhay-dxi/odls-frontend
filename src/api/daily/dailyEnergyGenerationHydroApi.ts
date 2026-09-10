@@ -7,6 +7,9 @@ export const dailyEnergyGenerationHydroApi = {
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<DailyEnergyGenerationHydro[]>(BASE, { params }),
 
+  getByDate: (plantCode: string, date: string) =>
+    axiosInstance.get<DailyEnergyGenerationHydro[]>(`${BASE}/by-date`, { params: { plantCode, date } }),
+
   getById: (id: string) =>
     axiosInstance.get<DailyEnergyGenerationHydro>(`${BASE}/${id}`),
 

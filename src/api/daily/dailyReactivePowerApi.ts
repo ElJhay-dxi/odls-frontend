@@ -7,6 +7,9 @@ export const dailyReactivePowerApi = {
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<DailyReactivePower[]>(BASE, { params }),
 
+  getByDate: (plantCode: string, date: string) =>
+    axiosInstance.get<DailyReactivePower[]>(`${BASE}/by-date`, { params: { plantCode, date } }),
+
   getById: (id: string) =>
     axiosInstance.get<DailyReactivePower>(`${BASE}/${id}`),
 

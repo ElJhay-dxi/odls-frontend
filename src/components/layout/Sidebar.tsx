@@ -69,8 +69,8 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Energy Readings (Hydro)', icon: <WaterDrop />, path: '/daily/energy-generation-hydro', permission: 'daily.energy_hydro.view' },
       { label: 'Energy Readings (Thermal)', icon: <ElectricBolt />, path: '/daily/energy-generation-thermal', permission: 'daily.energy_thermal.view' },
-      { label: 'Fuel Readings', icon: <OilBarrel />, path: '/daily/fuel-readings', permission: 'daily.fuel_readings.view' },
       { label: 'Station Energy Consumption', icon: <Tune />, path: '/daily/station-energy-consumption', permission: 'daily.station_energy.view' },
+      { label: 'Fuel Readings', icon: <OilBarrel />, path: '/daily/fuel-readings', permission: 'daily.fuel_readings.view' },
       { label: 'SCC System Readings', icon: <Tune />, path: '/daily/scc-readings', permission: 'daily.scc.view' },
       { label: 'Plant Availability', icon: <BarChart />, path: '/daily/unit-availability', permission: 'daily.plant_availability.view' },
       { label: 'Plant Trips', icon: <Assignment />, path: '/daily/unit-trips', permission: 'daily.plant_trips.view' },
