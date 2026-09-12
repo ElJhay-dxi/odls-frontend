@@ -7,6 +7,7 @@ import {
   ExpandLess, ExpandMore, Tune, WaterDrop,
   Science, Assignment, BarChart, Settings, LocationOn,
   AdminPanelSettings, Security, People, OilBarrel,
+  Biotech, ContentPaste, Water, FilterAlt, Assessment,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -93,12 +94,16 @@ const navItems: NavItem[] = [
     label: 'Chemical Lab',
     icon: <Science />,
     children: [
-      { label: 'Shift Logs', icon: <Assignment />, path: '/lab/shift-logs', permission: 'lab.shift_logs.view' },
-      { label: 'Lab Analysis', icon: <Science />, path: '/lab/analysis', permission: 'lab.analysis.view' },
-      { label: 'Sample Records', icon: <Assignment />, path: '/lab/samples', permission: 'lab.samples.view' },
-      { label: 'Sea Water Monitoring', icon: <WaterDrop />, path: '/lab/seawater', permission: 'lab.seawater.view' },
-      { label: 'Desalination Logs', icon: <WaterDrop />, path: '/lab/desalination', permission: 'lab.desalination.view' },
+      { label: 'Lab Shift Log', icon: <Science />, path: '/lab/shift-log', permission: 'lab.shift_logs.view' },
+      { label: 'Lab Analysis', icon: <Biotech />, path: '/lab/analysis', permission: 'lab.analysis.view' },
+      { label: 'Sample Records', icon: <ContentPaste />, path: '/lab/samples', permission: 'lab.samples.view' },
+      { label: 'Sea Water Monitoring', icon: <Water />, path: '/lab/seawater', permission: 'lab.seawater.view' },
+      { label: 'Desalination Logs', icon: <FilterAlt />, path: '/lab/desalination', permission: 'lab.desalination.view' },
       { label: 'Chemical Dosing', icon: <Science />, path: '/lab/dosing', permission: 'lab.dosing.view' },
+      { label: 'Lube Oil Analysis', icon: <OilBarrel />, path: '/lab/lube-oil', permission: 'lab.lubeoil.view' },
+      { label: 'Close Cooling Water', icon: <WaterDrop />, path: '/lab/cooling-water', permission: 'lab.coolingwater.view' },
+      { label: 'Lab Reports', icon: <Assessment />, path: '/lab/reports', permission: 'lab.reports.view' },
+      { label: 'Lab Admin', icon: <AdminPanelSettings />, path: '/lab/admin', permission: 'lab.control_limits.view' },
     ],
   },
   {
@@ -139,6 +144,16 @@ const THERMAL_ONLY_PATHS = [
   '/daily/water-system',
   '/station-logs/thermal',
   '/hourly/thermal-units',
+  '/lab/shift-log',
+  '/lab/analysis',
+  '/lab/samples',
+  '/lab/seawater',
+  '/lab/desalination',
+  '/lab/dosing',
+  '/lab/lube-oil',
+  '/lab/cooling-water',
+  '/lab/admin',
+  '/lab/reports',
 ];
 
 interface SidebarProps {
