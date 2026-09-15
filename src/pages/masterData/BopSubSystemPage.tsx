@@ -70,7 +70,7 @@ export default function BopSubSystemPage() {
         : await bopSubSystemApi.getAll();
       setRows(res.data);
     } catch {
-      setError('Failed to load BOP sub-systems.');
+      setError('Failed to load BOP / Auxiliary Sub Systems.');
     } finally {
       setLoading(false);
     }
@@ -154,10 +154,10 @@ export default function BopSubSystemPage() {
   return (
     <Box>
       <PageHeader
-        title="BOP Sub-Systems"
-        subtitle="Manage sub-systems within each BOP system"
-        breadcrumbs={[{ label: 'Master Data' }, { label: 'BOP Sub-Systems' }]}
-        action={canCreate ? { label: 'Add BOP Sub-System', onClick: openCreate, icon: <Add /> } : undefined}
+        title="BOP / Auxiliary Sub System"
+        subtitle="Manage sub systems within each BOP / Auxiliary System"
+        breadcrumbs={[{ label: 'Master Data' }, { label: 'BOP / Auxiliary Sub System' }]}
+        action={canCreate ? { label: 'Add BOP / Auxiliary Sub System', onClick: openCreate, icon: <Add /> } : undefined}
       />
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
@@ -176,10 +176,10 @@ export default function BopSubSystemPage() {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 180 }} disabled={!filterPlantCode}>
-              <InputLabel>BOP</InputLabel>
-              <Select label="BOP" value={filterBopCode}
+              <InputLabel>BOP / Auxiliary</InputLabel>
+              <Select label="BOP / Auxiliary" value={filterBopCode}
                 onChange={(e) => { setFilterBopCode(e.target.value); setFilterSystemCode(''); }}>
-                <MenuItem value="">All BOPs</MenuItem>
+                <MenuItem value="">All BOP / Auxiliary</MenuItem>
                 {filteredBops.map((b) => <MenuItem key={b.id} value={b.bopCode}>{b.bopName}</MenuItem>)}
               </Select>
             </FormControl>
@@ -208,7 +208,7 @@ export default function BopSubSystemPage() {
               <TableHead>
                 <TableRow>
                   <TableCell>Plant</TableCell>
-                  <TableCell>BOP</TableCell>
+                  <TableCell>BOP / Auxiliary</TableCell>
                   <TableCell>System</TableCell>
                   <TableCell>Sub-System Name</TableCell>
                   <TableCell>Sub-System Code</TableCell>
@@ -228,9 +228,9 @@ export default function BopSubSystemPage() {
                     <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <AccountTree sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
-                        <Typography variant="body2" color="text.secondary">No BOP sub-systems found.</Typography>
+                        <Typography variant="body2" color="text.secondary">No BOP / Auxiliary Sub Systems found.</Typography>
                         <Typography variant="caption" color="text.disabled">
-                          {filterPlantCode ? 'Try clearing the filter.' : 'Click "Add BOP Sub-System" to get started.'}
+                          {filterPlantCode ? 'Try clearing the filter.' : 'Click "Add BOP / Auxiliary Sub System" to get started.'}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -286,7 +286,7 @@ export default function BopSubSystemPage() {
       </Card>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? 'Edit BOP Sub-System' : 'Add BOP Sub-System'}</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? 'Edit BOP / Auxiliary Sub System' : 'Add BOP / Auxiliary Sub System'}</DialogTitle>
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
@@ -301,8 +301,8 @@ export default function BopSubSystemPage() {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!form.plantCode}>
-                <InputLabel>Balance of Plant</InputLabel>
-                <Select label="Balance of Plant" value={form.bopCode}
+                <InputLabel>BOP / Auxiliary</InputLabel>
+                <Select label="BOP / Auxiliary" value={form.bopCode}
                   onChange={(e) => handleFormBopChange(e.target.value)} disabled={!!editTarget}>
                   {formBops.length === 0
                     ? <MenuItem disabled value=""><em>Select a plant first</em></MenuItem>
@@ -312,11 +312,11 @@ export default function BopSubSystemPage() {
             </Grid>
             <Grid size={{ xs: 12 }}>
               <FormControl fullWidth required disabled={!form.bopCode}>
-                <InputLabel>BOP System</InputLabel>
-                <Select label="BOP System" value={form.systemCode}
+                <InputLabel>BOP / Auxiliary System</InputLabel>
+                <Select label="BOP / Auxiliary System" value={form.systemCode}
                   onChange={(e) => handleFormSystemChange(e.target.value)} disabled={!!editTarget}>
                   {formSystems.length === 0
-                    ? <MenuItem disabled value=""><em>Select a BOP first</em></MenuItem>
+                    ? <MenuItem disabled value=""><em>Select a BOP / Auxiliary first</em></MenuItem>
                     : formSystems.map((s) => <MenuItem key={s.id} value={s.systemCode}>{s.systemName} ({s.systemCode})</MenuItem>)}
                 </Select>
               </FormControl>
@@ -351,7 +351,7 @@ export default function BopSubSystemPage() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete BOP Sub-System"
+        title="Delete BOP / Auxiliary Sub System"
         message={`Delete "${deleteTarget?.subSystemName}" from ${deleteTarget?.systemName}?`}
         confirmLabel="Delete" loading={deleting}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}

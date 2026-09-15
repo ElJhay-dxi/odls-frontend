@@ -27,6 +27,7 @@ import type {
   HydroGenerationRowForm,
   UpdateHydroStationLogForm, CreateHydroStationLogEntryForm,
   UpdateHydroStationLogEntryForm, CreateConditionForm, ConditionRowForm,
+  SaveStationLogUnitOutputItem,
 } from '../../types/hydroStationLog';
 import type { SafetyDocumentType } from '../../types/safetyDocumentType';
 import type { ShiftLog } from '../../types/shiftLog';
@@ -157,6 +158,12 @@ export default function HydroStationLogPage() {
   const [generationRowsSaveSuccess, setGenerationRowsSaveSuccess] = useState(false);
   const [generationRowsSaveError, setGenerationRowsSaveError] = useState<string | null>(null);
 
+  // Per-unit output
+  const [unitOutputs, setUnitOutputs] = useState<SaveStationLogUnitOutputItem[]>([]);
+  const [savingUnitOutputs, setSavingUnitOutputs] = useState(false);
+  const [unitOutputsSaved, setUnitOutputsSaved] = useState(false);
+  const [unitOutputsError, setUnitOutputsError] = useState<string | null>(null);
+
   useEffect(() => {
     safetyDocumentTypeApi.getAll({ activeOnly: true, classification: 'Hydro' }).then((res) => setPermitTypes(res.data));
     powerPlantApi.getAll().then((res) => {
@@ -179,6 +186,17 @@ export default function HydroStationLogPage() {
     if (!selectedPlant || !selectedDate) return;
     loadLog();
   }, [selectedPlant, selectedDate]);
+
+  // Keep unit output rows in sync with the units-in-service selection —
+  // add rows for newly selected units, drop rows for deselected ones, keep existing values otherwise
+  useEffect(() => {
+    setUnitOutputs((prev) => selectedUnits.map((code) => {
+      const existing = prev.find((u) => u.unitCode === code);
+      if (existing) return existing;
+      const unit = plantUnits.find((u) => u.unitCode === code);
+      return { unitCode: code, unitName: unit?.unitName ?? code, unitStatus: 'In Service', outputMW: null, outputMVAr: null };
+    }));
+  }, [selectedUnits, plantUnits]);
 
   const populateHeaderState = (data: HydroStationLog) => {
     setSelectedUnits(toArray(data.unitsInService));
@@ -204,6 +222,7 @@ export default function HydroStationLogPage() {
 
   const loadLog = async () => {
     setLoading(true); setLoadError(null); setLog(null); setShiftHandovers([]);
+    setUnitOutputs([]); setUnitOutputsSaved(false);
     try {
       // Previous day date string for fetching overnight shift
       const prevDate = new Date(selectedDate + 'T12:00:00');
@@ -219,6 +238,12 @@ export default function HydroStationLogPage() {
       if (logRes.status === 'fulfilled') {
         setLog(logRes.value.data);
         populateHeaderState(logRes.value.data);
+        hydroStationLogApi.getUnitOutputs(logRes.value.data.id).then((res) => {
+          setUnitOutputs(res.data.map((u) => ({
+            unitCode: u.unitCode, unitName: u.unitName, unitStatus: u.unitStatus,
+            outputMW: u.outputMW, outputMVAr: u.outputMVAr,
+          })));
+        }).catch(() => {});
       } else {
         const status = (logRes.reason as { response?: { status?: number } })?.response?.status;
         if (status !== 404) setLoadError('Failed to load station log.');
@@ -299,6 +324,16 @@ export default function HydroStationLogPage() {
       setGenerationRowsSaveSuccess(true);
     } catch { setGenerationRowsSaveError('Failed to save breakdown rows.'); }
     finally { setSavingGenerationRows(false); }
+  };
+
+  const handleSaveUnitOutputs = async () => {
+    if (!log) return;
+    setSavingUnitOutputs(true); setUnitOutputsError(null);
+    try {
+      await hydroStationLogApi.saveUnitOutputs(log.id, unitOutputs);
+      setUnitOutputsSaved(true);
+    } catch { setUnitOutputsError('Failed to save unit outputs.'); }
+    finally { setSavingUnitOutputs(false); }
   };
 
   const buildTimeline = (): TimelineItem[] => {
@@ -702,7 +737,7 @@ export default function HydroStationLogPage() {
       {log && (
         <>
           {/* Opening Conditions Header */}
-          <Card sx={{ mb: 3 }}>
+          <Card sx={{ mb: 2 }}>
             <Box sx={{
               px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               cursor: 'pointer', backgroundColor: '#1565C014',
@@ -753,6 +788,83 @@ export default function HydroStationLogPage() {
                       </Box>
                     )}
                   </Grid>
+
+                  {unitOutputs.length > 0 && (
+                    <Grid size={{ xs: 12 }}>
+                      <Box sx={{ mt: 0 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20', display: 'block', mb: 1 }}>
+                          Unit Outputs
+                        </Typography>
+                        {unitOutputsError && <Alert severity="error" onClose={() => setUnitOutputsError(null)} sx={{ mb: 1.5 }}>{unitOutputsError}</Alert>}
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ backgroundColor: '#E8F5E9' }}>
+                              <TableCell sx={{ fontWeight: 700 }}>Unit</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                              <TableCell sx={{ fontWeight: 700, width: 140 }}>Output (MW)</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {unitOutputs.map((u, idx) => (
+                              <TableRow key={u.unitCode}>
+                                <TableCell>
+                                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                    <Chip label={u.unitCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
+                                    <Typography variant="body2">{u.unitName}</Typography>
+                                  </Stack>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" color="text.secondary">{u.unitStatus}</Typography>
+                                </TableCell>
+                                <TableCell>
+                                  {headerEditing ? (
+                                    <TextField size="small" type="number" fullWidth
+                                      value={u.outputMW ?? ''}
+                                      onChange={(e) => {
+                                        const updated = [...unitOutputs];
+                                        updated[idx] = { ...updated[idx], outputMW: e.target.value ? Number(e.target.value) : null };
+                                        setUnitOutputs(updated);
+                                        setUnitOutputsSaved(false);
+                                      }}
+                                      slotProps={{ htmlInput: { min: 0, step: 0.1 } }} />
+                                  ) : (
+                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1B5E20' }}>
+                                      {u.outputMW != null ? `${u.outputMW} MW` : <span style={{ color: '#999', fontStyle: 'italic' }}>—</span>}
+                                    </Typography>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow sx={{ backgroundColor: '#F1F8E9' }}>
+                              <TableCell colSpan={2}>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Total Output</Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#1B5E20' }}>
+                                  {unitOutputs.reduce((sum, u) => sum + (u.outputMW ?? 0), 0).toFixed(1)} MW
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                        {canEdit && headerEditing && (
+                          <Stack direction="row" spacing={1.5} sx={{ mt: 1.5 }}>
+                            <Box sx={{ flex: 1 }} />
+                            {unitOutputsSaved ? (
+                              <Chip label="Outputs Saved" color="success" size="small" icon={<CheckCircle />} />
+                            ) : (
+                              <Button size="small" variant="contained" sx={{ backgroundColor: '#1B5E20' }}
+                                onClick={handleSaveUnitOutputs} disabled={savingUnitOutputs}
+                                startIcon={savingUnitOutputs ? <CircularProgress size={14} color="inherit" /> : <Save />}>
+                                {savingUnitOutputs ? 'Saving...' : 'Save Outputs'}
+                              </Button>
+                            )}
+                          </Stack>
+                        )}
+                      </Box>
+                    </Grid>
+                  )}
+
                   <Grid size={{ xs: 12, sm: 6 }}>
                     {headerEditing ? renderMultiSelect(
                       'Lines in Service',
@@ -813,7 +925,7 @@ export default function HydroStationLogPage() {
 
 
           {/* ── Permits in Effect ── */}
-          <Card sx={{ mb: 3 }}>
+          <Card sx={{ mb: 2 }}>
             <Box sx={{
               px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               cursor: 'pointer', backgroundColor: '#E6510014',
@@ -957,7 +1069,7 @@ export default function HydroStationLogPage() {
           </Card>
 
           {/* Running Log */}
-          <Card sx={{ mb: 3 }}>
+          <Card sx={{ mb: 2 }}>
             <CardHeader
               title={
                 <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1.5}>
@@ -1348,7 +1460,7 @@ export default function HydroStationLogPage() {
           </Card>
 
           {/* Energy Summary */}
-          <Card>
+          <Card sx={{ mb: 2 }}>
             <Box sx={{
               px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               cursor: 'pointer', backgroundColor: '#1B5E2014',

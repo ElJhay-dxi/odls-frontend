@@ -38,7 +38,7 @@ export default function BalanceOfPlantPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true); setError(null);
     try { const r = await balanceOfPlantApi.getAll(); setRows(r.data); }
-    catch { setError('Failed to load BOP records.'); } finally { setLoading(false); }
+    catch { setError('Failed to load BOP / Auxiliary records.'); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -67,7 +67,7 @@ export default function BalanceOfPlantPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try { await balanceOfPlantApi.delete(deleteTarget.id); setDeleteTarget(null); fetchAll(); }
-    catch { setError('Cannot delete — this BOP has systems linked to it. Remove those first.'); } finally { setDeleting(false); }
+    catch { setError('Cannot delete — this BOP / Auxiliary has systems linked to it. Remove those first.'); } finally { setDeleting(false); }
   };
 
   const activeBopName = editTarget ? updateForm.bopName : form.bopName;
@@ -80,10 +80,10 @@ export default function BalanceOfPlantPage() {
   return (
     <Box>
       <PageHeader
-        title="Balance of Plant"
-        subtitle="Manage BOP entries for each power plant"
-        breadcrumbs={[{ label: 'Master Data' }, { label: 'Balance of Plant' }]}
-        action={canCreate ? { label: 'Add BOP', onClick: openCreate, icon: <Add /> } : undefined}
+        title="BOP / Auxiliary"
+        subtitle="Manage BOP / Auxiliary entries for each power plant"
+        breadcrumbs={[{ label: 'Master Data' }, { label: 'BOP / Auxiliary' }]}
+        action={canCreate ? { label: 'Add BOP / Auxiliary', onClick: openCreate, icon: <Add /> } : undefined}
       />
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
       <Card>
@@ -93,8 +93,8 @@ export default function BalanceOfPlantPage() {
               <TableHead>
                 <TableRow>
                   <TableCell>Plant</TableCell>
-                  <TableCell>BOP Name</TableCell>
-                  <TableCell>BOP Code</TableCell>
+                  <TableCell>BOP / Auxiliary Name</TableCell>
+                  <TableCell>BOP / Auxiliary Code</TableCell>
                   <TableCell>Created By</TableCell>
                   <TableCell>Created On</TableCell>
                   <TableCell align="right">Actions</TableCell>
@@ -108,7 +108,7 @@ export default function BalanceOfPlantPage() {
                     <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <AccountTree sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
-                        <Typography variant="body2" color="text.secondary">No BOP records found.</Typography>
+                        <Typography variant="body2" color="text.secondary">No BOP / Auxiliary records found.</Typography>
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -152,7 +152,7 @@ export default function BalanceOfPlantPage() {
       </Card>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? 'Edit BOP' : 'Add BOP'}</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? 'Edit BOP / Auxiliary' : 'Add BOP / Auxiliary'}</DialogTitle>
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
@@ -167,14 +167,14 @@ export default function BalanceOfPlantPage() {
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField label="BOP Name" value={activeBopName}
+              <TextField label="BOP / Auxiliary Name" value={activeBopName}
                 onChange={(e) => editTarget
                   ? setUpdateForm({ ...updateForm, bopName: e.target.value })
                   : setForm({ ...form, bopName: e.target.value })}
                 fullWidth required placeholder="e.g. Common Services BOP" />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField label="BOP Code" value={activeBopCode}
+              <TextField label="BOP / Auxiliary Code" value={activeBopCode}
                 onChange={(e) => editTarget
                   ? setUpdateForm({ ...updateForm, bopCode: e.target.value.toUpperCase() })
                   : setForm({ ...form, bopCode: e.target.value.toUpperCase() })}
@@ -191,7 +191,7 @@ export default function BalanceOfPlantPage() {
               <Button onClick={handleSave} variant="contained"
                 disabled={saving || !isFormValid}
                 startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
-                {saving ? 'Saving...' : editTarget ? 'Update' : 'Add BOP'}
+                {saving ? 'Saving...' : editTarget ? 'Update' : 'Add BOP / Auxiliary'}
               </Button>
             )}
           </Stack>
@@ -200,7 +200,7 @@ export default function BalanceOfPlantPage() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete BOP"
+        title="Delete BOP / Auxiliary"
         message={`Delete "${deleteTarget?.bopName}"?`}
         confirmLabel="Delete" loading={deleting}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}

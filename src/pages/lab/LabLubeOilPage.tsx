@@ -12,8 +12,9 @@ import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labLubeOilApi } from '../../api/lab/labLubeOilApi';
+import { labSampleRecordsApi } from '../../api/lab/labSampleRecordsApi';
 import type { PowerPlant } from '../../types/masterData';
-import type { LabLubeOilAnalysis } from '../../types/lab';
+import type { LabLubeOilAnalysis, LabSampleRecord } from '../../types/lab';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
@@ -25,12 +26,13 @@ interface LubeOilForm {
   equipment: string; oilType: string; model: string; runtime: string; density: string; bsAndW: string; tan: string;
   viscosity: string; acidNumber: string;
   waterContent: string; flashPoint: string; particleCount: string; condition: string; remarks: string;
+  sampleRecordId?: string;
 }
 
 const emptyForm: LubeOilForm = {
   equipment: '', oilType: '', model: '', runtime: '', density: '', bsAndW: '', tan: '',
   viscosity: '', acidNumber: '', waterContent: '',
-  flashPoint: '', particleCount: '', condition: 'Good', remarks: '',
+  flashPoint: '', particleCount: '', condition: 'Good', remarks: '', sampleRecordId: undefined,
 };
 
 const toNum = (v: string) => v === '' ? null : Number(v);
@@ -50,6 +52,8 @@ export default function LabLubeOilPage() {
   const [records, setRecords] = useState<LabLubeOilAnalysis[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [recordsError, setRecordsError] = useState<string | null>(null);
+
+  const [sampleRecords, setSampleRecords] = useState<LabSampleRecord[]>([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<LabLubeOilAnalysis | null>(null);
@@ -88,6 +92,13 @@ export default function LabLubeOilPage() {
   }, [selectedPlant, selectedDate]);
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
+
+  useEffect(() => {
+    if (!selectedPlant || !selectedDate) { setSampleRecords([]); return; }
+    labSampleRecordsApi.getAll({ plantCode: selectedPlant, date: selectedDate })
+      .then((res) => setSampleRecords(res.data))
+      .catch(() => setSampleRecords([]));
+  }, [selectedPlant, selectedDate]);
 
   const fetchHistory = useCallback(async () => {
     if (!selectedPlant) { setHistory([]); return; }
@@ -140,6 +151,7 @@ export default function LabLubeOilPage() {
       particleCount: row.particleCount?.toString() ?? '',
       condition: row.condition ?? 'Good',
       remarks: row.remarks ?? '',
+      sampleRecordId: row.sampleRecordId ?? undefined,
     });
     setSaveError(null);
     setDialogOpen(true);
@@ -166,6 +178,7 @@ export default function LabLubeOilPage() {
         particleCount: toNum(form.particleCount),
         condition: form.condition,
         remarks: form.remarks || null,
+        sampleRecordId: form.sampleRecordId || null,
       };
       if (editTarget) {
         await labLubeOilApi.update(editTarget.id, payload);
@@ -273,6 +286,11 @@ export default function LabLubeOilPage() {
                       <Typography variant="caption" color="text.secondary">
                         {[rec.oilType, rec.model].filter(Boolean).join(' — ')}
                       </Typography>
+                    )}
+                    {rec.sampleId && (
+                      <Chip label={rec.sampleId} size="small"
+                        sx={{ fontFamily: 'monospace', fontSize: 11,
+                          backgroundColor: '#E3F2FD', color: '#1565C0', alignSelf: 'flex-start' }} />
                     )}
                   </Stack>
                   <Chip label={rec.condition ?? 'Unknown'} size="small"
@@ -392,6 +410,34 @@ export default function LabLubeOilPage() {
         <DialogContent sx={{ pt: 2.5 }}>
           {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
           <Grid container spacing={2}>
+            <Grid size={{ xs: 12 }}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Link to Sample Record (optional)</InputLabel>
+                <Select
+                  value={form.sampleRecordId ?? ''}
+                  label="Link to Sample Record (optional)"
+                  onChange={(e) => {
+                    const sample = sampleRecords.find((s) => s.id === e.target.value);
+                    setForm((prev) => ({
+                      ...prev,
+                      sampleRecordId: e.target.value || undefined,
+                      equipment: sample?.samplePoint ?? prev.equipment,
+                    }));
+                  }}>
+                  <MenuItem value=""><em>No linked sample</em></MenuItem>
+                  {sampleRecords.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>
+                      <Stack>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.sampleId}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {s.samplePoint} · Collected {s.collectedAt ?? 'unknown time'}
+                        </Typography>
+                      </Stack>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField label="Equipment" size="small" fullWidth required
                 value={form.equipment} onChange={(e) => setForm((p) => ({ ...p, equipment: e.target.value }))} />

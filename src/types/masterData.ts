@@ -44,6 +44,8 @@ export interface PowerPlant extends AuditFields {
   commissioningDate: string;
   locationCode: number;
   locationName: string;
+  oversightPlantCode?: string;
+  oversightPlantName?: string;
 }
 
 export interface PowerPlantForm {
@@ -57,6 +59,8 @@ export interface PowerPlantForm {
   standardMeasuringUnit: number;
   commissioningDate: string;
   locationCode: number;
+  oversightPlantCode?: string;
+  oversightPlantName?: string;
 }
 
 // ─── Plant Unit ────────────────────────────────────────────────────────────────
@@ -271,6 +275,17 @@ export interface UpdateBopEquipmentForm {
   multiplier: number;
 }
 
+export interface BopEquipmentSearchResult {
+  id: string;
+  plantCode: string;
+  plantName: string;
+  equipmentCode: string;
+  equipmentName: string;
+  level: string; // 'System' | 'SubSystem' | 'Equipment'
+  groupLabel: string;
+  location: string;
+}
+
 // ─── Plant Location ────────────────────────────────────────────────────────────
 export interface PlantLocation extends AuditFields {
   locationCode: number;
@@ -279,6 +294,18 @@ export interface PlantLocation extends AuditFields {
 
 export interface PlantLocationForm {
   locationName: string;
+}
+
+// ─── Plant Line ────────────────────────────────────────────────────────────────
+export interface PlantLine {
+  id: string;
+  plantName: string;
+  plantCode: string;
+  lineCode: string;
+  lineName: string;
+  createdOn: string;
+  createdByName: string;
+  createdByEmail: string;
 }
 
 // ─── API Response wrapper ──────────────────────────────────────────────────────

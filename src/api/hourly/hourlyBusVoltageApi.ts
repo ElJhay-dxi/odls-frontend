@@ -24,11 +24,11 @@ export const plantBusApi = {
   getAll: (plantCode?: string) =>
     axiosInstance.get<PlantBus[]>('/plantbuses', { params: plantCode ? { plantCode } : {} }),
 
-  create: (data: { plantCode: string; busCode: string; busName: string }) =>
+  create: (data: { plantCode: string; busCode: string; busName: string; voltageSide?: string }) =>
     axiosInstance.post<PlantBus>('/plantbuses', data),
 
-  update: (id: string, busName: string) =>
-    axiosInstance.put<PlantBus>(`/plantbuses/${id}`, { busName }),
+  update: (id: string, data: { busName: string; voltageSide?: string }) =>
+    axiosInstance.put<PlantBus>(`/plantbuses/${id}`, data),
 
   delete: (id: string) =>
     axiosInstance.delete(`/plantbuses/${id}`),

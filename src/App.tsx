@@ -24,6 +24,7 @@ const BopEquipmentPage = lazy(() => import('./pages/masterData/BopEquipmentPage'
 const BearingMetalPage = lazy(() => import('./pages/masterData/BearingMetalPage'));
 const BearingDrainPage = lazy(() => import('./pages/masterData/BearingDrainPage'));
 const PlantBusPage = lazy(() => import('./pages/masterData/PlantBusPage'));
+const PlantLinePage = lazy(() => import('./pages/masterData/PlantLinePage'));
 const SafetyDocumentTypesPage = lazy(() => import('./pages/masterData/SafetyDocumentTypesPage'));
 
 // Hourly Readings
@@ -60,6 +61,7 @@ const LabSeaWaterPage = lazy(() => import('./pages/lab/LabSeaWaterPage'));
 const LabDesalinationPage = lazy(() => import('./pages/lab/LabDesalinationPage'));
 const LabChemicalDosingPage = lazy(() => import('./pages/lab/LabChemicalDosingPage'));
 const LabLubeOilPage = lazy(() => import('./pages/lab/LabLubeOilPage'));
+const LabEnvironmentalPage = lazy(() => import('./pages/lab/LabEnvironmentalPage'));
 const LabCoolingWaterPage = lazy(() => import('./pages/lab/LabCoolingWaterPage'));
 const LabReportsPage = lazy(() => import('./pages/lab/LabReportsPage'));
 const LabAdminPage = lazy(() => import('./pages/lab/LabAdminPage'));
@@ -123,6 +125,7 @@ export default function App() {
                   <Route path="master/bearing-metals" element={<G p="master.view"><BearingMetalPage /></G>} />
                   <Route path="master/bearing-drains" element={<G p="master.view"><BearingDrainPage /></G>} />
                   <Route path="master/plant-buses" element={<G p="master.view"><PlantBusPage /></G>} />
+                  <Route path="master/plant-lines" element={<G p="master.view"><PlantLinePage /></G>} />
                   <Route path="master/safety-document-types" element={<G p="master.view"><SafetyDocumentTypesPage /></G>} />
                   {/* Hourly Readings */}
                   <Route path="hourly/hydro-units" element={<G p="hourly.hydro_units.view"><HourlyHydroReadingPage /></G>} />
@@ -158,6 +161,7 @@ export default function App() {
                   <Route path="lab/desalination" element={<G p="lab.desalination.view"><LabDesalinationPage /></G>} />
                   <Route path="lab/dosing" element={<G p="lab.dosing.view"><LabChemicalDosingPage /></G>} />
                   <Route path="lab/lube-oil" element={<G p="lab.lubeoil.view"><LabLubeOilPage /></G>} />
+                  <Route path="lab/environmental" element={<G p="lab.environmental.view"><LabEnvironmentalPage /></G>} />
                   <Route path="lab/cooling-water" element={<G p="lab.coolingwater.view"><LabCoolingWaterPage /></G>} />
                   <Route path="lab/reports" element={<G p="lab.reports.view"><LabReportsPage /></G>} />
                   <Route path="lab/admin" element={<G p="lab.control_limits.view"><LabAdminPage /></G>} />

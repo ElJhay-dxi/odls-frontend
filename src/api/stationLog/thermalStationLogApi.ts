@@ -6,6 +6,7 @@ import type {
   ThermalStationLogHseEntry, ThermalStationLogGenerationRow,
   ConditionForm, GasReadingForm, SafetyDocForm,
   HseEntryForm, FuelOilTankForm, GenerationRowForm, GasConditioningRowForm, WaterTreatmentRowForm,
+  StationLogUnitOutput, SaveStationLogUnitOutputItem,
 } from '../../types/thermalStationLog';
 
 const BASE = '/thermalstationlogs';
@@ -215,5 +216,14 @@ export const thermalStationLogApi = {
         status: r.status || null,
         sortOrder: i,
       })),
+    }),
+
+  // Per-Unit Output
+  getUnitOutputs: (logId: string) =>
+    axiosInstance.get<StationLogUnitOutput[]>(`${BASE}/${logId}/unitoutputs`),
+
+  saveUnitOutputs: (logId: string, units: SaveStationLogUnitOutputItem[]) =>
+    axiosInstance.post<StationLogUnitOutput[]>(`${BASE}/${logId}/unitoutputs`, {
+      units,
     }),
 };

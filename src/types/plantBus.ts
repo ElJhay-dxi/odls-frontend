@@ -4,6 +4,7 @@ export interface PlantBus {
   plantCode: string;
   busCode: string;
   busName: string;
+  voltageSide?: string;
   createdOn: string;
   createdByName: string;
   createdByEmail: string;

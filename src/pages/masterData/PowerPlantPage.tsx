@@ -28,6 +28,7 @@ const emptyForm: PowerPlantForm = {
   plantName: '', plantCode: '', classificationCode: 0, generationTypeCode: 0,
   plantOwner: '', numberOfUnits: 0, installedCapacity: 0, standardMeasuringUnit: 0,
   commissioningDate: '', locationCode: 0,
+  oversightPlantCode: '', oversightPlantName: '',
 };
 
 export default function PowerPlantPage() {
@@ -109,6 +110,7 @@ export default function PowerPlantPage() {
       plantOwner: row.plantOwner, numberOfUnits: row.numberOfUnits,
       installedCapacity: row.installedCapacity, standardMeasuringUnit: row.standardMeasuringUnit,
       commissioningDate: row.commissioningDate.split('T')[0], locationCode: row.locationCode,
+      oversightPlantCode: row.oversightPlantCode ?? '', oversightPlantName: row.oversightPlantName ?? '',
     });
     setDialogOpen(true);
   };
@@ -175,19 +177,20 @@ export default function PowerPlantPage() {
                   <TableCell>Installed Capacity</TableCell>
                   <TableCell>Location</TableCell>
                   <TableCell>Commissioned</TableCell>
+                  <TableCell>Oversight Plant</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
                       <CircularProgress size={32} />
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
+                    <TableCell colSpan={11} align="center" sx={{ py: 8 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <Factory sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
                         <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
@@ -237,6 +240,13 @@ export default function PowerPlantPage() {
                             day: '2-digit', month: 'short', year: 'numeric',
                           })}
                         </Typography>
+                      </TableCell>
+                      <TableCell>
+                        {row.oversightPlantName
+                          ? <Chip label={row.oversightPlantName} size="small" variant="outlined"
+                              sx={{ fontSize: 11 }} />
+                          : <Typography variant="caption" color="text.disabled">—</Typography>
+                        }
                       </TableCell>
                       <TableCell align="right">
                         {canEdit && (
@@ -346,6 +356,18 @@ export default function PowerPlantPage() {
                 value={form.commissioningDate}
                 onChange={(e) => setForm({ ...form, commissioningDate: e.target.value })}
                 fullWidth required slotProps={{ inputLabel: { shrink: true } }} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField label="Oversight Plant Code" value={form.oversightPlantCode ?? ''}
+                onChange={(e) => setForm({ ...form, oversightPlantCode: e.target.value })}
+                fullWidth placeholder="e.g. TICO, CENIT"
+                helperText="Plant code of the plant this station has oversight over (e.g. TICO, CENIT)" />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField label="Oversight Plant Name" value={form.oversightPlantName ?? ''}
+                onChange={(e) => setForm({ ...form, oversightPlantName: e.target.value })}
+                fullWidth placeholder="e.g. TICO, CENIT Energy"
+                helperText="Display name for the oversight plant section (e.g. TICO, CENIT Energy)" />
             </Grid>
           </Grid>
         </DialogContent>

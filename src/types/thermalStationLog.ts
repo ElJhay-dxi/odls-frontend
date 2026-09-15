@@ -272,3 +272,87 @@ export interface WaterTreatmentRowForm {
   status: string;
   sortOrder: number;
 }
+
+// ─── Critical Issues ────────────────────────────────────────────────────────────
+export interface ThermalCriticalIssue {
+  id: string;
+  stationLogId: string;
+  equipmentCode: string;
+  equipmentName: string;
+  dateObserved?: string;
+  descriptionOfFault: string;
+  riskInvolved?: string;
+  impact?: string;
+  status: string; // Open, Resolved
+  resolvedOn?: string;
+  resolvedBy?: string;
+  createdByName: string;
+  createdOn: string;
+  updatedByName?: string;
+  updatedOn?: string;
+}
+
+// ─── Oversight Entries (TICO/CENIT) ─────────────────────────────────────────────
+export interface ThermalOversightEntry {
+  id: string;
+  stationLogId: string;
+  oversightPlantCode: string;
+  oversightPlantName: string;
+  entryDate: string;
+  entryTime: string;
+  entryText: string;
+  createdByName: string;
+  createdOn: string;
+}
+
+// ─── Shift Information ──────────────────────────────────────────────────────────
+export interface ThermalShiftInfo {
+  id: string;
+  stationLogId: string;
+  shiftType: string; // DAY or NIGHT
+  teamLeader?: string;
+  controlRoomOperators?: string; // JSON string
+  fieldOperators?: string; // JSON string
+  shiftStrength?: number;
+  onLeave?: string; // JSON string
+  comments?: string;
+  createdByName: string;
+  createdOn: string;
+  updatedByName?: string;
+  updatedOn?: string;
+}
+
+// ─── Equipment Status (Pumps / Transformers) ────────────────────────────────────
+export interface ThermalEquipmentStatus {
+  id: string;
+  stationLogId: string;
+  category: string;
+  equipmentCode: string;
+  equipmentName: string;
+  location?: string;
+  status: string;
+  remarks?: string;
+  sortOrder: number;
+  updatedByName?: string;
+  updatedOn?: string;
+}
+
+// ─── Per-Unit Output ─────────────────────────────────────────────────────────────
+export interface StationLogUnitOutput {
+  id: string;
+  stationLogId: string;
+  unitCode: string;
+  unitName: string;
+  unitStatus: string;
+  outputMW?: number;
+  outputMVAr?: number;
+  sortOrder: number;
+}
+
+export interface SaveStationLogUnitOutputItem {
+  unitCode: string;
+  unitName: string;
+  unitStatus: string;
+  outputMW?: number | null;
+  outputMVAr?: number | null;
+}

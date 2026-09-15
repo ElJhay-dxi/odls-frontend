@@ -151,3 +151,23 @@ export interface CreateConditionForm {
   systemVoltageKv: string;
   rows: ConditionRowForm[];
 }
+
+// ─── Per-Unit Output ─────────────────────────────────────────────────────────────
+export interface StationLogUnitOutput {
+  id: string;
+  stationLogId: string;
+  unitCode: string;
+  unitName: string;
+  unitStatus: string;
+  outputMW?: number;
+  outputMVAr?: number;
+  sortOrder: number;
+}
+
+export interface SaveStationLogUnitOutputItem {
+  unitCode: string;
+  unitName: string;
+  unitStatus: string;
+  outputMW?: number | null;
+  outputMVAr?: number | null;
+}

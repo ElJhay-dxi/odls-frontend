@@ -1,11 +1,19 @@
 import axiosInstance from '../axiosInstance';
-import type { BopEquipment, BopEquipmentForm, UpdateBopEquipmentForm } from '../../types/masterData';
+import type { BopEquipment, BopEquipmentForm, UpdateBopEquipmentForm, BopEquipmentSearchResult } from '../../types/masterData';
 
 const BASE = '/bopsubsystemequipments';
 
 export const bopEquipmentApi = {
   getAll: () =>
     axiosInstance.get<BopEquipment[]>(BASE),
+
+  getByPlant: (plantCode: string) =>
+    axiosInstance.get<BopEquipment[]>(`${BASE}/plant/${plantCode}`),
+
+  search: (plantCode: string, keyword: string) =>
+    axiosInstance.get<BopEquipmentSearchResult[]>(
+      `${BASE}/search`, { params: { plantCode, keyword } }
+    ),
 
   getBySubSystem: (plantCode: string, bopCode: string, systemCode: string, subSystemCode: string) =>
     axiosInstance.get<BopEquipment[]>(`${BASE}/subsystem/${plantCode}/${bopCode}/${systemCode}/${subSystemCode}`),

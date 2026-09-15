@@ -14,9 +14,10 @@ import PersonAutocomplete from '../../components/lab/PersonAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labAnalysisApi } from '../../api/lab/labAnalysisApi';
 import { labSamplePointsApi } from '../../api/lab/labSamplePointsApi';
+import { labSampleRecordsApi } from '../../api/lab/labSampleRecordsApi';
 import type { PowerPlant } from '../../types/masterData';
 import type {
-  LabAnalysisRecord, LabAnalysisParameter, SaveLabAnalysisParameterForm, LabSamplePoint,
+  LabAnalysisRecord, LabAnalysisParameter, SaveLabAnalysisParameterForm, LabSamplePoint, LabSampleRecord,
 } from '../../types/lab';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
@@ -37,11 +38,12 @@ interface AnalysisForm {
   analysisTime: string;
   analysedBy: string;
   remarks: string;
+  sampleRecordId?: string;
   parameters: SaveLabAnalysisParameterForm[];
 }
 
 const emptyForm: AnalysisForm = {
-  samplePointId: '', samplePoint: '', sampleType: '', analysisTime: '', analysedBy: '', remarks: '', parameters: [],
+  samplePointId: '', samplePoint: '', sampleType: '', analysisTime: '', analysedBy: '', remarks: '', sampleRecordId: undefined, parameters: [],
 };
 
 export default function LabAnalysisPage() {
@@ -56,6 +58,7 @@ export default function LabAnalysisPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [samplePoints, setSamplePoints] = useState<LabSamplePoint[]>([]);
+  const [sampleRecords, setSampleRecords] = useState<LabSampleRecord[]>([]);
 
   const [records, setRecords] = useState<LabAnalysisRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -90,6 +93,18 @@ export default function LabAnalysisPage() {
       .then((res) => setSamplePoints(res.data))
       .catch(() => setSamplePoints([]));
   }, [selectedPlant]);
+
+  const loadSampleRecords = useCallback(async () => {
+    if (!selectedPlant || !selectedDate) { setSampleRecords([]); return; }
+    try {
+      const res = await labSampleRecordsApi.getAll({ plantCode: selectedPlant, date: selectedDate });
+      setSampleRecords(res.data);
+    } catch {
+      setSampleRecords([]);
+    }
+  }, [selectedPlant, selectedDate]);
+
+  useEffect(() => { loadSampleRecords(); }, [loadSampleRecords]);
 
   const fetchRecords = useCallback(async () => {
     if (!selectedPlant || !selectedDate) { setRecords([]); return; }
@@ -137,6 +152,7 @@ export default function LabAnalysisPage() {
       analysisTime: row.analysisTime?.slice(0, 5) ?? '',
       analysedBy: row.analysedBy ?? '',
       remarks: row.remarks ?? '',
+      sampleRecordId: row.sampleRecordId ?? undefined,
       parameters: row.parameters.map((p) => ({
         samplePointParameterId: p.samplePointParameterId,
         parameterName: p.parameterName,
@@ -148,24 +164,28 @@ export default function LabAnalysisPage() {
     setDialogOpen(true);
   };
 
-  const handleSamplePointChange = (samplePointId: string) => {
-    const sp = samplePoints.find((s) => s.id === samplePointId);
-    if (!sp) {
-      setForm((p) => ({ ...p, samplePointId: '', samplePoint: '', sampleType: '', parameters: [] }));
-      return;
+  const handleSampleSelect = (sampleRecordId: string) => {
+    const sample = sampleRecords.find((s) => s.id === sampleRecordId);
+    if (sample) {
+      const sp = samplePoints.find((p) => p.samplePointName === sample.samplePoint);
+      setForm((prev) => ({
+        ...prev,
+        sampleRecordId,
+        samplePointId: sp?.id ?? prev.samplePointId,
+        samplePoint: sample.samplePoint,
+        sampleType: sample.sampleType,
+        parameters: sp
+          ? sp.parameters.filter((param) => param.isActive).map((param) => ({
+              samplePointParameterId: param.id,
+              parameterName: param.parameterName,
+              unit: param.unit ?? '',
+              value: '',
+            }))
+          : prev.parameters,
+      }));
+    } else {
+      setForm((prev) => ({ ...prev, sampleRecordId: undefined }));
     }
-    setForm((p) => ({
-      ...p,
-      samplePointId: sp.id,
-      samplePoint: sp.samplePointName,
-      sampleType: sp.sampleType,
-      parameters: sp.parameters.filter((param) => param.isActive).map((param) => ({
-        samplePointParameterId: param.id,
-        parameterName: param.parameterName,
-        unit: param.unit ?? '',
-        value: '',
-      })),
-    }));
   };
 
   const addParamRow = () => setForm((p) => ({ ...p, parameters: [...p.parameters, { parameterName: '', value: '', unit: '' }] }));
@@ -186,6 +206,7 @@ export default function LabAnalysisPage() {
         analysisTime: form.analysisTime || null,
         analysedBy: form.analysedBy || null,
         remarks: form.remarks || null,
+        sampleRecordId: form.sampleRecordId || null,
         parameters: form.parameters
           .filter((r) => r.parameterName.trim())
           .map((r) => ({
@@ -203,6 +224,7 @@ export default function LabAnalysisPage() {
       setDialogOpen(false);
       fetchRecords();
       fetchHistory();
+      await loadSampleRecords(); // reload so linked sample shows labReferenceNumber
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save analysis record.');
@@ -232,6 +254,8 @@ export default function LabAnalysisPage() {
   );
 
   const outOfRangeCount = (params: LabAnalysisParameter[]) => params.filter((p) => p.status === 'OutOfRange').length;
+
+  const isFormValid = !!form.sampleRecordId && !!form.samplePointId && form.parameters.length > 0;
 
   const showEmptyState = !selectedPlant;
 
@@ -421,89 +445,124 @@ export default function LabAnalysisPage() {
               No sample points configured for this plant. Add one in Lab Admin first.
             </Alert>
           )}
-          <Grid container spacing={2} sx={{ mb: 2.5 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth size="small" required disabled={!!editTarget}>
-                <InputLabel>Sample Point</InputLabel>
-                <Select label="Sample Point" value={form.samplePointId} onChange={(e) => handleSamplePointChange(e.target.value)}>
-                  {samplePoints.map((sp) => (
-                    <MenuItem key={sp.id} value={sp.id}>{sp.samplePointName} ({sp.sampleType})</MenuItem>
+          <Grid container spacing={2} sx={{ mb: form.sampleRecordId ? 2.5 : 0 }}>
+            <Grid size={{ xs: 12 }}>
+              <FormControl size="small" fullWidth required>
+                <InputLabel>Select Sample Record</InputLabel>
+                <Select
+                  value={form.sampleRecordId ?? ''}
+                  label="Select Sample Record"
+                  onChange={(e) => handleSampleSelect(e.target.value)}
+                >
+                  <MenuItem value="" disabled><em>Select a sample to begin</em></MenuItem>
+                  {sampleRecords.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>
+                      <Stack>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.sampleId}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {s.samplePoint} — {s.sampleType}
+                          {s.collectedAt ? ` · Collected ${s.collectedAt}` : ''}
+                          {s.linkedAnalysisCount > 0 ? ` · ${s.linkedAnalysisCount} analysis done` : ''}
+                        </Typography>
+                      </Stack>
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Sample Type" size="small" fullWidth disabled value={form.sampleType} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Analysis Time" type="time" size="small" fullWidth
-                value={form.analysisTime} onChange={(e) => setForm((p) => ({ ...p, analysisTime: e.target.value }))}
-                slotProps={{ inputLabel: { shrink: true } }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <PersonAutocomplete label="Analysed By" plantCode={selectedPlant}
-                value={form.analysedBy} onChange={(v) => setForm((p) => ({ ...p, analysedBy: v }))} />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
-              <TextField label="Remarks" size="small" fullWidth multiline rows={2}
-                value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
+              {!form.sampleRecordId && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                  A sample record must be selected before entering analysis results.
+                </Typography>
+              )}
             </Grid>
           </Grid>
 
-          <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>Parameters</Typography>
-            <Button size="small" startIcon={<Add />} onClick={addParamRow}>Add Row</Button>
-          </Stack>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Parameter Name</TableCell>
-                <TableCell>Value</TableCell>
-                <TableCell>Unit</TableCell>
-                <TableCell align="right" sx={{ width: 60 }} />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {form.parameters.map((row, idx) => {
-                const locked = !!row.samplePointParameterId;
-                return (
-                  <TableRow key={idx}>
-                    <TableCell>
-                      {locked ? (
-                        <Typography variant="body2">{row.parameterName}</Typography>
-                      ) : (
-                        <TextField size="small" fullWidth value={row.parameterName}
-                          onChange={(e) => updateParamRow(idx, 'parameterName', e.target.value)} />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <TextField size="small" type="number" fullWidth value={row.value}
-                        onChange={(e) => updateParamRow(idx, 'value', e.target.value)} />
-                    </TableCell>
-                    <TableCell>
-                      {locked ? (
-                        <Typography variant="body2">{row.unit || '—'}</Typography>
-                      ) : (
-                        <TextField size="small" fullWidth value={row.unit}
-                          onChange={(e) => updateParamRow(idx, 'unit', e.target.value)} />
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" color="error" onClick={() => removeParamRow(idx)}>
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </TableCell>
+          {form.sampleRecordId && (
+            <>
+              <Grid container spacing={2} sx={{ mb: 2.5 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
+                    Sample Point
+                  </Typography>
+                  <Chip label={form.samplePoint} size="small" variant="outlined" />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
+                    Sample Type
+                  </Typography>
+                  <Chip label={form.sampleType} size="small" variant="outlined" />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField label="Analysis Time" type="time" size="small" fullWidth
+                    value={form.analysisTime} onChange={(e) => setForm((p) => ({ ...p, analysisTime: e.target.value }))}
+                    slotProps={{ inputLabel: { shrink: true } }} />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <PersonAutocomplete label="Analysed By" plantCode={selectedPlant}
+                    value={form.analysedBy} onChange={(v) => setForm((p) => ({ ...p, analysedBy: v }))} />
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                  <TextField label="Remarks" size="small" fullWidth multiline rows={2}
+                    value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
+                </Grid>
+              </Grid>
+
+              <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>Parameters</Typography>
+                <Button size="small" startIcon={<Add />} onClick={addParamRow}>Add Row</Button>
+              </Stack>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Parameter Name</TableCell>
+                    <TableCell>Value</TableCell>
+                    <TableCell>Unit</TableCell>
+                    <TableCell align="right" sx={{ width: 60 }} />
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                </TableHead>
+                <TableBody>
+                  {form.parameters.map((row, idx) => {
+                    const locked = !!row.samplePointParameterId;
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          {locked ? (
+                            <Typography variant="body2">{row.parameterName}</Typography>
+                          ) : (
+                            <TextField size="small" fullWidth value={row.parameterName}
+                              onChange={(e) => updateParamRow(idx, 'parameterName', e.target.value)} />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <TextField size="small" type="number" fullWidth value={row.value}
+                            onChange={(e) => updateParamRow(idx, 'value', e.target.value)} />
+                        </TableCell>
+                        <TableCell>
+                          {locked ? (
+                            <Typography variant="body2">{row.unit || '—'}</Typography>
+                          ) : (
+                            <TextField size="small" fullWidth value={row.unit}
+                              onChange={(e) => updateParamRow(idx, 'unit', e.target.value)} />
+                          )}
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton size="small" color="error" onClick={() => removeParamRow(idx)}>
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </>
+          )}
         </DialogContent>
         <Divider />
         <DialogActions sx={{ px: 3, py: 1.5 }}>
           <Button variant="outlined" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
           <Button variant="contained" sx={{ backgroundColor: ACCENT }} onClick={handleSave}
-            disabled={saving || !form.samplePointId}
+            disabled={saving || !isFormValid}
             startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}>
             {saving ? 'Saving...' : 'Save'}
           </Button>

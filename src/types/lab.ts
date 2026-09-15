@@ -48,6 +48,7 @@ export interface LabAnalysisRecord {
   sampleType: string;
   analysedBy?: string;
   remarks?: string;
+  sampleRecordId?: string;
   createdByName: string;
   createdOn: string;
   updatedByName?: string;
@@ -60,6 +61,19 @@ export interface SaveLabAnalysisParameterForm {
   parameterName: string;
   unit?: string;
   value: string;
+}
+
+export interface SaveLabAnalysisForm {
+  plantCode: string;
+  logDate: string;
+  samplePointId: string;
+  samplePoint: string;
+  sampleType: string;
+  analysisTime?: string;
+  analysedBy?: string;
+  remarks?: string;
+  sampleRecordId?: string;
+  parameters: SaveLabAnalysisParameterForm[];
 }
 
 // ─── Sample Records ─────────────────────────────────────────────────────────
@@ -76,7 +90,8 @@ export interface LabSampleRecord {
   sentToLabAt?: string;
   receivedAt?: string;
   analysisStatus: string;
-  analysisRecordId?: string;
+  linkedAnalysisCount: number;
+  linkedLabRefNumbers: string[];
   remarks?: string;
   createdByName: string;
   createdOn: string;
@@ -232,6 +247,8 @@ export interface LabLubeOilAnalysis {
   particleCount?: number;
   condition?: string;
   remarks?: string;
+  sampleRecordId?: string;
+  sampleId?: string;
   createdByName: string;
   createdOn: string;
   updatedByName?: string;
@@ -274,8 +291,11 @@ export interface LabEnvironmentalReport {
   effluentBod?: number;
   noiseLevel?: number;
   airQualityIndex?: number;
+  ambientTemperature?: number;
+  relativeHumidity?: number;
   remarks?: string;
   createdByName: string;
+  createdByEmail: string;
   createdOn: string;
   updatedByName?: string;
   updatedOn?: string;

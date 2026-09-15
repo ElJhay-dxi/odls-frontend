@@ -10,21 +10,20 @@ import { Edit, Delete, Settings } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
-import { plantBusApi } from '../../api/hourly/hourlyBusVoltageApi';
+import { plantLineApi } from '../../api/masterData/plantLineApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
-import type { PlantBus } from '../../types/plantBus';
-import type { PowerPlant } from '../../types/masterData';
+import type { PlantLine, PowerPlant } from '../../types/masterData';
 import { useSectionPermissions } from '../../hooks/usePermission';
 
-interface CreateForm { plantCode: string; busCode: string; busName: string; voltageSide?: string; }
-interface UpdateForm { busName: string; voltageSide?: string; }
+interface CreateForm { plantCode: string; lineCode: string; lineName: string; }
+interface UpdateForm { lineName: string; }
 
-const emptyCreate: CreateForm = { plantCode: '', busCode: '', busName: '', voltageSide: '' };
-const emptyUpdate: UpdateForm = { busName: '', voltageSide: '' };
+const emptyCreate: CreateForm = { plantCode: '', lineCode: '', lineName: '' };
+const emptyUpdate: UpdateForm = { lineName: '' };
 
-export default function PlantBusPage() {
+export default function PlantLinePage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
-  const [allRows, setAllRows] = useState<PlantBus[]>([]);
+  const [allRows, setAllRows] = useState<PlantLine[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,13 +31,13 @@ export default function PlantBusPage() {
   const [filterPlant, setFilterPlant] = useState('');
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<PlantBus | null>(null);
+  const [editTarget, setEditTarget] = useState<PlantLine | null>(null);
   const [form, setForm] = useState<CreateForm>(emptyCreate);
   const [updateForm, setUpdateForm] = useState<UpdateForm>(emptyUpdate);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const [deleteTarget, setDeleteTarget] = useState<PlantBus | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PlantLine | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -49,10 +48,10 @@ export default function PlantBusPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await plantBusApi.getAll();
+      const res = await plantLineApi.getAll();
       setAllRows(res.data);
     } catch {
-      setError('Failed to load buses.');
+      setError('Failed to load lines.');
     } finally {
       setLoading(false);
     }
@@ -69,9 +68,9 @@ export default function PlantBusPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (row: PlantBus) => {
+  const openEdit = (row: PlantLine) => {
     setEditTarget(row);
-    setUpdateForm({ busName: row.busName, voltageSide: row.voltageSide ?? '' });
+    setUpdateForm({ lineName: row.lineName });
     setSaveError(null);
     setDialogOpen(true);
   };
@@ -89,16 +88,12 @@ export default function PlantBusPage() {
     setSaveError(null);
     try {
       if (editTarget) {
-        await plantBusApi.update(editTarget.id, {
-          busName: updateForm.busName,
-          voltageSide: updateForm.voltageSide || undefined,
-        });
+        await plantLineApi.update(editTarget.id, updateForm.lineName);
       } else {
-        await plantBusApi.create({
+        await plantLineApi.create({
           plantCode: form.plantCode,
-          busCode: form.busCode,
-          busName: form.busName,
-          voltageSide: form.voltageSide || undefined,
+          lineCode: form.lineCode,
+          lineName: form.lineName,
         });
       }
       closeDialog();
@@ -115,26 +110,26 @@ export default function PlantBusPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await plantBusApi.delete(deleteTarget.id);
+      await plantLineApi.delete(deleteTarget.id);
       setDeleteTarget(null);
       fetchRows();
     } catch {
-      setError('Failed to delete bus.');
+      setError('Failed to delete line.');
     } finally {
       setDeleting(false);
     }
   };
 
-  const isCreateValid = form.plantCode && form.busCode && form.busName.trim();
-  const isUpdateValid = updateForm.busName.trim();
+  const isCreateValid = form.plantCode && form.lineCode && form.lineName.trim();
+  const isUpdateValid = updateForm.lineName.trim();
 
   return (
     <Box>
       <PageHeader
-        title="Plant Bus Master"
-        subtitle="Configure bus bars per plant for hourly voltage logging"
-        breadcrumbs={[{ label: 'Master Data' }, { label: 'Plant Buses' }]}
-        action={canCreate ? { label: 'Add Bus', onClick: openCreate } : undefined}
+        title="Plant Line Master"
+        subtitle="Configure transmission lines per plant for station log selection"
+        breadcrumbs={[{ label: 'Master Data' }, { label: 'Plant Lines' }]}
+        action={canCreate ? { label: 'Add Line', onClick: openCreate } : undefined}
       />
 
       <Card>
@@ -161,7 +156,7 @@ export default function PlantBusPage() {
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Settings sx={{ fontSize: '2rem', color: 'text.disabled', mb: 1 }} />
               <Typography variant="body2" color="text.secondary">
-                {filterPlant ? 'No buses found for selected plant.' : 'No buses configured yet.'}
+                {filterPlant ? 'No lines found for selected plant.' : 'No lines configured yet.'}
               </Typography>
             </Box>
           ) : (
@@ -170,9 +165,8 @@ export default function PlantBusPage() {
                 <TableHead>
                   <TableRow>
                     <TableCell>Plant</TableCell>
-                    <TableCell>Bus Code</TableCell>
-                    <TableCell>Bus Name</TableCell>
-                    <TableCell>Voltage Side</TableCell>
+                    <TableCell>Line Code</TableCell>
+                    <TableCell>Line Name</TableCell>
                     <TableCell>Created By</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
@@ -185,34 +179,10 @@ export default function PlantBusPage() {
                         <Typography variant="caption" color="text.secondary">{row.plantName}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">{row.busCode}</Typography>
+                        <Typography variant="body2">{row.lineCode}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">{row.busName}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        {row.voltageSide ? (
-                          <Chip
-                            label={row.voltageSide}
-                            size="small"
-                            sx={{
-                              fontWeight: 700,
-                              fontSize: 11,
-                              backgroundColor:
-                                row.voltageSide === 'LV' ? '#E8F5E9' :
-                                row.voltageSide === 'MV' ? '#E3F2FD' :
-                                row.voltageSide === 'HV' ? '#FFF9C4' :
-                                row.voltageSide === 'EHV' ? '#FCE4EC' : '#F5F5F5',
-                              color:
-                                row.voltageSide === 'LV' ? '#1B5E20' :
-                                row.voltageSide === 'MV' ? '#1565C0' :
-                                row.voltageSide === 'HV' ? '#F57F17' :
-                                row.voltageSide === 'EHV' ? '#880E4F' : '#757575',
-                            }}
-                          />
-                        ) : (
-                          <Typography variant="caption" color="text.disabled">—</Typography>
-                        )}
+                        <Typography variant="body2">{row.lineName}</Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="caption">{row.createdByName}</Typography>
@@ -246,7 +216,7 @@ export default function PlantBusPage() {
         <DialogTitle>
           <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
             <Settings sx={{ color: '#1565C0' }} />
-            <Typography sx={{ fontWeight: 700 }}>{editTarget ? 'Edit Bus' : 'Add Bus'}</Typography>
+            <Typography sx={{ fontWeight: 700 }}>{editTarget ? 'Edit Line' : 'Add Line'}</Typography>
           </Stack>
         </DialogTitle>
         <Divider />
@@ -257,26 +227,13 @@ export default function PlantBusPage() {
             <Stack spacing={2}>
               <Stack direction="row" spacing={1}>
                 <Chip label={editTarget.plantCode} size="small" variant="outlined" />
-                <Chip label={`${editTarget.busCode}`} size="small" color="primary" variant="outlined" />
+                <Chip label={`${editTarget.lineCode}`} size="small" color="primary" variant="outlined" />
               </Stack>
               <TextField
-                label="Bus Name" value={updateForm.busName}
-                onChange={(e) => setUpdateForm((prev) => ({ ...prev, busName: e.target.value }))}
+                label="Line Name" value={updateForm.lineName}
+                onChange={(e) => setUpdateForm({ lineName: e.target.value })}
                 fullWidth required autoFocus
-                helperText="The bus code cannot be changed after creation." />
-              <FormControl fullWidth size="small">
-                <InputLabel>Voltage Side</InputLabel>
-                <Select
-                  label="Voltage Side"
-                  value={updateForm.voltageSide ?? ''}
-                  onChange={(e) => setUpdateForm((prev) => ({ ...prev, voltageSide: e.target.value }))}>
-                  <MenuItem value=""><em>Not specified</em></MenuItem>
-                  <MenuItem value="LV">LV — Low Voltage</MenuItem>
-                  <MenuItem value="MV">MV — Medium Voltage</MenuItem>
-                  <MenuItem value="HV">HV — High Voltage</MenuItem>
-                  <MenuItem value="EHV">EHV — Extra High Voltage</MenuItem>
-                </Select>
-              </FormControl>
+                helperText="The line code cannot be changed after creation." />
             </Stack>
           ) : (
             <Grid container spacing={2}>
@@ -292,31 +249,16 @@ export default function PlantBusPage() {
                 </FormControl>
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField label="Bus Code" fullWidth required
-                  value={form.busCode}
-                  onChange={(e) => setForm((prev) => ({ ...prev, busCode: e.target.value }))}
-                  placeholder="e.g. A1" helperText="Unique code per plant" />
+                <TextField label="Line Code" fullWidth required
+                  value={form.lineCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, lineCode: e.target.value }))}
+                  placeholder="e.g. L1" helperText="Unique code per plant" />
               </Grid>
               <Grid size={{ xs: 12, sm: 8 }}>
-                <TextField label="Bus Name" fullWidth required
-                  value={form.busName}
-                  onChange={(e) => setForm((prev) => ({ ...prev, busName: e.target.value }))}
-                  placeholder="e.g. Akosombo Bus" />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Voltage Side</InputLabel>
-                  <Select
-                    label="Voltage Side"
-                    value={form.voltageSide ?? ''}
-                    onChange={(e) => setForm((prev) => ({ ...prev, voltageSide: e.target.value }))}>
-                    <MenuItem value=""><em>Not specified</em></MenuItem>
-                    <MenuItem value="LV">LV — Low Voltage</MenuItem>
-                    <MenuItem value="MV">MV — Medium Voltage</MenuItem>
-                    <MenuItem value="HV">HV — High Voltage</MenuItem>
-                    <MenuItem value="EHV">EHV — Extra High Voltage</MenuItem>
-                  </Select>
-                </FormControl>
+                <TextField label="Line Name" fullWidth required
+                  value={form.lineName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, lineName: e.target.value }))}
+                  placeholder="e.g. Akosombo-Tema Line" />
               </Grid>
             </Grid>
           )}
@@ -328,7 +270,7 @@ export default function PlantBusPage() {
             <Button variant="contained" onClick={handleSave}
               disabled={saving || (editTarget ? !isUpdateValid : !isCreateValid)}
               startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
-              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Bus'}
+              {saving ? 'Saving...' : editTarget ? 'Update' : 'Add Line'}
             </Button>
           )}
         </DialogActions>
@@ -336,8 +278,8 @@ export default function PlantBusPage() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete Bus"
-        message={`Delete bus #${deleteTarget?.busCode} (${deleteTarget?.busName}) from plant ${deleteTarget?.plantCode}? This cannot be undone.`}
+        title="Delete Line"
+        message={`Delete line #${deleteTarget?.lineCode} (${deleteTarget?.lineName}) from plant ${deleteTarget?.plantCode}?`}
         confirmLabel="Delete" loading={deleting}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />

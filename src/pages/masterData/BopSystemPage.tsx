@@ -62,7 +62,7 @@ export default function BopSystemPage() {
         : await bopSystemApi.getAll();
       setRows(res.data);
     } catch {
-      setError('Failed to load BOP systems.');
+      setError('Failed to load BOP / Auxiliary Systems.');
     } finally {
       setLoading(false);
     }
@@ -136,10 +136,10 @@ export default function BopSystemPage() {
   return (
     <Box>
       <PageHeader
-        title="BOP Systems"
-        subtitle="Manage systems within each Balance of Plant"
-        breadcrumbs={[{ label: 'Master Data' }, { label: 'BOP Systems' }]}
-        action={canCreate ? { label: 'Add BOP System', onClick: openCreate, icon: <Add /> } : undefined}
+        title="BOP / Auxiliary System"
+        subtitle="Manage systems within each BOP / Auxiliary"
+        breadcrumbs={[{ label: 'Master Data' }, { label: 'BOP / Auxiliary System' }]}
+        action={canCreate ? { label: 'Add BOP / Auxiliary System', onClick: openCreate, icon: <Add /> } : undefined}
       />
 
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
@@ -160,10 +160,10 @@ export default function BopSystemPage() {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 200 }} disabled={!filterPlantCode}>
-              <InputLabel>BOP</InputLabel>
-              <Select label="BOP" value={filterBopCode}
+              <InputLabel>BOP / Auxiliary</InputLabel>
+              <Select label="BOP / Auxiliary" value={filterBopCode}
                 onChange={(e) => setFilterBopCode(e.target.value)}>
-                <MenuItem value="">All BOPs</MenuItem>
+                <MenuItem value="">All BOP / Auxiliary</MenuItem>
                 {filteredBops.map((b) => (
                   <MenuItem key={b.id} value={b.bopCode}>{b.bopName}</MenuItem>
                 ))}
@@ -186,7 +186,7 @@ export default function BopSystemPage() {
               <TableHead>
                 <TableRow>
                   <TableCell>Plant</TableCell>
-                  <TableCell>BOP</TableCell>
+                  <TableCell>BOP / Auxiliary</TableCell>
                   <TableCell>System Name</TableCell>
                   <TableCell>System Code</TableCell>
                   <TableCell>Created By</TableCell>
@@ -207,10 +207,10 @@ export default function BopSystemPage() {
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <AccountTree sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
                         <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                          No BOP systems found
+                          No BOP / Auxiliary Systems found
                         </Typography>
                         <Typography variant="caption" color="text.disabled">
-                          {filterPlantCode ? 'Try clearing the filter.' : 'Click "Add BOP System" to get started.'}
+                          {filterPlantCode ? 'Try clearing the filter.' : 'Click "Add BOP / Auxiliary System" to get started.'}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -267,7 +267,7 @@ export default function BopSystemPage() {
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
-          {editTarget ? 'Edit BOP System' : 'Add BOP System'}
+          {editTarget ? 'Edit BOP / Auxiliary System' : 'Add BOP / Auxiliary System'}
         </DialogTitle>
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
@@ -285,8 +285,8 @@ export default function BopSystemPage() {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!form.plantCode}>
-                <InputLabel>Balance of Plant</InputLabel>
-                <Select label="Balance of Plant" value={form.bopCode}
+                <InputLabel>BOP / Auxiliary</InputLabel>
+                <Select label="BOP / Auxiliary" value={form.bopCode}
                   onChange={(e) => handleFormBopChange(e.target.value)} disabled={!!editTarget}>
                   {formBops.length === 0 ? (
                     <MenuItem disabled value=""><em>Select a plant first</em></MenuItem>
@@ -328,7 +328,7 @@ export default function BopSystemPage() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete BOP System"
+        title="Delete BOP / Auxiliary System"
         message={`Delete "${deleteTarget?.systemName}" from ${deleteTarget?.bopName}?`}
         confirmLabel="Delete" loading={deleting}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}

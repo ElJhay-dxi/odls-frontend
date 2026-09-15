@@ -10,6 +10,8 @@ import type {
   CreateHydroStationLogEntryForm,
   UpdateHydroStationLogEntryForm,
   CreateConditionForm,
+  StationLogUnitOutput,
+  SaveStationLogUnitOutputItem,
 } from '../../types/hydroStationLog';
 
 const BASE = '/hydrostationlogs';
@@ -124,4 +126,13 @@ export const hydroStationLogApi = {
 
   deletePermit: (logId: string, permitId: string) =>
     axiosInstance.delete(`${BASE}/${logId}/permits/${permitId}`),
+
+  // Per-Unit Output
+  getUnitOutputs: (logId: string) =>
+    axiosInstance.get<StationLogUnitOutput[]>(`${BASE}/${logId}/unitoutputs`),
+
+  saveUnitOutputs: (logId: string, units: SaveStationLogUnitOutputItem[]) =>
+    axiosInstance.post<StationLogUnitOutput[]>(`${BASE}/${logId}/unitoutputs`, {
+      units,
+    }),
 };

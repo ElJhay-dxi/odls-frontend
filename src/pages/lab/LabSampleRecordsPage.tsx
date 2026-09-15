@@ -4,7 +4,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Tooltip, Collapse, Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
-import { Save, Add, Edit, Delete, ContentPaste, History, ExpandMore, ExpandLess, Link as LinkIcon } from '@mui/icons-material';
+import { Save, Add, Edit, Delete, ContentPaste, History, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -62,6 +62,8 @@ export default function LabSampleRecordsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<LabSampleRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [analysisModal, setAnalysisModal] = useState<LabSampleRecord | null>(null);
 
   const [history, setHistory] = useState<LabSampleRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -275,9 +277,25 @@ export default function LabSampleRecordsPage() {
                         <TableCell>{row.collectedBy ?? '—'}</TableCell>
                         <TableCell><Chip label={row.analysisStatus} size="small" color={STATUS_COLORS[row.analysisStatus] ?? 'default'} /></TableCell>
                         <TableCell>
-                          {row.analysisRecordId ? (
-                            <Chip label="View Analysis" size="small" icon={<LinkIcon />} variant="outlined" sx={{ color: ACCENT, borderColor: ACCENT }} />
-                          ) : '—'}
+                          {row.linkedAnalysisCount > 0 ? (
+                            <Chip
+                              label={`${row.linkedAnalysisCount} ${row.linkedAnalysisCount === 1 ? 'Analysis' : 'Analyses'}`}
+                              size="small"
+                              onClick={() => setAnalysisModal(row)}
+                              sx={{
+                                cursor: 'pointer',
+                                backgroundColor: '#E3F2FD',
+                                color: '#1565C0',
+                                fontWeight: 600,
+                                fontSize: 11,
+                                '&:hover': { backgroundColor: '#BBDEFB' },
+                              }}
+                            />
+                          ) : (
+                            <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                              Not linked
+                            </Typography>
+                          )}
                         </TableCell>
                         <TableCell align="right">
                           {canEdit && (
@@ -441,6 +459,35 @@ export default function LabSampleRecordsPage() {
       <ConfirmDialog open={!!deleteTarget} title="Delete Sample Record"
         message={`Delete sample "${deleteTarget?.sampleId}" (${deleteTarget?.samplePoint})? This cannot be undone.`}
         confirmLabel="Delete" loading={deleting} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+
+      <Dialog
+        open={!!analysisModal}
+        onClose={() => setAnalysisModal(null)}
+        maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          Linked Analyses — {analysisModal?.sampleId}
+        </DialogTitle>
+        <Divider />
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Sample Point: {analysisModal?.samplePoint} ({analysisModal?.sampleType})
+          </Typography>
+          {analysisModal?.linkedLabRefNumbers.length === 0 ? (
+            <Typography variant="body2" color="text.disabled">No analyses linked.</Typography>
+          ) : (
+            <Stack spacing={1}>
+              {analysisModal?.linkedLabRefNumbers.map((ref, i) => (
+                <Chip key={i} label={ref} size="small"
+                  sx={{ fontFamily: 'monospace', backgroundColor: '#E8F5E9',
+                    color: '#1B5E20', fontWeight: 600, alignSelf: 'flex-start' }} />
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAnalysisModal(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
