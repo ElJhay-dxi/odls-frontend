@@ -356,3 +356,25 @@ export interface SaveStationLogUnitOutputItem {
   outputMW?: number | null;
   outputMVAr?: number | null;
 }
+
+// ─── Station Auxiliary Supply ───────────────────────────────────────────────────
+export interface ThermalAuxSupplyRow {
+  id: string;
+  stationLogId: string;
+  sourceCode: string;
+  sourceName: string;
+  sourceType: string; // Bus, Transformer, Equipment
+  suppliesTo?: string;
+  status: string;
+  notes?: string;
+  sortOrder: number;
+}
+
+export interface SaveThermalAuxSupplyRowItem {
+  sourceCode: string;
+  sourceName: string;
+  sourceType: string;
+  suppliesTo?: string;
+  status: string;
+  notes?: string;
+}

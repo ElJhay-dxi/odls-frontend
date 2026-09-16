@@ -4,6 +4,8 @@ import type {
   ThermalOversightEntry,
   ThermalShiftInfo,
   ThermalEquipmentStatus,
+  ThermalAuxSupplyRow,
+  SaveThermalAuxSupplyRowItem,
 } from '../../types/thermalStationLog';
 
 const BASE = '/thermalstationlogs';
@@ -55,4 +57,11 @@ export const thermalStationLogAdditionsApi = {
       category,
       items,
     }),
+
+  // Station Auxiliary Supply
+  getAuxSupply: (logId: string) =>
+    axiosInstance.get<ThermalAuxSupplyRow[]>(`${BASE}/${logId}/auxsupply`),
+
+  saveAllAuxSupply: (logId: string, rows: SaveThermalAuxSupplyRowItem[]) =>
+    axiosInstance.post<ThermalAuxSupplyRow[]>(`${BASE}/${logId}/auxsupply/save-all`, { rows }),
 };

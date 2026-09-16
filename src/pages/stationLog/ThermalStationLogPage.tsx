@@ -34,6 +34,7 @@ import type {
   GasConditioningRowForm, WaterTreatmentRowForm,
   ThermalCriticalIssue, ThermalOversightEntry, ThermalShiftInfo, ThermalEquipmentStatus,
   SaveStationLogUnitOutputItem,
+  ThermalAuxSupplyRow, SaveThermalAuxSupplyRowItem,
 } from '../../types/thermalStationLog';
 import type { ShiftLog } from '../../types/shiftLog';
 import type { PlantBus } from '../../types/plantBus';
@@ -126,7 +127,6 @@ interface EquipmentStatusRow {
   remarks: string;
 }
 const PUMP_STATUS_OPTIONS = ['In Service', 'On Standby', 'Not Available', 'Under Permit'];
-const TRANSFORMER_STATUS_OPTIONS = ['In Service', 'On Potential', 'Off Potential', 'Not Available', 'Under Permit', 'On Standby'];
 const FIELD_ASSIGNMENT_OPTIONS = ['GT1/HRSG1', 'GT2/HRSG2', 'STG/OTCS', 'BOPs'];
 
 const containsKeyword = (fields: (string | undefined | null)[], keyword: string) =>
@@ -370,13 +370,13 @@ export default function ThermalStationLogPage() {
   const [pumpsSaved, setPumpsSaved] = useState(false);
   const [pumpsError, setPumpsError] = useState<string | null>(null);
 
-  // Transformers Status
-  const [transformerStatuses, setTransformerStatuses] = useState<ThermalEquipmentStatus[]>([]);
-  const [transformerRows, setTransformerRows] = useState<EquipmentStatusRow[]>([]);
+  // Station Auxiliary Supply
   const [transformersCollapsed, setTransformersCollapsed] = useState(true);
-  const [savingTransformers, setSavingTransformers] = useState(false);
-  const [transformersSaved, setTransformersSaved] = useState(false);
-  const [transformersError, setTransformersError] = useState<string | null>(null);
+  const [auxSupplyRows, setAuxSupplyRows] = useState<ThermalAuxSupplyRow[]>([]);
+  const [auxSupplyForm, setAuxSupplyForm] = useState<SaveThermalAuxSupplyRowItem[]>([]);
+  const [savingAuxSupply, setSavingAuxSupply] = useState(false);
+  const [auxSupplySaved, setAuxSupplySaved] = useState(false);
+  const [auxSupplyError, setAuxSupplyError] = useState<string | null>(null);
 
   // Oversight Conditions (TICO/CENIT)
   const [oversightEntries, setOversightEntries] = useState<ThermalOversightEntry[]>([]);
@@ -480,29 +480,6 @@ export default function ThermalStationLogPage() {
     }));
   }, [pumpEquipments, bopPumpEquipments, pumpStatuses]);
 
-  useEffect(() => {
-    const combined = [
-      ...transformerEquipments.map((eq) => ({
-        equipmentCode: eq.equipmentCode, equipmentName: eq.equipmentName,
-        location: eq.systemName ?? '',
-        groupLabel: [eq.unitName, eq.systemName, eq.subSystemName].filter(Boolean).join(' / '),
-      })),
-      ...bopTransformerEquipments.map((eq) => ({
-        equipmentCode: eq.equipmentCode, equipmentName: eq.equipmentName,
-        location: eq.location,
-        groupLabel: eq.groupLabel,
-      })),
-    ].filter((eq, idx, arr) => arr.findIndex((e) => e.equipmentCode === eq.equipmentCode) === idx);
-
-    setTransformerRows(combined.map((eq) => {
-      const saved = transformerStatuses.find((s) => s.equipmentCode === eq.equipmentCode);
-      return {
-        equipmentCode: eq.equipmentCode, equipmentName: eq.equipmentName,
-        location: eq.location, status: saved?.status ?? '', remarks: saved?.remarks ?? '',
-      };
-    }));
-  }, [transformerEquipments, bopTransformerEquipments, transformerStatuses]);
-
   const currentPlant = allPlants.find((p) => p.plantCode === selectedPlant) ?? null;
 
   const allPumpEquipments = [
@@ -594,11 +571,11 @@ export default function ThermalStationLogPage() {
 
   const loadAdditionalSections = async (logId: string) => {
     const plantForLog = allPlants.find((p) => p.plantCode === selectedPlant);
-    const [issues, shiftData, pumps, transformers, oversight, unitOutputsRes] = await Promise.allSettled([
+    const [issues, shiftData, pumps, auxSupply, oversight, unitOutputsRes] = await Promise.allSettled([
       thermalStationLogAdditionsApi.getCriticalIssues(logId),
       thermalStationLogAdditionsApi.getShiftInfo(logId),
       thermalStationLogAdditionsApi.getEquipmentStatus(logId, 'Pump'),
-      thermalStationLogAdditionsApi.getEquipmentStatus(logId, 'Transformer'),
+      thermalStationLogAdditionsApi.getAuxSupply(logId),
       plantForLog?.oversightPlantCode
         ? thermalStationLogAdditionsApi.getOversightEntries(logId, plantForLog.oversightPlantCode)
         : Promise.resolve({ data: [] as ThermalOversightEntry[] }),
@@ -611,7 +588,13 @@ export default function ThermalStationLogPage() {
       setShiftInfoNight(shifts.find((s) => s.shiftType === 'NIGHT') ?? null);
     }
     if (pumps.status === 'fulfilled') setPumpStatuses(pumps.value.data);
-    if (transformers.status === 'fulfilled') setTransformerStatuses(transformers.value.data);
+    if (auxSupply.status === 'fulfilled') {
+      setAuxSupplyRows(auxSupply.value.data);
+      setAuxSupplyForm(auxSupply.value.data.map((r) => ({
+        sourceCode: r.sourceCode, sourceName: r.sourceName, sourceType: r.sourceType,
+        suppliesTo: r.suppliesTo, status: r.status, notes: r.notes,
+      })));
+    }
     if (oversight.status === 'fulfilled') setOversightEntries(oversight.value.data.sort(sortOversightEntries));
     if (unitOutputsRes.status === 'fulfilled') {
       setUnitOutputs(unitOutputsRes.value.data.map((u) => ({
@@ -625,7 +608,7 @@ export default function ThermalStationLogPage() {
     setLoading(true); setLoadError(null); setLog(null); setShiftHandovers([]);
     setCriticalIssues([]); setOversightEntries([]);
     setShiftInfoDay(null); setShiftInfoNight(null);
-    setPumpStatuses([]); setTransformerStatuses([]);
+    setPumpStatuses([]); setAuxSupplyRows([]); setAuxSupplyForm([]); setAuxSupplySaved(false);
     setUnitOutputs([]); setUnitOutputsSaved(false);
     try {
       const prevDate = new Date(selectedDate + 'T12:00:00');
@@ -1067,19 +1050,6 @@ export default function ThermalStationLogPage() {
       setPumpsSaved(true);
     } catch { setPumpsError('Failed to save pump statuses.'); }
     finally { setSavingPumps(false); }
-  };
-
-  const handleSaveTransformers = async () => {
-    if (!log) return;
-    setSavingTransformers(true); setTransformersSaved(false); setTransformersError(null);
-    try {
-      await thermalStationLogAdditionsApi.saveAllEquipmentStatus(
-        log.id, 'Transformer',
-        transformerRows.map((r) => ({ equipmentCode: r.equipmentCode, equipmentName: r.equipmentName, location: r.location, status: r.status, remarks: r.remarks }))
-      );
-      setTransformersSaved(true);
-    } catch { setTransformersError('Failed to save transformer statuses.'); }
-    finally { setSavingTransformers(false); }
   };
 
   // ── Oversight Conditions ──
@@ -1577,60 +1547,202 @@ export default function ThermalStationLogPage() {
             </Collapse>
           </Card>
 
-          {/* ── Station Service Transformer Status ── */}
+          {/* ── Station Auxiliary Supply ── */}
           <Card sx={{ mb: 2 }}>
             <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', backgroundColor: '#E6510014', borderBottom: transformersCollapsed ? 'none' : '1px solid', borderColor: 'divider' }} onClick={() => setTransformersCollapsed((p) => !p)}>
-              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#E65100' }}>Station Service Transformer Status</Typography>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#E65100' }}>Station Auxiliary Supply</Typography>
+                {auxSupplyRows.length > 0 && <Chip label={`${auxSupplyRows.length}`} size="small" variant="outlined" sx={{ color: '#E65100', borderColor: '#E65100' }} />}
+              </Stack>
               <IconButton size="small">{transformersCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
             </Box>
             <Collapse in={!transformersCollapsed}>
               <CardContent>
-                {transformersSaved && <Alert severity="success" onClose={() => setTransformersSaved(false)} sx={{ mb: 2 }}>Transformer statuses saved successfully.</Alert>}
-                {transformersError && <Alert severity="error" onClose={() => setTransformersError(null)} sx={{ mb: 2 }}>{transformersError}</Alert>}
-                {transformerRows.length === 0
-                  ? <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2, fontStyle: 'italic' }}>No transformer equipment configured for this plant.</Typography>
-                  : (
-                    <>
-                      <Table size="small" sx={{ mb: 1.5 }}>
-                        <TableHead>
-                          <TableRow sx={{ backgroundColor: '#FFF3E0' }}>
-                            <TableCell sx={{ fontWeight: 700 }}>Equipment</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
-                            <TableCell sx={{ fontWeight: 700, width: 170 }}>Status</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {transformerRows.map((row, idx) => (
-                            <TableRow key={`${row.equipmentCode}-${idx}`}>
-                              <TableCell>
-                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                                  <Chip label={row.equipmentCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
-                                  <Typography variant="body2">{row.equipmentName}</Typography>
-                                </Stack>
-                              </TableCell>
-                              <TableCell><Typography variant="body2" color="text.secondary">{row.location}</Typography></TableCell>
-                              <TableCell>
-                                <FormControl size="small" fullWidth disabled={!canEdit}>
-                                  <Select displayEmpty value={row.status} onChange={(e) => { const r = [...transformerRows]; r[idx] = { ...r[idx], status: e.target.value }; setTransformerRows(r); }}>
-                                    <MenuItem value=""><em>Select…</em></MenuItem>
-                                    {TRANSFORMER_STATUS_OPTIONS.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                                  </Select>
-                                </FormControl>
-                              </TableCell>
-                              <TableCell><TextField size="small" fullWidth placeholder="Optional remarks" value={row.remarks} disabled={!canEdit} onChange={(e) => { const r = [...transformerRows]; r[idx] = { ...r[idx], remarks: e.target.value }; setTransformerRows(r); }} /></TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      {canEdit && (
-                        <Button size="small" variant="contained" sx={{ backgroundColor: '#E65100' }} onClick={handleSaveTransformers} disabled={savingTransformers}
-                          startIcon={savingTransformers ? <CircularProgress size={14} color="inherit" /> : <Save />}>
-                          {savingTransformers ? 'Saving...' : 'Save All'}
-                        </Button>
-                      )}
-                    </>
+                {auxSupplyError && <Alert severity="error" onClose={() => setAuxSupplyError(null)} sx={{ mb: 2 }}>{auxSupplyError}</Alert>}
+
+                <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Configure the auxiliary supply sources and their supply targets for this shift.
+                  </Typography>
+                  {canEdit && (
+                    <Button size="small" startIcon={<Add />}
+                      onClick={() => {
+                        setAuxSupplyForm((prev) => [...prev, {
+                          sourceCode: '', sourceName: '', sourceType: 'Transformer',
+                          suppliesTo: '', status: '', notes: '',
+                        }]);
+                        setAuxSupplySaved(false);
+                      }}>
+                      Add Row
+                    </Button>
                   )}
+                </Stack>
+
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: '#FFF3E0' }}>
+                      <TableCell sx={{ fontWeight: 700, width: '22%' }}>Source</TableCell>
+                      <TableCell sx={{ fontWeight: 700, width: '22%' }}>Supplies To</TableCell>
+                      <TableCell sx={{ fontWeight: 700, width: '18%' }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Notes</TableCell>
+                      {canEdit && <TableCell sx={{ width: 40 }} />}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {auxSupplyForm.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5}>
+                          <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                            No rows added. Click "Add Row" to begin.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {auxSupplyForm.map((row, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Autocomplete
+                            size="small"
+                            freeSolo
+                            options={[
+                              ...allTransformerEquipments.map((e) => ({
+                                label: `${e.equipmentName} (${e.equipmentCode})`,
+                                code: e.equipmentCode,
+                                name: e.equipmentName,
+                                type: 'Transformer',
+                              })),
+                              ...plantBuses.map((b) => ({
+                                label: `${b.busName} (${b.busCode})`,
+                                code: b.busCode,
+                                name: b.busName,
+                                type: 'Bus',
+                              })),
+                            ]}
+                            getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.label)}
+                            value={row.sourceName || row.sourceCode || ''}
+                            disabled={!canEdit}
+                            onChange={(_, val) => {
+                              const updated = [...auxSupplyForm];
+                              if (val && typeof val === 'object') {
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  sourceCode: val.code,
+                                  sourceName: val.name,
+                                  sourceType: val.type,
+                                };
+                              } else if (typeof val === 'string') {
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  sourceCode: val,
+                                  sourceName: val,
+                                  sourceType: 'Other',
+                                };
+                              }
+                              setAuxSupplyForm(updated);
+                              setAuxSupplySaved(false);
+                            }}
+                            renderInput={(params) => (
+                              <TextField {...params} placeholder="Select or type source" size="small" />
+                            )}
+                          />
+                        </TableCell>
+
+                        <TableCell>
+                          <TextField
+                            size="small" fullWidth
+                            placeholder="e.g. MSSSB, CFTH BUS"
+                            value={row.suppliesTo ?? ''}
+                            disabled={!canEdit}
+                            onChange={(e) => {
+                              const updated = [...auxSupplyForm];
+                              updated[idx] = { ...updated[idx], suppliesTo: e.target.value };
+                              setAuxSupplyForm(updated);
+                              setAuxSupplySaved(false);
+                            }}
+                          />
+                        </TableCell>
+
+                        <TableCell>
+                          <Select
+                            size="small" fullWidth displayEmpty
+                            value={row.status}
+                            disabled={!canEdit}
+                            onChange={(e) => {
+                              const updated = [...auxSupplyForm];
+                              updated[idx] = { ...updated[idx], status: e.target.value };
+                              setAuxSupplyForm(updated);
+                              setAuxSupplySaved(false);
+                            }}>
+                            <MenuItem value=""><em>Select status</em></MenuItem>
+                            <MenuItem value="In Service">In Service</MenuItem>
+                            <MenuItem value="On Standby">On Standby</MenuItem>
+                            <MenuItem value="Both In Service">Both In Service</MenuItem>
+                            <MenuItem value="Coupler Closed">Coupler Closed</MenuItem>
+                            <MenuItem value="Coupler Open">Coupler Open</MenuItem>
+                            <MenuItem value="Off Potential">Off Potential</MenuItem>
+                            <MenuItem value="Not Available">Not Available</MenuItem>
+                            <MenuItem value="N/A">N/A</MenuItem>
+                          </Select>
+                        </TableCell>
+
+                        <TableCell>
+                          <TextField
+                            size="small" fullWidth multiline maxRows={2}
+                            placeholder="Optional notes"
+                            value={row.notes ?? ''}
+                            disabled={!canEdit}
+                            onChange={(e) => {
+                              const updated = [...auxSupplyForm];
+                              updated[idx] = { ...updated[idx], notes: e.target.value };
+                              setAuxSupplyForm(updated);
+                              setAuxSupplySaved(false);
+                            }}
+                          />
+                        </TableCell>
+
+                        {canEdit && (
+                          <TableCell>
+                            <IconButton size="small" color="error"
+                              onClick={() => {
+                                setAuxSupplyForm((prev) => prev.filter((_, i) => i !== idx));
+                                setAuxSupplySaved(false);
+                              }}>
+                              <Delete sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {canEdit && (
+                  <Stack direction="row" spacing={1.5} sx={{ mt: 2, justifyContent: 'flex-end' }}>
+                    {auxSupplySaved && (
+                      <Chip label="Saved" color="success" size="small" icon={<CheckCircle />} />
+                    )}
+                    {!auxSupplySaved && (
+                      <Button size="small" variant="contained"
+                        sx={{ backgroundColor: '#E65100' }}
+                        disabled={savingAuxSupply}
+                        startIcon={savingAuxSupply
+                          ? <CircularProgress size={14} color="inherit" />
+                          : <Save />}
+                        onClick={async () => {
+                          if (!log) return;
+                          setSavingAuxSupply(true); setAuxSupplyError(null);
+                          try {
+                            const res = await thermalStationLogAdditionsApi.saveAllAuxSupply(log.id, auxSupplyForm);
+                            setAuxSupplyRows(res.data);
+                            setAuxSupplySaved(true);
+                          } catch { setAuxSupplyError('Failed to save auxiliary supply.'); }
+                          finally { setSavingAuxSupply(false); }
+                        }}>
+                        {savingAuxSupply ? 'Saving...' : 'Save Auxiliary Supply'}
+                      </Button>
+                    )}
+                  </Stack>
+                )}
               </CardContent>
             </Collapse>
           </Card>
