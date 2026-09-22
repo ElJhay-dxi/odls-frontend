@@ -71,6 +71,7 @@ const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 
 // Reports
 const HydroReportsPage = lazy(() => import('./pages/reports/HydroReportsPage'));
+const ThermalReportsPage = lazy(() => import('./pages/reports/ThermalReportsPage'));
 
 // Admin
 const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
@@ -168,6 +169,7 @@ export default function App() {
 
                   {/* Reports */}
                   <Route path="reports/hydro" element={<G p="reports.view"><HydroReportsPage /></G>} />
+                  <Route path="reports/thermal" element={<G p="reports.thermal.view"><ThermalReportsPage /></G>} />
 
                   {/* Admin */}
                   <Route path="admin/permissions" element={<G p="permissions.view"><PermissionsPage /></G>} />

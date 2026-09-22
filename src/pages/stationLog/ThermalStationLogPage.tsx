@@ -9,7 +9,7 @@ import {
   Save, Edit, Delete, Add, ExpandMore, ExpandLess,
   Assignment, CheckCircle, LocalFireDepartment, TableChart, GasMeter,
 } from '@mui/icons-material';
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
@@ -21,10 +21,11 @@ import { bopEquipmentApi } from '../../api/masterData/bopEquipmentApi';
 import { plantBusApi } from '../../api/hourly/hourlyBusVoltageApi';
 import { thermalStationLogApi } from '../../api/stationLog/thermalStationLogApi';
 import { thermalStationLogAdditionsApi } from '../../api/stationLog/thermalStationLogAdditionsApi';
+import { thermalStationLogSectionsApi } from '../../api/stationLog/thermalStationLogSectionsApi';
 import { safetyDocumentTypeApi } from '../../api/masterData/safetyDocumentTypeApi';
 import { shiftLogApi } from '../../api/stationLog/shiftLogApi';
 import { appUsersApi } from '../../api/auth/userManagementApi';
-import type { PowerPlant, PlantUnit, PlantUnitEquipment, BopEquipmentSearchResult } from '../../types/masterData';
+import type { PowerPlant, PlantUnit, PlantUnitEquipment, BopEquipment, BopEquipmentSearchResult } from '../../types/masterData';
 import type {
   ThermalStationLog, ThermalStationLogEntry, ThermalStationLogSafetyDoc,
   ThermalStationLogCondition, ThermalStationLogGasReading,
@@ -35,6 +36,7 @@ import type {
   ThermalCriticalIssue, ThermalOversightEntry, ThermalShiftInfo, ThermalEquipmentStatus,
   SaveStationLogUnitOutputItem,
   ThermalAuxSupplyRow, SaveThermalAuxSupplyRowItem,
+  ThermalSectionEquipmentRow, SaveThermalSectionEquipmentRowItem,
 } from '../../types/thermalStationLog';
 import type { ShiftLog } from '../../types/shiftLog';
 import type { PlantBus } from '../../types/plantBus';
@@ -180,13 +182,91 @@ const sortOversightEntries = (a: ThermalOversightEntry, b: ThermalOversightEntry
   a.entryDate.localeCompare(b.entryDate) || a.entryTime.localeCompare(b.entryTime);
 
 const TEXT_FIELDS = [
-  { key: 'stationService',           label: 'Station Service' },
   { key: 'fireProtectionStatus',     label: 'Fire Protection System' },
   { key: 'emergencyDieselGenStatus', label: 'Emergency Diesel Generator' },
   { key: 'applicationForOutage',     label: 'Application for Outage' },
   { key: 'miscNotes',                label: 'Miscellaneous / Standing Notes' },
 ] as const;
 type TextFieldKey = typeof TEXT_FIELDS[number]['key'];
+
+const EQUIPMENT_SECTIONS = [
+  {
+    key: 'rectifiers_ups',
+    label: 'Rectifiers and UPS System',
+    keywords: ['rectifier', 'ups'],
+    toggleField: 'showRectifiersUps',
+    accent: '#1A237E',
+  },
+  {
+    key: 'compressors_dryers',
+    label: 'Station Air Compressors and Dryers',
+    keywords: ['compressor', 'dryer'],
+    toggleField: 'showCompressorsDryers',
+    accent: '#004D40',
+  },
+  {
+    key: 'hrsg',
+    label: 'Heat Recovery Steam Generators',
+    keywords: ['hrsg', 'heat recovery', 'fwp', 'feed water'],
+    toggleField: 'showHrsg',
+    accent: '#BF360C',
+  },
+] as const;
+
+const TEXT_SECTIONS = [
+  {
+    key: 'cems',
+    label: 'CEMS',
+    toggleField: 'showCems',
+    accent: '#37474F',
+    placeholder: 'Enter CEMS status and observations...',
+  },
+  {
+    key: 'air_pulse_system',
+    label: 'Air Pulse System',
+    toggleField: 'showAirPulseSystem',
+    accent: '#01579B',
+    placeholder: 'Enter Air Pulse System status...',
+  },
+  {
+    key: 'fuel_treatment_plant',
+    label: 'Fuel Treatment Plant',
+    toggleField: 'showFuelTreatmentPlant',
+    accent: '#4A148C',
+    placeholder: 'Enter Fuel Treatment Plant status...',
+  },
+  {
+    key: 'oily_water_system',
+    label: 'Oily Water System',
+    toggleField: 'showOilyWaterSystem',
+    accent: '#33691E',
+    placeholder: 'Enter Oily Water System status...',
+  },
+  {
+    key: 'chemical_lagoon_system',
+    label: 'Chemical Lagoon System',
+    toggleField: 'showChemicalLagoonSystem',
+    accent: '#006064',
+    placeholder: 'Enter Chemical Lagoon System status...',
+  },
+] as const;
+
+function CollapsibleCard({ title, accent, defaultCollapsed = true, children }: {
+  title: string; accent: string; defaultCollapsed?: boolean; children: ReactNode;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  return (
+    <Card sx={{ mb: 2 }}>
+      <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', backgroundColor: `${accent}14`, borderBottom: collapsed ? 'none' : '1px solid', borderColor: 'divider' }} onClick={() => setCollapsed((p) => !p)}>
+        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: accent }}>{title}</Typography>
+        <IconButton size="small">{collapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
+      </Box>
+      <Collapse in={!collapsed}>
+        {children}
+      </Collapse>
+    </Card>
+  );
+}
 
 export default function ThermalStationLogPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('station_logs.thermal');
@@ -214,8 +294,9 @@ export default function ThermalStationLogPage() {
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedBuses, setSelectedBuses] = useState<string[]>([]);
   const [currentOutputMw, setCurrentOutputMw] = useState('');
+  const [selectedSST, setSelectedSST] = useState<string>('');
   const [headerTextForm, setHeaderTextForm] = useState<Record<TextFieldKey, string>>({
-    stationService: '', fireProtectionStatus: '',
+    fireProtectionStatus: '',
     emergencyDieselGenStatus: '', applicationForOutage: '', miscNotes: '',
   });
   const [headerEditing, setHeaderEditing] = useState(false);
@@ -340,6 +421,10 @@ export default function ThermalStationLogPage() {
   const [bopTransformerEquipments, setBopTransformerEquipments] = useState<BopEquipmentSearchResult[]>([]);
   const [plantUserNames, setPlantUserNames] = useState<string[]>([]);
 
+  // Broader equipment pools for the optional equipment-grid sections
+  const [allUnitEquipments, setAllUnitEquipments] = useState<PlantUnitEquipment[]>([]);
+  const [sectionEquipmentPool, setSectionEquipmentPool] = useState<BopEquipment[]>([]);
+
   // Critical Issues
   const [criticalIssues, setCriticalIssues] = useState<ThermalCriticalIssue[]>([]);
   const [criticalIssuesCollapsed, setCriticalIssuesCollapsed] = useState(false);
@@ -362,10 +447,11 @@ export default function ThermalStationLogPage() {
   const [dayShiftError, setDayShiftError] = useState<string | null>(null);
   const [nightShiftError, setNightShiftError] = useState<string | null>(null);
 
-  // Pumps Status
+  // Pumps Status (Fire Protection Systems)
   const [pumpStatuses, setPumpStatuses] = useState<ThermalEquipmentStatus[]>([]);
   const [pumpRows, setPumpRows] = useState<EquipmentStatusRow[]>([]);
   const [pumpsCollapsed, setPumpsCollapsed] = useState(true);
+  const [pumpsEditMode, setPumpsEditMode] = useState(false);
   const [savingPumps, setSavingPumps] = useState(false);
   const [pumpsSaved, setPumpsSaved] = useState(false);
   const [pumpsError, setPumpsError] = useState<string | null>(null);
@@ -374,9 +460,32 @@ export default function ThermalStationLogPage() {
   const [transformersCollapsed, setTransformersCollapsed] = useState(true);
   const [auxSupplyRows, setAuxSupplyRows] = useState<ThermalAuxSupplyRow[]>([]);
   const [auxSupplyForm, setAuxSupplyForm] = useState<SaveThermalAuxSupplyRowItem[]>([]);
+  const [auxEditMode, setAuxEditMode] = useState(false);
   const [savingAuxSupply, setSavingAuxSupply] = useState(false);
   const [auxSupplySaved, setAuxSupplySaved] = useState(false);
   const [auxSupplyError, setAuxSupplyError] = useState<string | null>(null);
+
+  // Optional Equipment Grid Sections (Rectifiers/UPS, Compressors/Dryers, HRSG) — keyed by sectionKey
+  const [equipmentSectionRows, setEquipmentSectionRows] =
+    useState<Record<string, ThermalSectionEquipmentRow[]>>({});
+  const [equipmentSectionForm, setEquipmentSectionForm] =
+    useState<Record<string, SaveThermalSectionEquipmentRowItem[]>>({});
+  const [equipmentSectionEditMode, setEquipmentSectionEditMode] =
+    useState<Record<string, boolean>>({});
+  const [savingEquipmentSection, setSavingEquipmentSection] =
+    useState<Record<string, boolean>>({});
+  const [equipmentSectionError, setEquipmentSectionError] =
+    useState<Record<string, string | null>>({});
+
+  // Optional Free Text Sections (CEMS, Air Pulse, Fuel Treatment, Oily Water, Chemical Lagoon) — keyed by sectionKey
+  const [textSectionContent, setTextSectionContent] =
+    useState<Record<string, string>>({});
+  const [textSectionEditMode, setTextSectionEditMode] =
+    useState<Record<string, boolean>>({});
+  const [savingTextSection, setSavingTextSection] =
+    useState<Record<string, boolean>>({});
+  const [textSectionError, setTextSectionError] =
+    useState<Record<string, string | null>>({});
 
   // Oversight Conditions (TICO/CENIT)
   const [oversightEntries, setOversightEntries] = useState<ThermalOversightEntry[]>([]);
@@ -414,7 +523,9 @@ export default function ThermalStationLogPage() {
     if (!selectedPlant) {
       setPumpEquipments([]); setTransformerEquipments([]);
       setBopPumpEquipments([]); setBopTransformerEquipments([]);
-      setPlantUserNames([]); return;
+      setPlantUserNames([]);
+      setAllUnitEquipments([]); setSectionEquipmentPool([]);
+      return;
     }
 
     // Unit equipment
@@ -422,7 +533,8 @@ export default function ThermalStationLogPage() {
       const forPlant = res.data.filter((e) => e.plantCode === selectedPlant);
       setPumpEquipments(forPlant.filter(isPump));
       setTransformerEquipments(forPlant.filter(isTransformer));
-    }).catch(() => { setPumpEquipments([]); setTransformerEquipments([]); });
+      setAllUnitEquipments(forPlant);
+    }).catch(() => { setPumpEquipments([]); setTransformerEquipments([]); setAllUnitEquipments([]); });
 
     // BOP / Auxiliary equipment — backend search endpoint handles the pump/transformer filtering
     bopEquipmentApi.search(selectedPlant, 'pump').then((res) => {
@@ -432,6 +544,11 @@ export default function ThermalStationLogPage() {
     bopEquipmentApi.search(selectedPlant, 'transformer').then((res) => {
       setBopTransformerEquipments(res.data);
     }).catch(() => setBopTransformerEquipments([]));
+
+    // Broader BOP pool (no keyword filter) for the optional equipment-grid sections
+    bopEquipmentApi.getByPlant(selectedPlant).then((res) => {
+      setSectionEquipmentPool(res.data);
+    }).catch(() => setSectionEquipmentPool([]));
 
     appUsersApi.getAll({ activeOnly: true, plantCode: selectedPlant })
       .then((res) => setPlantUserNames(res.data.map((u) => u.fullName)))
@@ -458,27 +575,11 @@ export default function ThermalStationLogPage() {
   }, [selectedUnits, plantUnits]);
 
   useEffect(() => {
-    const combined = [
-      ...pumpEquipments.map((eq) => ({
-        equipmentCode: eq.equipmentCode, equipmentName: eq.equipmentName,
-        location: eq.systemName ?? '',
-        groupLabel: [eq.unitName, eq.systemName, eq.subSystemName].filter(Boolean).join(' / '),
-      })),
-      ...bopPumpEquipments.map((eq) => ({
-        equipmentCode: eq.equipmentCode, equipmentName: eq.equipmentName,
-        location: eq.location,
-        groupLabel: eq.groupLabel,
-      })),
-    ].filter((eq, idx, arr) => arr.findIndex((e) => e.equipmentCode === eq.equipmentCode) === idx);
-
-    setPumpRows(combined.map((eq) => {
-      const saved = pumpStatuses.find((s) => s.equipmentCode === eq.equipmentCode);
-      return {
-        equipmentCode: eq.equipmentCode, equipmentName: eq.equipmentName,
-        location: eq.location, status: saved?.status ?? '', remarks: saved?.remarks ?? '',
-      };
-    }));
-  }, [pumpEquipments, bopPumpEquipments, pumpStatuses]);
+    setPumpRows(pumpStatuses.map((s) => ({
+      equipmentCode: s.equipmentCode, equipmentName: s.equipmentName,
+      location: s.location ?? '', status: s.status ?? '', remarks: s.remarks ?? '',
+    })));
+  }, [pumpStatuses]);
 
   const currentPlant = allPlants.find((p) => p.plantCode === selectedPlant) ?? null;
 
@@ -524,8 +625,8 @@ export default function ThermalStationLogPage() {
     setSelectedUnits(toArray(data.unitsInService));
     setSelectedBuses(toArray(data.linesInService));
     setCurrentOutputMw(data.currentOutputMw?.toString() ?? '');
+    setSelectedSST(data.stationService ?? '');
     setHeaderTextForm({
-      stationService: data.stationService ?? '',
       fireProtectionStatus: data.fireProtectionStatus ?? '',
       emergencyDieselGenStatus: data.emergencyDieselGenStatus ?? '',
       applicationForOutage: data.applicationForOutage ?? '',
@@ -604,12 +705,44 @@ export default function ThermalStationLogPage() {
     }
   };
 
+  // Load data for whichever optional equipment/text sections are enabled on this log
+  const loadNewSections = (logData: ThermalStationLog) => {
+    const flags = logData as unknown as Record<string, boolean>;
+
+    EQUIPMENT_SECTIONS.forEach((section) => {
+      if (!flags[section.toggleField]) return;
+      thermalStationLogSectionsApi.getEquipmentRows(logData.id, section.key)
+        .then((res) => {
+          setEquipmentSectionRows((prev) => ({ ...prev, [section.key]: res.data }));
+          setEquipmentSectionForm((prev) => ({
+            ...prev,
+            [section.key]: res.data.map((r) => ({
+              equipmentCode: r.equipmentCode, equipmentName: r.equipmentName,
+              groupLabel: r.groupLabel, status: r.status, remarks: r.remarks,
+            })),
+          }));
+        })
+        .catch(() => {});
+    });
+
+    TEXT_SECTIONS.forEach((section) => {
+      if (!flags[section.toggleField]) return;
+      thermalStationLogSectionsApi.getTextEntry(logData.id, section.key)
+        .then((res) => {
+          setTextSectionContent((prev) => ({ ...prev, [section.key]: res.data.content }));
+        })
+        .catch(() => {}); // 404 means not yet saved — start empty
+    });
+  };
+
   const loadLog = async () => {
     setLoading(true); setLoadError(null); setLog(null); setShiftHandovers([]);
     setCriticalIssues([]); setOversightEntries([]);
     setShiftInfoDay(null); setShiftInfoNight(null);
     setPumpStatuses([]); setAuxSupplyRows([]); setAuxSupplyForm([]); setAuxSupplySaved(false);
     setUnitOutputs([]); setUnitOutputsSaved(false);
+    setEquipmentSectionRows({}); setEquipmentSectionForm({}); setEquipmentSectionEditMode({});
+    setTextSectionContent({}); setTextSectionEditMode({});
     try {
       const prevDate = new Date(selectedDate + 'T12:00:00');
       prevDate.setDate(prevDate.getDate() - 1);
@@ -622,6 +755,7 @@ export default function ThermalStationLogPage() {
       if (logRes.status === 'fulfilled') {
         setLog(logRes.value.data); populateHeader(logRes.value.data);
         await loadAdditionalSections(logRes.value.data.id);
+        loadNewSections(logRes.value.data);
       }
       else { const s = (logRes.reason as { response?: { status?: number } })?.response?.status; if (s !== 404) setLoadError('Failed to load station log.'); }
       const current = handoverRes.status === 'fulfilled' ? handoverRes.value.data : [];
@@ -649,6 +783,7 @@ export default function ThermalStationLogPage() {
         unitsInService: toStr(selectedUnits),
         linesInService: toStr(selectedBuses),
         currentOutputMw: currentOutputMw || null,
+        stationService: selectedSST,
         ...headerTextForm,
       }));
       setLog(res.data); populateHeader(res.data); setHeaderEditing(false);
@@ -656,22 +791,19 @@ export default function ThermalStationLogPage() {
     finally { setSavingHeader(false); }
   };
 
-  // Toggle an optional section on — saves immediately
+  // Toggle an optional section on/off — saves immediately
   const handleToggleSection = async (
     section: 'showAmbientConditions' | 'showHseEntries' | 'showFuelOilTanks' | 'showGasConditioning' | 'showWaterTreatment'
   ) => {
     if (!log) return;
-    const updated = { ...log, [section]: true };
+    const currentValue = log[section];
+    const nextValue = !currentValue;
     try {
       const res = await thermalStationLogApi.update(log.id, buildUpdatePayload({
-        showAmbientConditions: updated.showAmbientConditions,
-        showHseEntries: updated.showHseEntries,
-        showFuelOilTanks: updated.showFuelOilTanks,
-        showGasConditioning: updated.showGasConditioning,
-        showWaterTreatment: updated.showWaterTreatment,
+        [section]: nextValue,
       }));
       setLog(res.data);
-    } catch { setLoadError('Failed to enable section.'); }
+    } catch { setLoadError('Failed to update section.'); }
   };
 
   const handleAddEntry = async () => {
@@ -914,6 +1046,14 @@ export default function ThermalStationLogPage() {
     showFuelOilTanks: log!.showFuelOilTanks,
     showGasConditioning: log!.showGasConditioning,
     showWaterTreatment: log!.showWaterTreatment,
+    showRectifiersUps: log!.showRectifiersUps,
+    showCompressorsDryers: log!.showCompressorsDryers,
+    showHrsg: log!.showHrsg,
+    showCems: log!.showCems,
+    showAirPulseSystem: log!.showAirPulseSystem,
+    showFuelTreatmentPlant: log!.showFuelTreatmentPlant,
+    showOilyWaterSystem: log!.showOilyWaterSystem,
+    showChemicalLagoonSystem: log!.showChemicalLagoonSystem,
     ambientTempC: ambientTempC || null,
     ambientPressureMbar: ambientPressureMbar || null,
     relativeHumidityPct: relativeHumidityPct || null,
@@ -1043,13 +1183,128 @@ export default function ThermalStationLogPage() {
     if (!log) return;
     setSavingPumps(true); setPumpsSaved(false); setPumpsError(null);
     try {
-      await thermalStationLogAdditionsApi.saveAllEquipmentStatus(
+      const res = await thermalStationLogAdditionsApi.saveAllEquipmentStatus(
         log.id, 'Pump',
         pumpRows.map((r) => ({ equipmentCode: r.equipmentCode, equipmentName: r.equipmentName, location: r.location, status: r.status, remarks: r.remarks }))
       );
+      setPumpStatuses(res.data);
       setPumpsSaved(true);
+
+      const summary = pumpRows
+        .filter((r) => r.status)
+        .map((r) => `${r.equipmentName}: ${r.status}`)
+        .join(' | ');
+      setHeaderTextForm((prev) => ({ ...prev, fireProtectionStatus: summary }));
+
+      // Silently patch the header on the backend
+      if (log) {
+        try {
+          const currentLog = await thermalStationLogApi.getById(log.id);
+          await thermalStationLogApi.update(log.id, {
+            unitsInService: currentLog.data.unitsInService ?? '',
+            linesInService: currentLog.data.linesInService ?? '',
+            currentOutputMw: currentLog.data.currentOutputMw?.toString() ?? '',
+            stationService: currentLog.data.stationService ?? '',
+            fireProtectionStatus: summary,
+            emergencyDieselGenStatus: currentLog.data.emergencyDieselGenStatus ?? '',
+            applicationForOutage: currentLog.data.applicationForOutage ?? '',
+            miscNotes: currentLog.data.miscNotes ?? '',
+            ambientTempC: currentLog.data.ambientTempC?.toString() ?? '',
+            ambientPressureMbar: currentLog.data.ambientPressureMbar?.toString() ?? '',
+            relativeHumidityPct: currentLog.data.relativeHumidityPct?.toString() ?? '',
+            totalGenerationMwh: currentLog.data.totalGenerationMwh?.toString() ?? '',
+            totalStationServiceMwh: currentLog.data.totalStationServiceMwh?.toString() ?? '',
+            netGenerationMwh: currentLog.data.netGenerationMwh?.toString() ?? '',
+            totalGasConsumed: currentLog.data.totalGasConsumed?.toString() ?? '',
+            totalGasConsumedUnit: currentLog.data.totalGasConsumedUnit ?? 'MMScf',
+            totalLiquidFuelConsumedMt: currentLog.data.totalLiquidFuelConsumedMt?.toString() ?? '',
+            reactiveEnergyGeneratedVarh: currentLog.data.reactiveEnergyGeneratedVarh?.toString() ?? '',
+            generationNotes: currentLog.data.generationNotes ?? '',
+            showAmbientConditions: currentLog.data.showAmbientConditions,
+            showHseEntries: currentLog.data.showHseEntries,
+            showFuelOilTanks: currentLog.data.showFuelOilTanks,
+            showGasConditioning: currentLog.data.showGasConditioning,
+            showWaterTreatment: currentLog.data.showWaterTreatment,
+            showRectifiersUps: currentLog.data.showRectifiersUps,
+            showCompressorsDryers: currentLog.data.showCompressorsDryers,
+            showHrsg: currentLog.data.showHrsg,
+            showCems: currentLog.data.showCems,
+            showAirPulseSystem: currentLog.data.showAirPulseSystem,
+            showFuelTreatmentPlant: currentLog.data.showFuelTreatmentPlant,
+            showOilyWaterSystem: currentLog.data.showOilyWaterSystem,
+            showChemicalLagoonSystem: currentLog.data.showChemicalLagoonSystem,
+          });
+        } catch {
+          // Silent fail — fire protection was still saved successfully
+          // The local state already reflects the summary
+        }
+      }
     } catch { setPumpsError('Failed to save pump statuses.'); }
     finally { setSavingPumps(false); }
+  };
+
+  // ── Optional Equipment / Text Sections ──
+  const handleToggleNewSection = async (
+    toggleField: string, sectionKey: string, kind: 'equipment' | 'text'
+  ) => {
+    if (!log) return;
+    const currentValue = (log as unknown as Record<string, boolean>)[toggleField];
+    const nextValue = !currentValue;
+    try {
+      const res = await thermalStationLogApi.update(log.id, buildUpdatePayload({ [toggleField]: nextValue }));
+      setLog(res.data);
+      if (nextValue) {
+        if (kind === 'equipment') {
+          thermalStationLogSectionsApi.getEquipmentRows(log.id, sectionKey)
+            .then((r) => {
+              setEquipmentSectionRows((prev) => ({ ...prev, [sectionKey]: r.data }));
+              setEquipmentSectionForm((prev) => ({
+                ...prev,
+                [sectionKey]: r.data.map((row) => ({
+                  equipmentCode: row.equipmentCode, equipmentName: row.equipmentName,
+                  groupLabel: row.groupLabel, status: row.status, remarks: row.remarks,
+                })),
+              }));
+            })
+            .catch(() => {});
+        } else {
+          thermalStationLogSectionsApi.getTextEntry(log.id, sectionKey)
+            .then((r) => setTextSectionContent((prev) => ({ ...prev, [sectionKey]: r.data.content })))
+            .catch(() => {});
+        }
+      }
+    } catch { setLoadError('Failed to update section.'); }
+  };
+
+  const handleSaveEquipmentSection = async (sectionKey: string) => {
+    if (!log) return;
+    setSavingEquipmentSection((prev) => ({ ...prev, [sectionKey]: true }));
+    setEquipmentSectionError((prev) => ({ ...prev, [sectionKey]: null }));
+    try {
+      const res = await thermalStationLogSectionsApi.saveAllEquipmentRows(
+        log.id, sectionKey, equipmentSectionForm[sectionKey] ?? []
+      );
+      setEquipmentSectionRows((prev) => ({ ...prev, [sectionKey]: res.data }));
+      setEquipmentSectionEditMode((prev) => ({ ...prev, [sectionKey]: false }));
+    } catch {
+      setEquipmentSectionError((prev) => ({ ...prev, [sectionKey]: 'Failed to save section.' }));
+    } finally {
+      setSavingEquipmentSection((prev) => ({ ...prev, [sectionKey]: false }));
+    }
+  };
+
+  const handleSaveTextSection = async (sectionKey: string) => {
+    if (!log) return;
+    setSavingTextSection((prev) => ({ ...prev, [sectionKey]: true }));
+    setTextSectionError((prev) => ({ ...prev, [sectionKey]: null }));
+    try {
+      await thermalStationLogSectionsApi.saveTextEntry(log.id, sectionKey, textSectionContent[sectionKey] ?? '');
+      setTextSectionEditMode((prev) => ({ ...prev, [sectionKey]: false }));
+    } catch {
+      setTextSectionError((prev) => ({ ...prev, [sectionKey]: 'Failed to save section.' }));
+    } finally {
+      setSavingTextSection((prev) => ({ ...prev, [sectionKey]: false }));
+    }
   };
 
   // ── Oversight Conditions ──
@@ -1250,6 +1505,253 @@ export default function ThermalStationLogPage() {
     </Paper>
   );
 
+  const getEquipmentOptionsForSection = (keywords: readonly string[]) => {
+    const kw = keywords.map((k) => k.toLowerCase());
+    const matches = (name?: string) => !!name && kw.some((k) => name.toLowerCase().includes(k));
+
+    const unitOptions = allUnitEquipments
+      .filter((e) => matches(e.systemName) || matches(e.subSystemName) || matches(e.equipmentName))
+      .map((e) => ({
+        equipmentCode: e.equipmentCode,
+        equipmentName: e.equipmentName,
+        groupLabel: [e.unitName, e.systemName, e.subSystemName].filter(Boolean).join(' / '),
+      }));
+
+    const bopOptions = sectionEquipmentPool
+      .filter((e) => matches(e.systemName) || matches(e.subsystemName) || matches(e.equipmentName) || matches(e.bopName))
+      .map((e) => ({
+        equipmentCode: e.equipmentCode,
+        equipmentName: e.equipmentName,
+        groupLabel: [e.bopName, e.systemName, e.subsystemName].filter(Boolean).join(' / '),
+      }));
+
+    return [...unitOptions, ...bopOptions].filter(
+      (e, idx, arr) => arr.findIndex((x) => x.equipmentCode === e.equipmentCode) === idx
+    );
+  };
+
+  const renderEquipmentSection = (section: typeof EQUIPMENT_SECTIONS[number]) => {
+    const rows = equipmentSectionForm[section.key] ?? [];
+    const editMode = equipmentSectionEditMode[section.key] ?? false;
+    const saving = savingEquipmentSection[section.key] ?? false;
+    const error = equipmentSectionError[section.key] ?? null;
+    const options = getEquipmentOptionsForSection(section.keywords);
+
+    return (
+      <CollapsibleCard key={section.key} title={section.label} accent={section.accent} defaultCollapsed={true}>
+        <CardContent>
+          {error && (
+            <Alert severity="error" onClose={() => setEquipmentSectionError((prev) => ({ ...prev, [section.key]: null }))} sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: 'center' }}>
+            <Typography variant="body2" color="text.secondary">
+              Add equipment entries to report status for this section.
+            </Typography>
+            {canEdit && !editMode && (
+              <Button size="small" startIcon={<Edit />}
+                onClick={() => setEquipmentSectionEditMode((prev) => ({ ...prev, [section.key]: true }))}>
+                Edit
+              </Button>
+            )}
+          </Stack>
+
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ backgroundColor: `${section.accent}15` }}>
+                <TableCell sx={{ fontWeight: 700 }}>Equipment</TableCell>
+                <TableCell sx={{ fontWeight: 700, width: 160 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
+                {editMode && <TableCell sx={{ width: 40 }} />}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={editMode ? 4 : 3}>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                      {editMode ? 'Search and add equipment below.' : 'No entries. Click Edit to add equipment.'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.map((row, idx) => (
+                <TableRow key={`${row.equipmentCode}-${idx}`}>
+                  <TableCell>
+                    <Stack spacing={0.2}>
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        <Chip label={row.equipmentCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.equipmentName}</Typography>
+                      </Stack>
+                      {row.groupLabel && (
+                        <Typography variant="caption" color="text.secondary">{row.groupLabel}</Typography>
+                      )}
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    {editMode ? (
+                      <FormControl size="small" fullWidth>
+                        <Select displayEmpty value={row.status}
+                          onChange={(e) => {
+                            const updated = [...rows];
+                            updated[idx] = { ...updated[idx], status: e.target.value };
+                            setEquipmentSectionForm((prev) => ({ ...prev, [section.key]: updated }));
+                          }}>
+                          <MenuItem value=""><em>Select…</em></MenuItem>
+                          <MenuItem value="In Service">In Service</MenuItem>
+                          <MenuItem value="On Standby">On Standby</MenuItem>
+                          <MenuItem value="Unavailable">Unavailable</MenuItem>
+                          <MenuItem value="Under Permit">Under Permit</MenuItem>
+                          <MenuItem value="N/A">N/A</MenuItem>
+                        </Select>
+                      </FormControl>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        {row.status || <span style={{ color: '#999', fontStyle: 'italic' }}>—</span>}
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editMode ? (
+                      <TextField size="small" fullWidth placeholder="Optional remarks" value={row.remarks ?? ''}
+                        onChange={(e) => {
+                          const updated = [...rows];
+                          updated[idx] = { ...updated[idx], remarks: e.target.value };
+                          setEquipmentSectionForm((prev) => ({ ...prev, [section.key]: updated }));
+                        }} />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">{row.remarks || '—'}</Typography>
+                    )}
+                  </TableCell>
+                  {editMode && (
+                    <TableCell>
+                      <IconButton size="small" color="error"
+                        onClick={() => {
+                          setEquipmentSectionForm((prev) => ({
+                            ...prev, [section.key]: rows.filter((_, i) => i !== idx),
+                          }));
+                        }}>
+                        <Delete sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {editMode && (
+            <Box sx={{ mt: 2 }}>
+              <Autocomplete
+                size="small"
+                options={options.filter((o) => !rows.some((r) => r.equipmentCode === o.equipmentCode))}
+                getOptionLabel={(o) => `${o.equipmentName} (${o.equipmentCode})`}
+                groupBy={(o) => o.groupLabel ?? ''}
+                value={null}
+                onChange={(_, val) => {
+                  if (!val) return;
+                  setEquipmentSectionForm((prev) => ({
+                    ...prev,
+                    [section.key]: [...(prev[section.key] ?? []), {
+                      equipmentCode: val.equipmentCode,
+                      equipmentName: val.equipmentName,
+                      groupLabel: val.groupLabel,
+                      status: '',
+                      remarks: '',
+                    }],
+                  }));
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} placeholder={`Search ${section.label} equipment...`} size="small" />
+                )}
+                sx={{ mb: 2 }}
+              />
+              <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
+                <Button size="small" variant="outlined"
+                  onClick={() => {
+                    setEquipmentSectionForm((prev) => ({
+                      ...prev,
+                      [section.key]: (equipmentSectionRows[section.key] ?? []).map((r) => ({
+                        equipmentCode: r.equipmentCode, equipmentName: r.equipmentName,
+                        groupLabel: r.groupLabel, status: r.status, remarks: r.remarks,
+                      })),
+                    }));
+                    setEquipmentSectionEditMode((prev) => ({ ...prev, [section.key]: false }));
+                  }}>
+                  Cancel
+                </Button>
+                <Button size="small" variant="contained" sx={{ backgroundColor: section.accent }}
+                  disabled={saving}
+                  startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                  onClick={() => handleSaveEquipmentSection(section.key)}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+              </Stack>
+            </Box>
+          )}
+        </CardContent>
+      </CollapsibleCard>
+    );
+  };
+
+  const renderTextSection = (section: typeof TEXT_SECTIONS[number]) => {
+    const content = textSectionContent[section.key] ?? '';
+    const editMode = textSectionEditMode[section.key] ?? false;
+    const saving = savingTextSection[section.key] ?? false;
+    const error = textSectionError[section.key] ?? null;
+
+    return (
+      <CollapsibleCard key={section.key} title={section.label} accent={section.accent} defaultCollapsed={true}>
+        <CardContent>
+          {error && (
+            <Alert severity="error" onClose={() => setTextSectionError((prev) => ({ ...prev, [section.key]: null }))} sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+          {editMode ? (
+            <Box>
+              <TextField
+                fullWidth multiline rows={4}
+                placeholder={section.placeholder}
+                value={content}
+                onChange={(e) => setTextSectionContent((prev) => ({ ...prev, [section.key]: e.target.value }))}
+                sx={{ mb: 2 }}
+              />
+              <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
+                <Button size="small" variant="outlined"
+                  onClick={() => setTextSectionEditMode((prev) => ({ ...prev, [section.key]: false }))}>
+                  Cancel
+                </Button>
+                <Button size="small" variant="contained" sx={{ backgroundColor: section.accent }}
+                  disabled={saving}
+                  startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                  onClick={() => handleSaveTextSection(section.key)}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+              </Stack>
+            </Box>
+          ) : (
+            <Box>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', minHeight: 40 }}>
+                {content || (
+                  <span style={{ color: '#999', fontStyle: 'italic' }}>No entry yet. Click Edit to add.</span>
+                )}
+              </Typography>
+              {canEdit && (
+                <Button size="small" startIcon={<Edit />} sx={{ mt: 1 }}
+                  onClick={() => setTextSectionEditMode((prev) => ({ ...prev, [section.key]: true }))}>
+                  Edit
+                </Button>
+              )}
+            </Box>
+          )}
+        </CardContent>
+      </CollapsibleCard>
+    );
+  };
+
   return (
     <Box>
       <PageHeader title="Thermal Station Log" subtitle="Daily operational log for thermal power stations"
@@ -1425,20 +1927,39 @@ export default function ThermalStationLogPage() {
                     </Grid>
                   )}
 
-                  {TEXT_FIELDS.slice(0, 1).map((field) => (
-                    <Grid key={field.key} size={{ xs: 12, sm: 6 }}>
-                      {headerEditing
-                        ? <TextField label={field.label} fullWidth multiline maxRows={4} size="small" value={headerTextForm[field.key]} onChange={(e) => setHeaderTextForm((p) => ({ ...p, [field.key]: e.target.value }))} />
-                        : (
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{field.label}</Typography>
-                            <Typography variant="body2" sx={{ mt: 0.25, whiteSpace: 'pre-wrap' }}>
-                              {(log as unknown as Record<string, string>)[field.key] || <span style={{ color: '#999', fontStyle: 'italic' }}>Not specified</span>}
-                            </Typography>
-                          </Box>
-                        )}
-                    </Grid>
-                  ))}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    {headerEditing ? (
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Station Service</InputLabel>
+                        <Select
+                          label="Station Service"
+                          value={selectedSST}
+                          onChange={(e) => setSelectedSST(e.target.value)}>
+                          <MenuItem value=""><em>Not specified</em></MenuItem>
+                          {allTransformerEquipments.map((eq) => (
+                            <MenuItem key={eq.equipmentCode} value={eq.equipmentCode}>
+                              <Stack>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{eq.equipmentName}</Typography>
+                                <Typography variant="caption" color="text.secondary">{eq.groupLabel}</Typography>
+                              </Stack>
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    ) : (
+                      <Box>
+                        <Typography variant="caption" color="text.secondary"
+                          sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          Station Service
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 0.25 }}>
+                          {selectedSST
+                            ? allTransformerEquipments.find(e => e.equipmentCode === selectedSST)?.equipmentName ?? selectedSST
+                            : <span style={{ color: '#999', fontStyle: 'italic' }}>Not specified</span>}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Grid>
 
                   <Grid size={{ xs: 12, sm: 6 }}>
                     {headerEditing ? renderMultiSelect(
@@ -1461,7 +1982,7 @@ export default function ThermalStationLogPage() {
                     )}
                   </Grid>
 
-                  {TEXT_FIELDS.slice(1).map((field) => (
+                  {TEXT_FIELDS.map((field) => (
                     <Grid key={field.key} size={{ xs: 12, sm: 6 }}>
                       {headerEditing
                         ? <TextField label={field.label} fullWidth multiline maxRows={4} size="small" value={headerTextForm[field.key]} onChange={(e) => setHeaderTextForm((p) => ({ ...p, [field.key]: e.target.value }))} />
@@ -1489,18 +2010,25 @@ export default function ThermalStationLogPage() {
             </Collapse>
           </Card>
 
-          {/* ── Pumps Status ── */}
+          {/* ── Fire Protection Systems ── */}
           <Card sx={{ mb: 2 }}>
             <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', backgroundColor: '#1B5E2014', borderBottom: pumpsCollapsed ? 'none' : '1px solid', borderColor: 'divider' }} onClick={() => setPumpsCollapsed((p) => !p)}>
-              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1B5E20' }}>Pumps Status</Typography>
-              <IconButton size="small">{pumpsCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
+              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1B5E20' }}>Fire Protection Systems</Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                {canEdit && !pumpsEditMode && (
+                  <Tooltip title="Edit">
+                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); setPumpsEditMode(true); }}><Edit fontSize="small" /></IconButton>
+                  </Tooltip>
+                )}
+                <IconButton size="small">{pumpsCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
+              </Stack>
             </Box>
             <Collapse in={!pumpsCollapsed}>
               <CardContent>
                 {pumpsSaved && <Alert severity="success" onClose={() => setPumpsSaved(false)} sx={{ mb: 2 }}>Pump statuses saved successfully.</Alert>}
                 {pumpsError && <Alert severity="error" onClose={() => setPumpsError(null)} sx={{ mb: 2 }}>{pumpsError}</Alert>}
-                {pumpRows.length === 0
-                  ? <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2, fontStyle: 'italic' }}>No pump equipment configured for this plant.</Typography>
+                {pumpRows.length === 0 && !pumpsEditMode
+                  ? <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2, fontStyle: 'italic' }}>No entries. Click Edit to add equipment.</Typography>
                   : (
                     <>
                       <Table size="small" sx={{ mb: 1.5 }}>
@@ -1510,9 +2038,19 @@ export default function ThermalStationLogPage() {
                             <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
                             <TableCell sx={{ fontWeight: 700, width: 160 }}>Status</TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
+                            {pumpsEditMode && <TableCell sx={{ width: 40 }} />}
                           </TableRow>
                         </TableHead>
                         <TableBody>
+                          {pumpRows.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5}>
+                                <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                                  No entries. Click Edit to add equipment.
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          )}
                           {pumpRows.map((row, idx) => (
                             <TableRow key={`${row.equipmentCode}-${idx}`}>
                               <TableCell>
@@ -1523,23 +2061,74 @@ export default function ThermalStationLogPage() {
                               </TableCell>
                               <TableCell><Typography variant="body2" color="text.secondary">{row.location}</Typography></TableCell>
                               <TableCell>
-                                <FormControl size="small" fullWidth disabled={!canEdit}>
-                                  <Select displayEmpty value={row.status} onChange={(e) => { const r = [...pumpRows]; r[idx] = { ...r[idx], status: e.target.value }; setPumpRows(r); }}>
-                                    <MenuItem value=""><em>Select…</em></MenuItem>
-                                    {PUMP_STATUS_OPTIONS.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                                  </Select>
-                                </FormControl>
+                                {pumpsEditMode ? (
+                                  <FormControl size="small" fullWidth>
+                                    <Select displayEmpty value={row.status} onChange={(e) => { const r = [...pumpRows]; r[idx] = { ...r[idx], status: e.target.value }; setPumpRows(r); }}>
+                                      <MenuItem value=""><em>Select…</em></MenuItem>
+                                      {PUMP_STATUS_OPTIONS.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                                    </Select>
+                                  </FormControl>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">
+                                    {row.status || <span style={{ color: '#999', fontStyle: 'italic' }}>—</span>}
+                                  </Typography>
+                                )}
                               </TableCell>
-                              <TableCell><TextField size="small" fullWidth placeholder="Optional remarks" value={row.remarks} disabled={!canEdit} onChange={(e) => { const r = [...pumpRows]; r[idx] = { ...r[idx], remarks: e.target.value }; setPumpRows(r); }} /></TableCell>
+                              <TableCell>
+                                {pumpsEditMode ? (
+                                  <TextField size="small" fullWidth placeholder="Optional remarks" value={row.remarks} onChange={(e) => { const r = [...pumpRows]; r[idx] = { ...r[idx], remarks: e.target.value }; setPumpRows(r); }} />
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">{row.remarks || '—'}</Typography>
+                                )}
+                              </TableCell>
+                              {pumpsEditMode && (
+                                <TableCell>
+                                  <IconButton size="small" color="error" onClick={() => setPumpRows((prev) => prev.filter((_, i) => i !== idx))}>
+                                    <Delete sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </TableCell>
+                              )}
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
-                      {canEdit && (
-                        <Button size="small" variant="contained" sx={{ backgroundColor: '#1B5E20' }} onClick={handleSavePumps} disabled={savingPumps}
-                          startIcon={savingPumps ? <CircularProgress size={14} color="inherit" /> : <Save />}>
-                          {savingPumps ? 'Saving...' : 'Save All'}
-                        </Button>
+
+                      {pumpsEditMode && (
+                        <>
+                          <Autocomplete
+                            size="small"
+                            options={allPumpEquipments.filter((eq) => !pumpRows.some((r) => r.equipmentCode === eq.equipmentCode))}
+                            getOptionLabel={(eq) => `${eq.equipmentName} (${eq.equipmentCode})`}
+                            value={null}
+                            onChange={(_, val) => {
+                              if (val) {
+                                setPumpRows((prev) => [...prev, {
+                                  equipmentCode: val.equipmentCode, equipmentName: val.equipmentName,
+                                  location: val.location ?? '', status: '', remarks: '',
+                                }]);
+                              }
+                            }}
+                            renderInput={(params) => <TextField {...params} placeholder="Search equipment to add" size="small" />}
+                            sx={{ mb: 2 }}
+                          />
+                          <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
+                            <Button size="small" variant="outlined" onClick={() => {
+                              setPumpsEditMode(false);
+                              setPumpRows(pumpStatuses.map((s) => ({
+                                equipmentCode: s.equipmentCode, equipmentName: s.equipmentName,
+                                location: s.location ?? '', status: s.status ?? '', remarks: s.remarks ?? '',
+                              })));
+                            }}>
+                              Cancel
+                            </Button>
+                            <Button size="small" variant="contained" sx={{ backgroundColor: '#1B5E20' }}
+                              onClick={async () => { await handleSavePumps(); setPumpsEditMode(false); }}
+                              disabled={savingPumps}
+                              startIcon={savingPumps ? <CircularProgress size={14} color="inherit" /> : <Save />}>
+                              {savingPumps ? 'Saving...' : 'Save'}
+                            </Button>
+                          </Stack>
+                        </>
                       )}
                     </>
                   )}
@@ -1564,7 +2153,13 @@ export default function ThermalStationLogPage() {
                   <Typography variant="body2" color="text.secondary">
                     Configure the auxiliary supply sources and their supply targets for this shift.
                   </Typography>
-                  {canEdit && (
+                  {!auxEditMode && auxSupplySaved && (
+                    <Chip label="Saved" color="success" size="small" icon={<CheckCircle />} />
+                  )}
+                  {canEdit && !auxEditMode && (
+                    <Button size="small" startIcon={<Edit />} onClick={() => setAuxEditMode(true)}>Edit</Button>
+                  )}
+                  {canEdit && auxEditMode && (
                     <Button size="small" startIcon={<Add />}
                       onClick={() => {
                         setAuxSupplyForm((prev) => [...prev, {
@@ -1585,7 +2180,7 @@ export default function ThermalStationLogPage() {
                       <TableCell sx={{ fontWeight: 700, width: '22%' }}>Supplies To</TableCell>
                       <TableCell sx={{ fontWeight: 700, width: '18%' }}>Status</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>Notes</TableCell>
-                      {canEdit && <TableCell sx={{ width: 40 }} />}
+                      {auxEditMode && <TableCell sx={{ width: 40 }} />}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -1620,7 +2215,7 @@ export default function ThermalStationLogPage() {
                             ]}
                             getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.label)}
                             value={row.sourceName || row.sourceCode || ''}
-                            disabled={!canEdit}
+                            disabled={!auxEditMode}
                             onChange={(_, val) => {
                               const updated = [...auxSupplyForm];
                               if (val && typeof val === 'object') {
@@ -1652,7 +2247,7 @@ export default function ThermalStationLogPage() {
                             size="small" fullWidth
                             placeholder="e.g. MSSSB, CFTH BUS"
                             value={row.suppliesTo ?? ''}
-                            disabled={!canEdit}
+                            disabled={!auxEditMode}
                             onChange={(e) => {
                               const updated = [...auxSupplyForm];
                               updated[idx] = { ...updated[idx], suppliesTo: e.target.value };
@@ -1666,7 +2261,7 @@ export default function ThermalStationLogPage() {
                           <Select
                             size="small" fullWidth displayEmpty
                             value={row.status}
-                            disabled={!canEdit}
+                            disabled={!auxEditMode}
                             onChange={(e) => {
                               const updated = [...auxSupplyForm];
                               updated[idx] = { ...updated[idx], status: e.target.value };
@@ -1690,7 +2285,7 @@ export default function ThermalStationLogPage() {
                             size="small" fullWidth multiline maxRows={2}
                             placeholder="Optional notes"
                             value={row.notes ?? ''}
-                            disabled={!canEdit}
+                            disabled={!auxEditMode}
                             onChange={(e) => {
                               const updated = [...auxSupplyForm];
                               updated[idx] = { ...updated[idx], notes: e.target.value };
@@ -1700,7 +2295,7 @@ export default function ThermalStationLogPage() {
                           />
                         </TableCell>
 
-                        {canEdit && (
+                        {auxEditMode && (
                           <TableCell>
                             <IconButton size="small" color="error"
                               onClick={() => {
@@ -1716,31 +2311,31 @@ export default function ThermalStationLogPage() {
                   </TableBody>
                 </Table>
 
-                {canEdit && (
+                {auxEditMode && (
                   <Stack direction="row" spacing={1.5} sx={{ mt: 2, justifyContent: 'flex-end' }}>
-                    {auxSupplySaved && (
-                      <Chip label="Saved" color="success" size="small" icon={<CheckCircle />} />
-                    )}
-                    {!auxSupplySaved && (
-                      <Button size="small" variant="contained"
-                        sx={{ backgroundColor: '#E65100' }}
-                        disabled={savingAuxSupply}
-                        startIcon={savingAuxSupply
-                          ? <CircularProgress size={14} color="inherit" />
-                          : <Save />}
-                        onClick={async () => {
-                          if (!log) return;
-                          setSavingAuxSupply(true); setAuxSupplyError(null);
-                          try {
-                            const res = await thermalStationLogAdditionsApi.saveAllAuxSupply(log.id, auxSupplyForm);
-                            setAuxSupplyRows(res.data);
-                            setAuxSupplySaved(true);
-                          } catch { setAuxSupplyError('Failed to save auxiliary supply.'); }
-                          finally { setSavingAuxSupply(false); }
-                        }}>
-                        {savingAuxSupply ? 'Saving...' : 'Save Auxiliary Supply'}
-                      </Button>
-                    )}
+                    <Button size="small" variant="outlined" onClick={() => setAuxEditMode(false)}>
+                      Cancel
+                    </Button>
+                    <Button size="small" variant="contained" sx={{ backgroundColor: '#E65100' }}
+                      disabled={savingAuxSupply}
+                      startIcon={savingAuxSupply ? <CircularProgress size={14} color="inherit" /> : <Save />}
+                      onClick={async () => {
+                        if (!log) return;
+                        setSavingAuxSupply(true);
+                        setAuxSupplyError(null);
+                        try {
+                          const res = await thermalStationLogAdditionsApi.saveAllAuxSupply(log.id, auxSupplyForm);
+                          setAuxSupplyRows(res.data);
+                          setAuxSupplySaved(true);
+                          setAuxEditMode(false);
+                        } catch {
+                          setAuxSupplyError('Failed to save auxiliary supply.');
+                        } finally {
+                          setSavingAuxSupply(false);
+                        }
+                      }}>
+                      {savingAuxSupply ? 'Saving...' : 'Save Auxiliary Supply'}
+                    </Button>
                   </Stack>
                 )}
               </CardContent>
@@ -2103,133 +2698,6 @@ export default function ThermalStationLogPage() {
             </CardContent>
           </Card>
 
-          {/* ── End of Day Summary ── */}
-          <Card sx={{ mb: 2 }}>
-            <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', backgroundColor: '#1B5E2014', borderBottom: summaryCollapsed ? 'none' : '1px solid', borderColor: 'divider' }} onClick={() => setSummaryCollapsed((p) => !p)}>
-              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1B5E20' }}>End of Day Summary</Typography>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                {canEdit && !summaryEditing && (<Tooltip title="Edit summary"><IconButton size="small" onClick={(e) => { e.stopPropagation(); setSummaryEditing(true); }}><Edit fontSize="small" /></IconButton></Tooltip>)}
-                <IconButton size="small">{summaryCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
-              </Stack>
-            </Box>
-            <Collapse in={!summaryCollapsed}>
-              <CardContent>
-                {summarySaveSuccess && <Alert severity="success" onClose={() => setSummarySaveSuccess(false)} sx={{ mb: 2 }}>Summary saved successfully.</Alert>}
-                {summarySaveError && <Alert severity="error" onClose={() => setSummarySaveError(null)} sx={{ mb: 2 }}>{summarySaveError}</Alert>}
-
-                {/* Fixed top-level fields */}
-                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20', mb: 1.5, display: 'block' }}>Generation Totals</Typography>
-                <Grid container spacing={2} sx={{ mb: 2 }}>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField label="Total Generation" type="number" fullWidth size="small" value={totalGenerationMwh} onChange={(e) => setTotalGenerationMwh(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField label="Station Service" type="number" fullWidth size="small" value={totalStationServiceMwh} onChange={(e) => setTotalStationServiceMwh(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField label="Net Generation" type="number" fullWidth size="small" value={netGenerationMwh} onChange={(e) => setNetGenerationMwh(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 5 }}>
-                    <TextField label="Total Gas Consumed" type="number" fullWidth size="small" value={totalGasConsumed} onChange={(e) => setTotalGasConsumed(e.target.value)} disabled={!canEdit || !summaryEditing} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 3 }}>
-                    <FormControl fullWidth size="small" disabled={!canEdit || !summaryEditing}>
-                      <InputLabel>Gas Unit</InputLabel>
-                      <Select label="Gas Unit" value={totalGasConsumedUnit} onChange={(e) => setTotalGasConsumedUnit(e.target.value)}>
-                        <MenuItem value="MMScf">MMScf</MenuItem>
-                        <MenuItem value="MMScfd">MMScfd</MenuItem>
-                        <MenuItem value="Sm³">Sm³</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField label="Liquid Fuel Consumed" type="number" fullWidth size="small" value={totalLiquidFuelConsumedMt} onChange={(e) => setTotalLiquidFuelConsumedMt(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MT</Typography> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField label="Reactive Energy Generated" type="number" fullWidth size="small" value={reactiveEnergyGeneratedVarh} onChange={(e) => setReactiveEnergyGeneratedVarh(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">VARh</Typography> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 12 }}>
-                    <TextField label="Notes" fullWidth size="small" multiline maxRows={3} value={generationNotes} onChange={(e) => setGenerationNotes(e.target.value)} disabled={!canEdit || !summaryEditing} placeholder="Any additional generation notes..." />
-                  </Grid>
-                </Grid>
-                {summaryEditing && canEdit && (
-                  <Stack direction="row" spacing={1.5} sx={{ mb: 3 }}>
-                    <Button variant="outlined" size="small" onClick={() => { setSummaryEditing(false); populateHeader(log); }} disabled={savingSummary}>Cancel</Button>
-                    <Button variant="contained" size="small" onClick={handleSaveSummary} disabled={savingSummary} startIcon={savingSummary ? <CircularProgress size={14} color="inherit" /> : <Save />} sx={{ backgroundColor: '#1B5E20' }}>
-                      {savingSummary ? 'Saving...' : 'Save Totals'}
-                    </Button>
-                  </Stack>
-                )}
-
-                <Divider sx={{ mb: 2 }} />
-
-                {/* Per-unit breakdown rows */}
-                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20', mb: 1.5, display: 'block' }}>Per-Unit Breakdown</Typography>
-                {generationRowsSaveSuccess && <Alert severity="success" onClose={() => setGenerationRowsSaveSuccess(false)} sx={{ mb: 1.5 }}>Breakdown saved.</Alert>}
-                {generationRowsSaveError && <Alert severity="error" onClose={() => setGenerationRowsSaveError(null)} sx={{ mb: 1.5 }}>{generationRowsSaveError}</Alert>}
-                <Table size="small" sx={{ mb: 1.5 }}>
-                  <TableHead>
-                    <TableRow sx={{ backgroundColor: '#E8F5E9' }}>
-                      <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                      <TableCell sx={{ fontWeight: 700, width: 160 }}>Value</TableCell>
-                      <TableCell sx={{ fontWeight: 700, width: 120 }}>Unit</TableCell>
-                      {canEdit && <TableCell sx={{ width: 40 }} />}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {generationRows.map((row, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>
-                          <FormControl size="small" fullWidth disabled={!canEdit}>
-                            <Select
-                              value={row.description}
-                              displayEmpty
-                              onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], description: e.target.value }; setGenerationRows(r); }}
-                              renderValue={(val) => val || <em style={{ color: '#999' }}>Select unit or enter description…</em>}
-                            >
-                              {plantUnits.length > 0 && (
-                                <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
-                                  Plant Units
-                                </Typography>
-                              )}
-                              {plantUnits.map((u) => (
-                                <MenuItem key={u.unitCode} value={u.unitName}>
-                                  <Chip label={u.unitCode} size="small" variant="outlined" sx={{ mr: 1, fontFamily: 'monospace', fontSize: 11 }} />
-                                  {u.unitName}
-                                </MenuItem>
-                              ))}
-
-                            </Select>
-                          </FormControl>
-                        </TableCell>
-                        <TableCell><TextField size="small" type="number" fullWidth value={row.value} disabled={!canEdit} onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], value: e.target.value }; setGenerationRows(r); }} /></TableCell>
-                        <TableCell>
-                          <FormControl size="small" fullWidth disabled={!canEdit}>
-                            <Select value={row.unit} onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], unit: e.target.value }; setGenerationRows(r); }}>
-                              <MenuItem value="kWh">kWh</MenuItem>
-                              <MenuItem value="MWh">MWh</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </TableCell>
-                        {canEdit && <TableCell><IconButton size="small" color="error" onClick={() => setGenerationRows((p) => p.filter((_, i) => i !== idx))}><Delete sx={{ fontSize: 16 }} /></IconButton></TableCell>}
-                      </TableRow>
-                    ))}
-                    {generationRows.length === 0 && <TableRow><TableCell colSpan={4} align="center" sx={{ py: 2, color: '#999', fontStyle: 'italic' }}>No per-unit breakdown rows yet</TableCell></TableRow>}
-                  </TableBody>
-                </Table>
-                {canEdit && (
-                  <Stack direction="row" spacing={1.5}>
-                    <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#1B5E20', borderColor: '#1B5E20' }} onClick={() => setGenerationRows((p) => [...p, { ...emptyGenerationRow, sortOrder: p.length }])}>Add Row</Button>
-                    <Box sx={{ flex: 1 }} />
-                    <Button size="small" variant="contained" sx={{ backgroundColor: '#1B5E20' }} onClick={handleSaveGenerationRows} disabled={savingGenerationRows} startIcon={savingGenerationRows ? <CircularProgress size={14} color="inherit" /> : <Save />}>
-                      {savingGenerationRows ? 'Saving...' : 'Save Breakdown'}
-                    </Button>
-                  </Stack>
-                )}
-              </CardContent>
-            </Collapse>
-          </Card>
-
           {/* ── Ambient Conditions ── */}
           {log.showAmbientConditions && (
             <Card sx={{ mb: 2 }}>
@@ -2517,21 +2985,15 @@ export default function ThermalStationLogPage() {
             </Card>
           )}
 
-          {/* ── Shift Information ── */}
-          <Card sx={{ mb: 2 }}>
-            <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', backgroundColor: '#1565C014', borderBottom: shiftCollapsed ? 'none' : '1px solid', borderColor: 'divider' }} onClick={() => setShiftCollapsed((p) => !p)}>
-              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1565C0' }}>Shift Information</Typography>
-              <IconButton size="small">{shiftCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
-            </Box>
-            <Collapse in={!shiftCollapsed}>
-              <CardContent>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>{renderShiftCard('DAY', dayShiftForm, setDayShiftForm, savingDayShift, dayShiftError, () => setDayShiftError(null))}</Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>{renderShiftCard('NIGHT', nightShiftForm, setNightShiftForm, savingNightShift, nightShiftError, () => setNightShiftError(null))}</Grid>
-                </Grid>
-              </CardContent>
-            </Collapse>
-          </Card>
+          {/* Equipment grid sections */}
+          {EQUIPMENT_SECTIONS.map((section) =>
+            (log as unknown as Record<string, boolean>)[section.toggleField] ? renderEquipmentSection(section) : null
+          )}
+
+          {/* Free text sections */}
+          {TEXT_SECTIONS.map((section) =>
+            (log as unknown as Record<string, boolean>)[section.toggleField] ? renderTextSection(section) : null
+          )}
 
           {/* ── Critical Issues ── */}
           <Card sx={{ mb: 2 }}>
@@ -2702,6 +3164,149 @@ export default function ThermalStationLogPage() {
             </Card>
           )}
 
+          {/* ── End of Day Summary ── */}
+          <Card sx={{ mb: 2 }}>
+            <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', backgroundColor: '#1B5E2014', borderBottom: summaryCollapsed ? 'none' : '1px solid', borderColor: 'divider' }} onClick={() => setSummaryCollapsed((p) => !p)}>
+              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1B5E20' }}>End of Day Summary</Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                {canEdit && !summaryEditing && (<Tooltip title="Edit summary"><IconButton size="small" onClick={(e) => { e.stopPropagation(); setSummaryEditing(true); }}><Edit fontSize="small" /></IconButton></Tooltip>)}
+                <IconButton size="small">{summaryCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
+              </Stack>
+            </Box>
+            <Collapse in={!summaryCollapsed}>
+              <CardContent>
+                {summarySaveSuccess && <Alert severity="success" onClose={() => setSummarySaveSuccess(false)} sx={{ mb: 2 }}>Summary saved successfully.</Alert>}
+                {summarySaveError && <Alert severity="error" onClose={() => setSummarySaveError(null)} sx={{ mb: 2 }}>{summarySaveError}</Alert>}
+
+                {/* Fixed top-level fields */}
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20', mb: 1.5, display: 'block' }}>Generation Totals</Typography>
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Total Generation" type="number" fullWidth size="small" value={totalGenerationMwh} onChange={(e) => setTotalGenerationMwh(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Station Service" type="number" fullWidth size="small" value={totalStationServiceMwh} onChange={(e) => setTotalStationServiceMwh(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Net Generation" type="number" fullWidth size="small" value={netGenerationMwh} onChange={(e) => setNetGenerationMwh(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 5 }}>
+                    <TextField label="Total Gas Consumed" type="number" fullWidth size="small" value={totalGasConsumed} onChange={(e) => setTotalGasConsumed(e.target.value)} disabled={!canEdit || !summaryEditing} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 3 }}>
+                    <FormControl fullWidth size="small" disabled={!canEdit || !summaryEditing}>
+                      <InputLabel>Gas Unit</InputLabel>
+                      <Select label="Gas Unit" value={totalGasConsumedUnit} onChange={(e) => setTotalGasConsumedUnit(e.target.value)}>
+                        <MenuItem value="MMScf">MMScf</MenuItem>
+                        <MenuItem value="MMScfd">MMScfd</MenuItem>
+                        <MenuItem value="Sm³">Sm³</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Liquid Fuel Consumed" type="number" fullWidth size="small" value={totalLiquidFuelConsumedMt} onChange={(e) => setTotalLiquidFuelConsumedMt(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MT</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField label="Reactive Energy Generated" type="number" fullWidth size="small" value={reactiveEnergyGeneratedVarh} onChange={(e) => setReactiveEnergyGeneratedVarh(e.target.value)} disabled={!canEdit || !summaryEditing} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">VARh</Typography> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField label="Notes" fullWidth size="small" multiline maxRows={3} value={generationNotes} onChange={(e) => setGenerationNotes(e.target.value)} disabled={!canEdit || !summaryEditing} placeholder="Any additional generation notes..." />
+                  </Grid>
+                </Grid>
+                {summaryEditing && canEdit && (
+                  <Stack direction="row" spacing={1.5} sx={{ mb: 3 }}>
+                    <Button variant="outlined" size="small" onClick={() => { setSummaryEditing(false); populateHeader(log); }} disabled={savingSummary}>Cancel</Button>
+                    <Button variant="contained" size="small" onClick={handleSaveSummary} disabled={savingSummary} startIcon={savingSummary ? <CircularProgress size={14} color="inherit" /> : <Save />} sx={{ backgroundColor: '#1B5E20' }}>
+                      {savingSummary ? 'Saving...' : 'Save Totals'}
+                    </Button>
+                  </Stack>
+                )}
+
+                <Divider sx={{ mb: 2 }} />
+
+                {/* Per-unit breakdown rows */}
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#1B5E20', mb: 1.5, display: 'block' }}>Per-Unit Breakdown</Typography>
+                {generationRowsSaveSuccess && <Alert severity="success" onClose={() => setGenerationRowsSaveSuccess(false)} sx={{ mb: 1.5 }}>Breakdown saved.</Alert>}
+                {generationRowsSaveError && <Alert severity="error" onClose={() => setGenerationRowsSaveError(null)} sx={{ mb: 1.5 }}>{generationRowsSaveError}</Alert>}
+                <Table size="small" sx={{ mb: 1.5 }}>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: '#E8F5E9' }}>
+                      <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
+                      <TableCell sx={{ fontWeight: 700, width: 160 }}>Value</TableCell>
+                      <TableCell sx={{ fontWeight: 700, width: 120 }}>Unit</TableCell>
+                      {canEdit && <TableCell sx={{ width: 40 }} />}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {generationRows.map((row, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <FormControl size="small" fullWidth disabled={!canEdit}>
+                            <Select
+                              value={row.description}
+                              displayEmpty
+                              onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], description: e.target.value }; setGenerationRows(r); }}
+                              renderValue={(val) => val || <em style={{ color: '#999' }}>Select unit or enter description…</em>}
+                            >
+                              {plantUnits.length > 0 && (
+                                <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 0.5, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>
+                                  Plant Units
+                                </Typography>
+                              )}
+                              {plantUnits.map((u) => (
+                                <MenuItem key={u.unitCode} value={u.unitName}>
+                                  <Chip label={u.unitCode} size="small" variant="outlined" sx={{ mr: 1, fontFamily: 'monospace', fontSize: 11 }} />
+                                  {u.unitName}
+                                </MenuItem>
+                              ))}
+
+                            </Select>
+                          </FormControl>
+                        </TableCell>
+                        <TableCell><TextField size="small" type="number" fullWidth value={row.value} disabled={!canEdit} onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], value: e.target.value }; setGenerationRows(r); }} /></TableCell>
+                        <TableCell>
+                          <FormControl size="small" fullWidth disabled={!canEdit}>
+                            <Select value={row.unit} onChange={(e) => { const r = [...generationRows]; r[idx] = { ...r[idx], unit: e.target.value }; setGenerationRows(r); }}>
+                              <MenuItem value="kWh">kWh</MenuItem>
+                              <MenuItem value="MWh">MWh</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </TableCell>
+                        {canEdit && <TableCell><IconButton size="small" color="error" onClick={() => setGenerationRows((p) => p.filter((_, i) => i !== idx))}><Delete sx={{ fontSize: 16 }} /></IconButton></TableCell>}
+                      </TableRow>
+                    ))}
+                    {generationRows.length === 0 && <TableRow><TableCell colSpan={4} align="center" sx={{ py: 2, color: '#999', fontStyle: 'italic' }}>No per-unit breakdown rows yet</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+                {canEdit && (
+                  <Stack direction="row" spacing={1.5}>
+                    <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#1B5E20', borderColor: '#1B5E20' }} onClick={() => setGenerationRows((p) => [...p, { ...emptyGenerationRow, sortOrder: p.length }])}>Add Row</Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Button size="small" variant="contained" sx={{ backgroundColor: '#1B5E20' }} onClick={handleSaveGenerationRows} disabled={savingGenerationRows} startIcon={savingGenerationRows ? <CircularProgress size={14} color="inherit" /> : <Save />}>
+                      {savingGenerationRows ? 'Saving...' : 'Save Breakdown'}
+                    </Button>
+                  </Stack>
+                )}
+              </CardContent>
+            </Collapse>
+          </Card>
+
+          {/* ── Shift Information ── */}
+          <Card sx={{ mb: 2 }}>
+            <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', backgroundColor: '#1565C014', borderBottom: shiftCollapsed ? 'none' : '1px solid', borderColor: 'divider' }} onClick={() => setShiftCollapsed((p) => !p)}>
+              <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#1565C0' }}>Shift Information</Typography>
+              <IconButton size="small">{shiftCollapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}</IconButton>
+            </Box>
+            <Collapse in={!shiftCollapsed}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, sm: 6 }}>{renderShiftCard('DAY', dayShiftForm, setDayShiftForm, savingDayShift, dayShiftError, () => setDayShiftError(null))}</Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>{renderShiftCard('NIGHT', nightShiftForm, setNightShiftForm, savingNightShift, nightShiftError, () => setNightShiftError(null))}</Grid>
+                </Grid>
+              </CardContent>
+            </Collapse>
+          </Card>
+
           {/* ── Optional Sections Enabler ── */}
           {canEdit && (
             <Card sx={{ mb: 2 }}>
@@ -2710,24 +3315,66 @@ export default function ThermalStationLogPage() {
                   <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', mr: 1 }}>
                     Enable sections:
                   </Typography>
-                  {!log.showAmbientConditions && (
-                    <Button size="small" variant="outlined" onClick={() => handleToggleSection('showAmbientConditions')}>+ Ambient Conditions</Button>
-                  )}
-                  {!log.showHseEntries && (
-                    <Button size="small" variant="outlined" onClick={() => handleToggleSection('showHseEntries')}>+ HSE Entries</Button>
-                  )}
-                  {!log.showFuelOilTanks && (
-                    <Button size="small" variant="outlined" onClick={() => handleToggleSection('showFuelOilTanks')}>+ Fuel Oil Tanks</Button>
-                  )}
-                  {!log.showGasConditioning && (
-                    <Button size="small" variant="outlined" onClick={() => handleToggleSection('showGasConditioning')}>+ Gas Conditioning</Button>
-                  )}
-                  {!log.showWaterTreatment && (
-                    <Button size="small" variant="outlined" onClick={() => handleToggleSection('showWaterTreatment')}>+ Water Treatment</Button>
-                  )}
-                  {log.showAmbientConditions && log.showHseEntries && log.showFuelOilTanks && log.showGasConditioning && log.showWaterTreatment && (
-                    <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>All sections enabled</Typography>
-                  )}
+                  <Button size="small"
+                    variant={log?.showAmbientConditions ? 'contained' : 'outlined'}
+                    color={log?.showAmbientConditions ? 'success' : 'inherit'}
+                    onClick={() => handleToggleSection('showAmbientConditions')}
+                    startIcon={log?.showAmbientConditions ? <CheckCircle sx={{ fontSize: 14 }} /> : <Add sx={{ fontSize: 14 }} />}>
+                    Ambient Conditions
+                  </Button>
+                  <Button size="small"
+                    variant={log?.showHseEntries ? 'contained' : 'outlined'}
+                    color={log?.showHseEntries ? 'success' : 'inherit'}
+                    onClick={() => handleToggleSection('showHseEntries')}
+                    startIcon={log?.showHseEntries ? <CheckCircle sx={{ fontSize: 14 }} /> : <Add sx={{ fontSize: 14 }} />}>
+                    HSE Entries
+                  </Button>
+                  <Button size="small"
+                    variant={log?.showFuelOilTanks ? 'contained' : 'outlined'}
+                    color={log?.showFuelOilTanks ? 'success' : 'inherit'}
+                    onClick={() => handleToggleSection('showFuelOilTanks')}
+                    startIcon={log?.showFuelOilTanks ? <CheckCircle sx={{ fontSize: 14 }} /> : <Add sx={{ fontSize: 14 }} />}>
+                    Fuel Oil Tanks
+                  </Button>
+                  <Button size="small"
+                    variant={log?.showGasConditioning ? 'contained' : 'outlined'}
+                    color={log?.showGasConditioning ? 'success' : 'inherit'}
+                    onClick={() => handleToggleSection('showGasConditioning')}
+                    startIcon={log?.showGasConditioning ? <CheckCircle sx={{ fontSize: 14 }} /> : <Add sx={{ fontSize: 14 }} />}>
+                    Gas Conditioning
+                  </Button>
+                  <Button size="small"
+                    variant={log?.showWaterTreatment ? 'contained' : 'outlined'}
+                    color={log?.showWaterTreatment ? 'success' : 'inherit'}
+                    onClick={() => handleToggleSection('showWaterTreatment')}
+                    startIcon={log?.showWaterTreatment ? <CheckCircle sx={{ fontSize: 14 }} /> : <Add sx={{ fontSize: 14 }} />}>
+                    Water Treatment
+                  </Button>
+
+                  {EQUIPMENT_SECTIONS.map((section) => {
+                    const enabled = (log as unknown as Record<string, boolean>)[section.toggleField];
+                    return (
+                      <Button key={section.key} size="small"
+                        variant={enabled ? 'contained' : 'outlined'}
+                        color={enabled ? 'success' : 'inherit'}
+                        onClick={() => handleToggleNewSection(section.toggleField, section.key, 'equipment')}
+                        startIcon={enabled ? <CheckCircle sx={{ fontSize: 14 }} /> : <Add sx={{ fontSize: 14 }} />}>
+                        {section.label}
+                      </Button>
+                    );
+                  })}
+                  {TEXT_SECTIONS.map((section) => {
+                    const enabled = (log as unknown as Record<string, boolean>)[section.toggleField];
+                    return (
+                      <Button key={section.key} size="small"
+                        variant={enabled ? 'contained' : 'outlined'}
+                        color={enabled ? 'success' : 'inherit'}
+                        onClick={() => handleToggleNewSection(section.toggleField, section.key, 'text')}
+                        startIcon={enabled ? <CheckCircle sx={{ fontSize: 14 }} /> : <Add sx={{ fontSize: 14 }} />}>
+                        {section.label}
+                      </Button>
+                    );
+                  })}
                 </Stack>
               </CardContent>
             </Card>

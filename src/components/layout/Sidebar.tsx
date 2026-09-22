@@ -8,7 +8,7 @@ import {
   Science, Assignment, BarChart, Settings, LocationOn,
   AdminPanelSettings, Security, People, OilBarrel,
   Biotech, ContentPaste, Water, FilterAlt, Assessment,
-  Cable, Park,
+  Cable, Park, LocalFireDepartment,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -115,6 +115,7 @@ const navItems: NavItem[] = [
     permission: 'reports.view',
     children: [
       { label: 'Hydro Reports', icon: <WaterDrop />, path: '/reports/hydro', permission: 'reports.view' },
+      { label: 'Thermal Reports', icon: <LocalFireDepartment />, path: '/reports/thermal', permission: 'reports.thermal.view' },
     ],
   },
   {
@@ -142,6 +143,7 @@ const HYDRO_ONLY_PATHS = [
 
 // Paths that are thermal-only — hidden from hydro-only users
 const THERMAL_ONLY_PATHS = [
+  '/reports/thermal',
   '/daily/energy-generation-thermal',
   '/daily/fuel-readings',
   '/daily/water-system',

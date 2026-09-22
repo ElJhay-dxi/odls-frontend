@@ -124,6 +124,14 @@ export interface ThermalStationLog {
   showFuelOilTanks: boolean;
   showGasConditioning: boolean;
   showWaterTreatment: boolean;
+  showRectifiersUps: boolean;
+  showCompressorsDryers: boolean;
+  showHrsg: boolean;
+  showCems: boolean;
+  showAirPulseSystem: boolean;
+  showFuelTreatmentPlant: boolean;
+  showOilyWaterSystem: boolean;
+  showChemicalLagoonSystem: boolean;
   // Ambient conditions
   ambientTempC?: number | null;
   ambientPressureMbar?: number | null;
@@ -183,6 +191,14 @@ export interface UpdateThermalStationLogForm {
   showFuelOilTanks: boolean;
   showGasConditioning: boolean;
   showWaterTreatment: boolean;
+  showRectifiersUps: boolean;
+  showCompressorsDryers: boolean;
+  showHrsg: boolean;
+  showCems: boolean;
+  showAirPulseSystem: boolean;
+  showFuelTreatmentPlant: boolean;
+  showOilyWaterSystem: boolean;
+  showChemicalLagoonSystem: boolean;
   ambientTempC: string | null;
   ambientPressureMbar: string | null;
   relativeHumidityPct: string | null;
@@ -377,4 +393,36 @@ export interface SaveThermalAuxSupplyRowItem {
   suppliesTo?: string;
   status: string;
   notes?: string;
+}
+
+// ─── Optional Equipment / Text Sections (Rectifiers/UPS, Compressors, HRSG, CEMS, etc.) ──
+export interface ThermalSectionEquipmentRow {
+  id: string;
+  stationLogId: string;
+  sectionKey: string;
+  equipmentCode: string;
+  equipmentName: string;
+  groupLabel?: string;
+  status: string;
+  remarks?: string;
+  sortOrder: number;
+  updatedByName?: string;
+  updatedOn?: string;
+}
+
+export interface SaveThermalSectionEquipmentRowItem {
+  equipmentCode: string;
+  equipmentName: string;
+  groupLabel?: string;
+  status: string;
+  remarks?: string;
+}
+
+export interface ThermalSectionTextEntry {
+  id: string;
+  stationLogId: string;
+  sectionKey: string;
+  content: string;
+  updatedByName?: string;
+  updatedOn?: string;
 }
