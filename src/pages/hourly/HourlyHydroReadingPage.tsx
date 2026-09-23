@@ -3,7 +3,7 @@ import {
   CircularProgress, Alert, Typography, MenuItem, FormControl,
   InputLabel, Select, Grid, Divider, Chip, Stack, Paper,
   Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, IconButton, Tooltip, Collapse,
+  TableRow, IconButton, Tooltip, Collapse, Checkbox, FormControlLabel,
 } from '@mui/material';
 import {
   Save, Search, Edit, Delete, WaterDrop,
@@ -25,12 +25,12 @@ import type {
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i + 1);
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 const emptyForm: CreateHourlyHydroReadingForm = {
   plantCode: '', unitCode: '',
   logDate: new Date().toISOString().split('T')[0],
-  logHour: new Date().getHours() + 1,
+  logHour: new Date().getHours(),
   frequency: '', activePowerMW: '', reactivePowerMVar: '',
   voltageKV: '', currentAmps: '', powerFactor: '',
   statorTemperature: '', generatorFieldVoltage: '',
@@ -52,6 +52,13 @@ const emptyUpdateForm: UpdateHourlyHydroReadingForm = {
 
 type FormField = keyof CreateHourlyHydroReadingForm;
 type UpdateField = keyof UpdateHourlyHydroReadingForm;
+
+const NUMERIC_FIELD_KEYS: UpdateField[] = [
+  'frequency', 'activePowerMW', 'reactivePowerMVar', 'voltageKV', 'currentAmps', 'powerFactor',
+  'statorTemperature', 'generatorFieldVoltage', 'generatorFieldCurrent', 'exciterCurrent',
+  'gatePosition', 'turbineDischarge', 'spillwayDischarge',
+  'transformerOilTemperature', 'transformerWindingTemperature',
+];
 
 const SECTIONS = [
   {
@@ -108,6 +115,8 @@ export default function HourlyHydroReadingPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [unitDown, setUnitDown] = useState(false);
+  const [missingHours, setMissingHours] = useState<number[] | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<HourlyHydroReading | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -197,10 +206,31 @@ export default function HourlyHydroReadingPage() {
     }));
   };
 
-  const cancelEdit = () => { setEditTarget(null); setUpdateForm(emptyUpdateForm); };
+  const cancelEdit = () => { setEditTarget(null); setUpdateForm(emptyUpdateForm); setUnitDown(false); };
+
+  const handleUnitDownToggle = (checked: boolean) => {
+    setUnitDown(checked);
+    if (!checked) return;
+    const zeroed: Record<string, string> = {};
+    NUMERIC_FIELD_KEYS.forEach((k) => { zeroed[k] = '0'; });
+    if (editTarget) setUpdateForm((prev) => ({ ...prev, ...zeroed }));
+    else setForm((prev) => ({ ...prev, ...zeroed }));
+  };
+
+  const checkMissingHours = async (plantCode: string, unitCode: string, logDate: string) => {
+    try {
+      const res = await hourlyHydroApi.getAll({ plantCode, unitCode, date: logDate });
+      const loggedHours = new Set(res.data.map((r) => r.logHour));
+      const missing = HOURS.filter((h) => !loggedHours.has(h));
+      setMissingHours(missing.length > 0 ? missing : null);
+    } catch { /* non-critical — skip the missing-hours notice on failure */ }
+  };
 
   const handleSave = async () => {
     setSaving(true); setSaveError(null); setSaveSuccess(false);
+    const savedPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
+    const savedUnitCode = editTarget ? editTarget.unitCode : form.unitCode;
+    const savedLogDate = editTarget ? editTarget.logDate.split('T')[0] : form.logDate;
     try {
       const toNum = (v: string | number | undefined) =>
         v === '' || v === undefined ? undefined : Number(v);
@@ -247,8 +277,10 @@ export default function HourlyHydroReadingPage() {
         });
         setForm(emptyForm);
       }
+      setUnitDown(false);
       setSaveSuccess(true);
       fetchRecords();
+      checkMissingHours(savedPlantCode, savedUnitCode, savedLogDate);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save. Please try again.');
@@ -271,7 +303,7 @@ export default function HourlyHydroReadingPage() {
     }
   };
 
-  const isFormValid = editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour;
+  const isFormValid = editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour !== '' && form.logHour !== undefined;
   const toggleSection = (title: string) =>
     setCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
 
@@ -320,6 +352,17 @@ export default function HourlyHydroReadingPage() {
             <CardContent>
               {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
               {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>Reading saved successfully.</Alert>}
+              {missingHours && missingHours.length > 0 && (
+                <Alert severity="warning" onClose={() => setMissingHours(null)} sx={{ mb: 2 }}>
+                  Missing hours today: {missingHours.map((h) => `${String(h).padStart(2, '0')}:00`).join(', ')}
+                </Alert>
+              )}
+
+              <FormControlLabel
+                sx={{ mb: 1.5 }}
+                control={<Checkbox checked={unitDown} onChange={(e) => handleUnitDownToggle(e.target.checked)} color="error" />}
+                label={<Typography variant="body2" sx={{ fontWeight: 600 }}>Unit Down — zero out all readings for this hour</Typography>}
+              />
 
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary"

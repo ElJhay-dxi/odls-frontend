@@ -13,6 +13,7 @@ import {
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
+import { bopTerm } from '../../utils/terminology';
 
 export const DRAWER_WIDTH = 260;
 
@@ -24,7 +25,7 @@ interface NavItem {
   children?: NavItem[];
 }
 
-const navItems: NavItem[] = [
+const getNavItems = (bopLabel: string): NavItem[] => [
   {
     label: 'Dashboard',
     icon: <Dashboard />,
@@ -43,10 +44,10 @@ const navItems: NavItem[] = [
       { label: 'Unit Systems', icon: <AccountTree />, path: '/master/unit-systems', permission: 'master.view' },
       { label: 'Unit Sub-Systems', icon: <AccountTree />, path: '/master/unit-subsystems', permission: 'master.view' },
       { label: 'Unit Equipment', icon: <Tune />, path: '/master/unit-equipment', permission: 'master.view' },
-      { label: 'BOP / Auxiliary', icon: <AccountTree />, path: '/master/bop', permission: 'master.view' },
-      { label: 'BOP / Auxiliary System', icon: <AccountTree />, path: '/master/bop-systems', permission: 'master.view' },
-      { label: 'BOP / Auxiliary Sub System', icon: <AccountTree />, path: '/master/bop-subsystems', permission: 'master.view' },
-      { label: 'BOP / Auxiliary Equipment', icon: <Tune />, path: '/master/bop-equipment', permission: 'master.view' },
+      { label: bopLabel, icon: <AccountTree />, path: '/master/bop', permission: 'master.view' },
+      { label: `${bopLabel} System`, icon: <AccountTree />, path: '/master/bop-systems', permission: 'master.view' },
+      { label: `${bopLabel} Sub System`, icon: <AccountTree />, path: '/master/bop-subsystems', permission: 'master.view' },
+      { label: `${bopLabel} Equipment`, icon: <Tune />, path: '/master/bop-equipment', permission: 'master.view' },
       { label: 'Bearing Metals', icon: <Settings />, path: '/master/bearing-metals', permission: 'master.view' },
       { label: 'Bearing Drains', icon: <Settings />, path: '/master/bearing-drains', permission: 'master.view' },
       { label: 'Plant Buses', icon: <Settings />, path: '/master/plant-buses', permission: 'master.view' },
@@ -169,7 +170,7 @@ interface SidebarProps {
 export default function Sidebar({ open }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, hasPermission, isPlantUser, userPlantClassifications } = useUser();
+  const { profile, hasPermission, isPlantUser, isAdmin, userPlantClassifications } = useUser();
   const [expanded, setExpanded] = useState<string[]>(['Dashboard']);
 
   const toggleExpand = (label: string) => {
@@ -208,6 +209,7 @@ export default function Sidebar({ open }: SidebarProps) {
       }))
       .filter((item) => !item.children || item.children.length > 0);
 
+  const navItems = getNavItems(bopTerm(userPlantClassifications, isAdmin));
   const visibleItems = filterItems(navItems);
 
   const renderItems = (items: NavItem[], depth = 0) =>

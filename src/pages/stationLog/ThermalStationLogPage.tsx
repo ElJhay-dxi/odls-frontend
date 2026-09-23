@@ -44,47 +44,47 @@ import type { SafetyDocumentType } from '../../types/safetyDocumentType';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { useUser } from '../../context/UserContext';
 
-const emptyHseEntry: HseEntryForm = {
+const emptyHseEntry = (): HseEntryForm => ({
   entryDate: new Date().toISOString().split('T')[0],
   entryTime: new Date().toTimeString().slice(0, 5),
   description: '', workOrderRaised: '',
-};
+});
 
-const emptyFuelOilTankRow: FuelOilTankForm = {
+const emptyFuelOilTankRow = (): FuelOilTankForm => ({
   readingTime: new Date().toTimeString().slice(0, 5),
   tankName: '', dcsReadingM: '', actualDipM: '', daysOfStock: '', sortOrder: 0,
-};
+});
 
-const emptyGasConditioningRow: GasConditioningRowForm = {
+const emptyGasConditioningRow = (): GasConditioningRowForm => ({
   readingTime: new Date().toTimeString().slice(0, 5),
   componentName: '', status: '', inletTempC: '', onBaseTempC: '',
   inletPressureBar: '', onBasePressureBar: '', sortOrder: 0,
-};
+});
 
 const emptyGenerationRow: GenerationRowForm = {
   description: '', value: '', unit: 'kWh', sortOrder: 0,
 };
 
-const emptyWaterTreatmentRow: WaterTreatmentRowForm = {
+const emptyWaterTreatmentRow = (): WaterTreatmentRowForm => ({
   readingTime: new Date().toTimeString().slice(0, 5),
   tankOrSystem: '', level: '', unit: 'm', status: '', sortOrder: 0,
-};
+});
 
 const emptySafetyDoc: SafetyDocForm = {
   safetyDocTypeCode: '', safetyDocTypeName: '',
-  docNumber: '', workOrderNumber: '', permitHolder: '', workDescription: '',
+  docNumber: '', workOrderNumber: '', eamNumber: '', permitHolder: '', workDescription: '',
   startDate: '', completionDate: '', sortOrder: 0,
 };
 
-const emptyCondition: ConditionForm = {
+const emptyCondition = (): ConditionForm => ({
   snapshotTime: new Date().toTimeString().slice(0, 5),
   source: '', systemVoltageKv: '', remarks: '', rows: [],
-};
+});
 
-const emptyGasReading: GasReadingForm = {
+const emptyGasReading = (): GasReadingForm => ({
   readingTime: new Date().toTimeString().slice(0, 5),
   source: '', rows: [],
-};
+});
 
 interface CriticalIssueFormState {
   equipmentCode: string;
@@ -135,16 +135,16 @@ const containsKeyword = (fields: (string | undefined | null)[], keyword: string)
   fields.some((f) => f?.toLowerCase().includes(keyword.toLowerCase()));
 
 const isPump = (e: {
-  unitName?: string; systemName?: string; subSystemName?: string;
-  subsystemName?: string; bopName?: string; equipmentName?: string;
+  unitName?: string | null; systemName?: string | null; subSystemName?: string | null;
+  subsystemName?: string | null; bopName?: string | null; equipmentName?: string | null;
 }) => containsKeyword(
   [e.unitName, e.systemName, e.subSystemName, e.subsystemName, e.bopName, e.equipmentName],
   'pump'
 );
 
 const isTransformer = (e: {
-  unitName?: string; systemName?: string; subSystemName?: string;
-  subsystemName?: string; bopName?: string; equipmentName?: string;
+  unitName?: string | null; systemName?: string | null; subSystemName?: string | null;
+  subsystemName?: string | null; bopName?: string | null; equipmentName?: string | null;
 }) => containsKeyword(
   [e.unitName, e.systemName, e.subSystemName, e.subsystemName, e.bopName, e.equipmentName],
   'transformer'
@@ -331,7 +331,7 @@ export default function ThermalStationLogPage() {
   const [safetyDocsCollapsed, setSafetyDocsCollapsed] = useState(false);
 
   // Conditions
-  const [conditionForm, setConditionForm] = useState<ConditionForm>(emptyCondition);
+  const [conditionForm, setConditionForm] = useState<ConditionForm>(emptyCondition());
   const [editingCondition, setEditingCondition] = useState<ThermalStationLogCondition | null>(null);
   const [showConditionForm, setShowConditionForm] = useState(false);
   const [savingCondition, setSavingCondition] = useState(false);
@@ -343,7 +343,7 @@ export default function ThermalStationLogPage() {
   const [pasteText, setPasteText] = useState('');
 
   // Gas readings
-  const [gasReadingForm, setGasReadingForm] = useState<GasReadingForm>(emptyGasReading);
+  const [gasReadingForm, setGasReadingForm] = useState<GasReadingForm>(emptyGasReading());
   const [editingGasReading, setEditingGasReading] = useState<ThermalStationLogGasReading | null>(null);
   const [showGasReadingForm, setShowGasReadingForm] = useState(false);
   const [savingGasReading, setSavingGasReading] = useState(false);
@@ -353,10 +353,10 @@ export default function ThermalStationLogPage() {
   const [gasReadingError, setGasReadingError] = useState<string | null>(null);
 
   // HSE Entries
-  const [hseEntryForm, setHseEntryForm] = useState<HseEntryForm>(emptyHseEntry);
+  const [hseEntryForm, setHseEntryForm] = useState<HseEntryForm>(emptyHseEntry());
   const [addingHseEntry, setAddingHseEntry] = useState(false);
   const [editingHseEntry, setEditingHseEntry] = useState<ThermalStationLogHseEntry | null>(null);
-  const [editHseEntryForm, setEditHseEntryForm] = useState<HseEntryForm>(emptyHseEntry);
+  const [editHseEntryForm, setEditHseEntryForm] = useState<HseEntryForm>(emptyHseEntry());
   const [savingHseEntry, setSavingHseEntry] = useState(false);
   const [deleteHseEntry, setDeleteHseEntry] = useState<ThermalStationLogHseEntry | null>(null);
   const [deletingHseEntry, setDeletingHseEntry] = useState(false);
@@ -909,7 +909,7 @@ export default function ThermalStationLogPage() {
         const res = await thermalStationLogApi.addCondition(log.id, conditionForm);
         setLog((p) => p ? { ...p, conditions: [...p.conditions, res.data].sort((a, b) => a.snapshotTime.localeCompare(b.snapshotTime)) } : p);
       }
-      setConditionForm(emptyCondition); setShowConditionForm(false);
+      setConditionForm(emptyCondition()); setShowConditionForm(false);
     } catch { setConditionError('Failed to save condition snapshot.'); }
     finally { setSavingCondition(false); }
   };
@@ -937,7 +937,7 @@ export default function ThermalStationLogPage() {
         const res = await thermalStationLogApi.addGasReading(log.id, gasReadingForm);
         setLog((p) => p ? { ...p, gasReadings: [...p.gasReadings, res.data].sort((a, b) => a.readingTime.localeCompare(b.readingTime)) } : p);
       }
-      setGasReadingForm(emptyGasReading); setShowGasReadingForm(false);
+      setGasReadingForm(emptyGasReading()); setShowGasReadingForm(false);
     } catch { setGasReadingError('Failed to save gas reading.'); }
     finally { setSavingGasReading(false); }
   };
@@ -959,7 +959,7 @@ export default function ThermalStationLogPage() {
     try {
       const res = await thermalStationLogApi.addHseEntry(log.id, hseEntryForm);
       setLog((p) => p ? { ...p, hseEntries: [...p.hseEntries, res.data].sort((a, b) => (a.entryDate ?? '').localeCompare(b.entryDate ?? '') || (a.entryTime ?? '').localeCompare(b.entryTime ?? '')) } : p);
-      setHseEntryForm(emptyHseEntry);
+      setHseEntryForm(emptyHseEntry());
     } catch { setHseEntryError('Failed to add HSE entry.'); }
     finally { setAddingHseEntry(false); }
   };
@@ -1507,7 +1507,7 @@ export default function ThermalStationLogPage() {
 
   const getEquipmentOptionsForSection = (keywords: readonly string[]) => {
     const kw = keywords.map((k) => k.toLowerCase());
-    const matches = (name?: string) => !!name && kw.some((k) => name.toLowerCase().includes(k));
+    const matches = (name?: string | null) => !!name && kw.some((k) => name.toLowerCase().includes(k));
 
     const unitOptions = allUnitEquipments
       .filter((e) => matches(e.systemName) || matches(e.subSystemName) || matches(e.equipmentName))
@@ -2388,6 +2388,7 @@ export default function ThermalStationLogPage() {
                       </Grid>
                       <Grid size={{ xs: 6, sm: 3 }}><TextField label="Doc #" size="small" fullWidth value={safetyDocForm.docNumber} onChange={(e) => setSafetyDocForm((p) => ({ ...p, docNumber: e.target.value }))} placeholder="LWC #1864" /></Grid>
                       <Grid size={{ xs: 6, sm: 3 }}><TextField label="Work Order #" size="small" fullWidth value={safetyDocForm.workOrderNumber} onChange={(e) => setSafetyDocForm((p) => ({ ...p, workOrderNumber: e.target.value }))} /></Grid>
+                      <Grid size={{ xs: 6, sm: 3 }}><TextField label="EAM #" size="small" fullWidth value={safetyDocForm.eamNumber} onChange={(e) => setSafetyDocForm((p) => ({ ...p, eamNumber: e.target.value }))} /></Grid>
                       <Grid size={{ xs: 12, sm: 6 }}><TextField label="Permit Holder" size="small" fullWidth value={safetyDocForm.permitHolder} onChange={(e) => setSafetyDocForm((p) => ({ ...p, permitHolder: e.target.value }))} placeholder="e.g. C&I/Siameh" /></Grid>
                       <Grid size={{ xs: 12 }}><TextField label="Work Description" size="small" fullWidth multiline rows={2} value={safetyDocForm.workDescription} onChange={(e) => setSafetyDocForm((p) => ({ ...p, workDescription: e.target.value }))} /></Grid>
                       <Grid size={{ xs: 6, sm: 3 }}><TextField label="Start Date" type="date" size="small" fullWidth value={safetyDocForm.startDate} onChange={(e) => setSafetyDocForm((p) => ({ ...p, startDate: e.target.value }))} slotProps={{ inputLabel: { shrink: true } }} /></Grid>
@@ -2411,6 +2412,7 @@ export default function ThermalStationLogPage() {
                           <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Type</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Doc #</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Work Order</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>EAM #</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Permit Holder</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Description</TableCell>
                           <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Start</TableCell>
@@ -2428,12 +2430,13 @@ export default function ThermalStationLogPage() {
                             </TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{doc.docNumber ?? '—'}</TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{doc.workOrderNumber ?? '—'}</TableCell>
+                            <TableCell sx={{ fontSize: 12 }}>{doc.eamNumber ?? '—'}</TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{doc.permitHolder ?? '—'}</TableCell>
                             <TableCell sx={{ fontSize: 12, maxWidth: 200 }}>{doc.workDescription ?? '—'}</TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{doc.startDate ? new Date(doc.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{doc.completionDate ?? '—'}</TableCell>
                             <TableCell align="right">
-                              {canEdit && (<Tooltip title="Edit"><IconButton size="small" onClick={() => { setEditingSafetyDoc(doc); setSafetyDocForm({ safetyDocTypeCode: doc.safetyDocTypeCode ?? '', safetyDocTypeName: doc.safetyDocTypeName ?? '', docNumber: doc.docNumber ?? '', workOrderNumber: doc.workOrderNumber ?? '', permitHolder: doc.permitHolder ?? '', workDescription: doc.workDescription ?? '', startDate: doc.startDate?.split('T')[0] ?? '', completionDate: doc.completionDate ?? '', sortOrder: doc.sortOrder }); setShowSafetyDocForm(true); }}><Edit sx={{ fontSize: 14 }} /></IconButton></Tooltip>)}
+                              {canEdit && (<Tooltip title="Edit"><IconButton size="small" onClick={() => { setEditingSafetyDoc(doc); setSafetyDocForm({ safetyDocTypeCode: doc.safetyDocTypeCode ?? '', safetyDocTypeName: doc.safetyDocTypeName ?? '', docNumber: doc.docNumber ?? '', workOrderNumber: doc.workOrderNumber ?? '', eamNumber: doc.eamNumber ?? '', permitHolder: doc.permitHolder ?? '', workDescription: doc.workDescription ?? '', startDate: doc.startDate?.split('T')[0] ?? '', completionDate: doc.completionDate ?? '', sortOrder: doc.sortOrder }); setShowSafetyDocForm(true); }}><Edit sx={{ fontSize: 14 }} /></IconButton></Tooltip>)}
                               {canDelete && (<Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => setDeleteSafetyDoc(doc)}><Delete sx={{ fontSize: 14 }} /></IconButton></Tooltip>)}
                             </TableCell>
                           </TableRow>
@@ -2465,8 +2468,8 @@ export default function ThermalStationLogPage() {
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>Press Enter to add · Shift+Enter for new line</Typography>
                   </Paper>
                   <Stack direction="row" spacing={1}>
-                    <Button size="small" variant="outlined" startIcon={<TableChart />} onClick={() => { setEditingCondition(null); setConditionForm(emptyCondition); setShowConditionForm(true); }}>Add System Conditions</Button>
-                    <Button size="small" variant="outlined" startIcon={<GasMeter />} color="warning" onClick={() => { setEditingGasReading(null); setGasReadingForm(emptyGasReading); setShowGasReadingForm(true); }}>Add Gas Reading</Button>
+                    <Button size="small" variant="outlined" startIcon={<TableChart />} onClick={() => { setEditingCondition(null); setConditionForm(emptyCondition()); setShowConditionForm(true); }}>Add System Conditions</Button>
+                    <Button size="small" variant="outlined" startIcon={<GasMeter />} color="warning" onClick={() => { setEditingGasReading(null); setGasReadingForm(emptyGasReading()); setShowGasReadingForm(true); }}>Add Gas Reading</Button>
                   </Stack>
                 </Stack>
               )}
@@ -2854,7 +2857,7 @@ export default function ThermalStationLogPage() {
                   </Table>
                   {canEdit && (
                     <Stack direction="row" spacing={1.5}>
-                      <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#E65100', borderColor: '#E65100' }} onClick={() => setFuelOilTankRows((p) => [...p, { ...emptyFuelOilTankRow, sortOrder: p.length }])}>Add Tank</Button>
+                      <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#E65100', borderColor: '#E65100' }} onClick={() => setFuelOilTankRows((p) => [...p, { ...emptyFuelOilTankRow(), sortOrder: p.length }])}>Add Tank</Button>
                       <Box sx={{ flex: 1 }} />
                       <Button size="small" variant="contained" sx={{ backgroundColor: '#E65100' }} onClick={handleSaveFuelOilTanks} disabled={savingFuelOilTanks} startIcon={savingFuelOilTanks ? <CircularProgress size={14} color="inherit" /> : <Save />}>
                         {savingFuelOilTanks ? 'Saving...' : 'Save Tanks'}
@@ -2912,7 +2915,7 @@ export default function ThermalStationLogPage() {
                   </Table>
                   {canEdit && (
                     <Stack direction="row" spacing={1.5}>
-                      <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#4A148C', borderColor: '#4A148C' }} onClick={() => setGasConditioningRows((p) => [...p, { ...emptyGasConditioningRow, sortOrder: p.length }])}>Add Component</Button>
+                      <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#4A148C', borderColor: '#4A148C' }} onClick={() => setGasConditioningRows((p) => [...p, { ...emptyGasConditioningRow(), sortOrder: p.length }])}>Add Component</Button>
                       <Box sx={{ flex: 1 }} />
                       <Button size="small" variant="contained" sx={{ backgroundColor: '#4A148C' }} onClick={handleSaveGasConditioning} disabled={savingGasConditioning} startIcon={savingGasConditioning ? <CircularProgress size={14} color="inherit" /> : <Save />}>
                         {savingGasConditioning ? 'Saving...' : 'Save Gas Conditioning'}
@@ -2973,7 +2976,7 @@ export default function ThermalStationLogPage() {
                   </Table>
                   {canEdit && (
                     <Stack direction="row" spacing={1.5}>
-                      <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#01579B', borderColor: '#01579B' }} onClick={() => setWaterTreatmentRows((p) => [...p, { ...emptyWaterTreatmentRow, sortOrder: p.length }])}>Add Row</Button>
+                      <Button size="small" variant="outlined" startIcon={<Add />} sx={{ color: '#01579B', borderColor: '#01579B' }} onClick={() => setWaterTreatmentRows((p) => [...p, { ...emptyWaterTreatmentRow(), sortOrder: p.length }])}>Add Row</Button>
                       <Box sx={{ flex: 1 }} />
                       <Button size="small" variant="contained" sx={{ backgroundColor: '#01579B' }} onClick={handleSaveWaterTreatment} disabled={savingWaterTreatment} startIcon={savingWaterTreatment ? <CircularProgress size={14} color="inherit" /> : <Save />}>
                         {savingWaterTreatment ? 'Saving...' : 'Save Water Treatment'}

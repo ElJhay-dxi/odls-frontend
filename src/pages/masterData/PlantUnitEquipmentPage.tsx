@@ -81,12 +81,16 @@ export default function PlantUnitEquipmentPage() {
 
   const handleFormUnitChange = (unitCode: string) => {
     setFormSystems(systems.filter((s) => s.plantCode === form.plantCode && s.unitCode === unitCode));
-    setFormSubSystems([]);
+    setFormSubSystems(subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.unitCode === unitCode));
     setForm((prev) => ({ ...prev, unitCode, systemCode: '', subSystemCode: '' }));
   };
 
   const handleFormSystemChange = (systemCode: string) => {
-    setFormSubSystems(subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.unitCode === form.unitCode && ss.systemCode === systemCode));
+    // When no System is selected, list ALL sub-systems for this unit (a sub-system may itself have no System).
+    // When a System IS selected, filter to it as a convenience — it's not mandatory.
+    setFormSubSystems(systemCode
+      ? subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.unitCode === form.unitCode && ss.systemCode === systemCode)
+      : subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.unitCode === form.unitCode));
     setForm((prev) => ({ ...prev, systemCode, subSystemCode: '' }));
   };
 
@@ -108,11 +112,11 @@ export default function PlantUnitEquipmentPage() {
       if (editTarget) {
         await plantUnitEquipmentApi.update(editTarget.id, updateForm);
       } else {
-        await plantUnitEquipmentApi.create(form);
+        await plantUnitEquipmentApi.create({ ...form, systemCode: form.systemCode || null, subSystemCode: form.subSystemCode || null });
       }
       setDialogOpen(false); fetchAll();
-    } catch {
-      setError('Failed to save.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to save.');
     } finally {
       setSaving(false);
     }
@@ -137,7 +141,7 @@ export default function PlantUnitEquipmentPage() {
 
   const isFormValid = editTarget
     ? updateForm.equipmentName.trim() && updateForm.equipmentCode.trim()
-    : form.plantCode && form.unitCode && form.systemCode && form.subSystemCode && form.equipmentName.trim() && form.equipmentCode.trim();
+    : form.plantCode && form.unitCode && form.equipmentName.trim() && form.equipmentCode.trim();
 
   return (
     <Box>
@@ -202,8 +206,8 @@ export default function PlantUnitEquipmentPage() {
                       <Typography variant="caption" color="text.secondary">{row.unitName} ({row.unitCode})</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.systemName}</Typography>
-                      <Typography variant="caption" color="text.secondary">{row.subSystemName}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.systemName ?? '—'}</Typography>
+                      <Typography variant="caption" color="text.secondary">{row.subSystemName ?? '—'}</Typography>
                     </TableCell>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.equipmentName}</Typography></TableCell>
                     <TableCell>
@@ -265,10 +269,11 @@ export default function PlantUnitEquipmentPage() {
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={!!editTarget || !form.unitCode}>
+              <FormControl fullWidth disabled={!!editTarget || !form.unitCode}>
                 <InputLabel>System</InputLabel>
-                <Select label="System" value={editTarget ? editTarget.systemCode : form.systemCode}
+                <Select label="System" value={(editTarget ? editTarget.systemCode : form.systemCode) ?? ''}
                   onChange={(e) => handleFormSystemChange(e.target.value)}>
+                  <MenuItem value=""><em>None</em></MenuItem>
                   {(editTarget ? systems.filter(s => s.plantCode === editTarget.plantCode && s.unitCode === editTarget.unitCode) : formSystems).map((s) => (
                     <MenuItem key={s.id} value={s.systemCode}>{s.systemName}</MenuItem>
                   ))}
@@ -276,12 +281,13 @@ export default function PlantUnitEquipmentPage() {
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={!!editTarget || !form.systemCode}>
+              <FormControl fullWidth disabled={!!editTarget || !form.unitCode}>
                 <InputLabel>Sub-System</InputLabel>
-                <Select label="Sub-System" value={editTarget ? editTarget.subSystemCode : form.subSystemCode}
+                <Select label="Sub-System" value={(editTarget ? editTarget.subSystemCode : form.subSystemCode) ?? ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, subSystemCode: e.target.value }))}>
+                  <MenuItem value=""><em>None</em></MenuItem>
                   {(editTarget
-                    ? subSystems.filter(ss => ss.plantCode === editTarget.plantCode && ss.unitCode === editTarget.unitCode && ss.systemCode === editTarget.systemCode)
+                    ? subSystems.filter(ss => ss.plantCode === editTarget.plantCode && ss.unitCode === editTarget.unitCode)
                     : formSubSystems
                   ).map((ss) => (
                     <MenuItem key={ss.id} value={ss.subSystemCode}>{ss.subSystemName}</MenuItem>

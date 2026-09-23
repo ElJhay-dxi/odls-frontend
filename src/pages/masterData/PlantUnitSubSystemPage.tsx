@@ -110,12 +110,12 @@ export default function PlantUnitSubSystemPage() {
       if (editTarget) {
         await plantUnitSubSystemApi.update(editTarget.id, updateForm);
       } else {
-        await plantUnitSubSystemApi.create(form);
+        await plantUnitSubSystemApi.create({ ...form, systemCode: form.systemCode || null });
       }
       setDialogOpen(false);
       fetchAll();
-    } catch {
-      setError('Failed to save.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to save.');
     } finally {
       setSaving(false);
     }
@@ -140,7 +140,7 @@ export default function PlantUnitSubSystemPage() {
 
   const isFormValid = editTarget
     ? updateForm.subSystemName.trim() && updateForm.subSystemCode.trim()
-    : form.plantCode && form.unitCode && form.systemCode && form.subSystemName.trim() && form.subSystemCode.trim();
+    : form.plantCode && form.unitCode && form.subSystemName.trim() && form.subSystemCode.trim();
 
   return (
     <Box>
@@ -228,8 +228,14 @@ export default function PlantUnitSubSystemPage() {
                       <Typography variant="caption" color="text.secondary">{row.unitCode}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.systemName}</Typography>
-                      <Typography variant="caption" color="text.secondary">{row.systemCode}</Typography>
+                      {row.systemName ? (
+                        <>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.systemName}</Typography>
+                          <Typography variant="caption" color="text.secondary">{row.systemCode}</Typography>
+                        </>
+                      ) : (
+                        <Typography variant="caption" color="text.disabled">— None —</Typography>
+                      )}
                     </TableCell>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.subSystemName}</Typography></TableCell>
                     <TableCell>
@@ -289,10 +295,11 @@ export default function PlantUnitSubSystemPage() {
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12 }}>
-              <FormControl fullWidth required disabled={!!editTarget || !form.unitCode}>
+              <FormControl fullWidth disabled={!!editTarget || !form.unitCode}>
                 <InputLabel>System</InputLabel>
-                <Select label="System" value={editTarget ? editTarget.systemCode : form.systemCode}
+                <Select label="System" value={(editTarget ? editTarget.systemCode : form.systemCode) ?? ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, systemCode: e.target.value }))}>
+                  <MenuItem value=""><em>None</em></MenuItem>
                   {(editTarget
                     ? systems.filter(s => s.plantCode === editTarget.plantCode && s.unitCode === editTarget.unitCode)
                     : formSystems

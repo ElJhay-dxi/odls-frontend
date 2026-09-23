@@ -31,11 +31,11 @@ export const bearingMetalApi = {
   getAll: (plantCode?: string, unitCode?: string) =>
     axiosInstance.get<BearingMetal[]>('/bearingmetals', { params: { plantCode: plantCode || undefined, unitCode: unitCode || undefined } }),
 
-  create: (data: { plantCode: string; unitCode: string; bearingCode: number; bearingName: string }) =>
+  create: (data: { plantCode: string; unitCode: string; bearingCode: number; bearingName: string; kkxCode?: string | null }) =>
     axiosInstance.post<BearingMetal>('/bearingmetals', data),
 
-  update: (id: string, bearingName: string) =>
-    axiosInstance.put<BearingMetal>(`/bearingmetals/${id}`, { bearingName }),
+  update: (id: string, data: { bearingName: string; kkxCode?: string | null }) =>
+    axiosInstance.put<BearingMetal>(`/bearingmetals/${id}`, data),
 
   delete: (id: string) =>
     axiosInstance.delete(`/bearingmetals/${id}`),
@@ -45,11 +45,11 @@ export const bearingDrainApi = {
   getAll: (plantCode?: string, unitCode?: string) =>
     axiosInstance.get<BearingDrain[]>('/bearingdrains', { params: { plantCode: plantCode || undefined, unitCode: unitCode || undefined } }),
 
-  create: (data: { plantCode: string; unitCode: string; drainCode: number; drainName: string }) =>
+  create: (data: { plantCode: string; unitCode: string; drainCode: number; drainName: string; kkxCode?: string | null }) =>
     axiosInstance.post<BearingDrain>('/bearingdrains', data),
 
-  update: (id: string, drainName: string) =>
-    axiosInstance.put<BearingDrain>(`/bearingdrains/${id}`, { drainName }),
+  update: (id: string, data: { drainName: string; kkxCode?: string | null }) =>
+    axiosInstance.put<BearingDrain>(`/bearingdrains/${id}`, data),
 
   delete: (id: string) =>
     axiosInstance.delete(`/bearingdrains/${id}`),

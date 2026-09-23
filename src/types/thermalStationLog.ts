@@ -13,6 +13,7 @@ export interface ThermalStationLogSafetyDoc {
   safetyDocTypeName?: string;
   docNumber?: string;
   workOrderNumber?: string;
+  eamNumber?: string | null;
   permitHolder?: string;
   workDescription?: string;
   startDate?: string;
@@ -209,6 +210,7 @@ export interface SafetyDocForm {
   safetyDocTypeName: string;
   docNumber: string;
   workOrderNumber: string;
+  eamNumber: string;
   permitHolder: string;
   workDescription: string;
   startDate: string;

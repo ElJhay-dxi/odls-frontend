@@ -22,14 +22,16 @@ interface CreateForm {
   unitCode: string;
   bearingCode: string;
   bearingName: string;
+  kkxCode: string;
 }
 
 interface UpdateForm {
   bearingName: string;
+  kkxCode: string;
 }
 
-const emptyCreate: CreateForm = { plantCode: '', unitCode: '', bearingCode: '', bearingName: '' };
-const emptyUpdate: UpdateForm = { bearingName: '' };
+const emptyCreate: CreateForm = { plantCode: '', unitCode: '', bearingCode: '', bearingName: '', kkxCode: '' };
+const emptyUpdate: UpdateForm = { bearingName: '', kkxCode: '' };
 
 export default function BearingMetalPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
@@ -106,7 +108,7 @@ export default function BearingMetalPage() {
 
   const openEdit = (row: BearingMetal) => {
     setEditTarget(row);
-    setUpdateForm({ bearingName: row.bearingName });
+    setUpdateForm({ bearingName: row.bearingName, kkxCode: row.kkxCode ?? '' });
     setSaveError(null);
     setDialogOpen(true);
   };
@@ -124,13 +126,14 @@ export default function BearingMetalPage() {
     setSaveError(null);
     try {
       if (editTarget) {
-        await bearingMetalApi.update(editTarget.id, updateForm.bearingName);
+        await bearingMetalApi.update(editTarget.id, { bearingName: updateForm.bearingName, kkxCode: updateForm.kkxCode || null });
       } else {
         await bearingMetalApi.create({
           plantCode: form.plantCode,
           unitCode: form.unitCode,
           bearingCode: Number(form.bearingCode),
           bearingName: form.bearingName,
+          kkxCode: form.kkxCode || null,
         });
       }
       closeDialog();
@@ -217,6 +220,7 @@ export default function BearingMetalPage() {
                     <TableCell>Unit</TableCell>
                     <TableCell>Bearing #</TableCell>
                     <TableCell>Bearing Name</TableCell>
+                    <TableCell>KKX Code</TableCell>
                     <TableCell>Created By</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
@@ -237,6 +241,13 @@ export default function BearingMetalPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">{row.bearingName}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        {row.kkxCode ? (
+                          <Typography variant="body2">{row.kkxCode}</Typography>
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">N/A</Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="caption">{row.createdByName}</Typography>
@@ -289,9 +300,16 @@ export default function BearingMetalPage() {
               <TextField
                 label="Bearing Name"
                 value={updateForm.bearingName}
-                onChange={(e) => setUpdateForm({ bearingName: e.target.value })}
+                onChange={(e) => setUpdateForm({ ...updateForm, bearingName: e.target.value })}
                 fullWidth required autoFocus
                 helperText="The bearing code cannot be changed after creation."
+              />
+              <TextField
+                label="KKX Code"
+                value={updateForm.kkxCode}
+                onChange={(e) => setUpdateForm({ ...updateForm, kkxCode: e.target.value })}
+                fullWidth
+                placeholder="e.g. KKX-1234"
               />
             </Stack>
           ) : (
@@ -333,6 +351,14 @@ export default function BearingMetalPage() {
                   value={form.bearingName}
                   onChange={(e) => setForm((prev) => ({ ...prev, bearingName: e.target.value }))}
                   placeholder="e.g. Turbine Bearing #1"
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  label="KKX Code" fullWidth
+                  value={form.kkxCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, kkxCode: e.target.value }))}
+                  placeholder="e.g. KKX-1234"
                 />
               </Grid>
             </Grid>

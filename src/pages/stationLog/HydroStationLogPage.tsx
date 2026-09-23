@@ -34,17 +34,17 @@ import type { ShiftLog } from '../../types/shiftLog';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { useUser } from '../../context/UserContext';
 
-const emptyEntry: CreateHydroStationLogEntryForm = {
+const emptyEntry = (): CreateHydroStationLogEntryForm => ({
   entryTime: new Date().toTimeString().slice(0, 5),
   entryText: '',
-};
+});
 
-const emptyCondition: CreateConditionForm = {
+const emptyCondition = (): CreateConditionForm => ({
   snapshotTime: new Date().toTimeString().slice(0, 5),
   source: '',
   systemVoltageKv: '',
   rows: [],
-};
+});
 
 const TEXT_HEADER_FIELDS = [
   { key: 'stationService',        label: 'Station Service' },
@@ -105,7 +105,7 @@ export default function HydroStationLogPage() {
 
   // Permits
   const emptyPermitForm: HydroStationLogPermitForm = {
-    permitTypeCode: '', permitTypeName: '', permitNumber: '', workOrderNumber: '',
+    permitTypeCode: '', permitTypeName: '', permitNumber: '', workOrderNumber: '', eamNumber: '',
     permitHolder: '', workDescription: '', startDate: '', completionDate: '', sortOrder: 0,
   };
   const [permitForm, setPermitForm] = useState<HydroStationLogPermitForm>(emptyPermitForm);
@@ -118,7 +118,7 @@ export default function HydroStationLogPage() {
   const [permitsCollapsed, setPermitsCollapsed] = useState(false);
 
   // Entry
-  const [entryForm, setEntryForm] = useState<CreateHydroStationLogEntryForm>(emptyEntry);
+  const [entryForm, setEntryForm] = useState<CreateHydroStationLogEntryForm>(emptyEntry());
   const [addingEntry, setAddingEntry] = useState(false);
   const [entryError, setEntryError] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<HydroStationLogEntry | null>(null);
@@ -129,7 +129,7 @@ export default function HydroStationLogPage() {
 
   // Condition snapshot
   const [showConditionForm, setShowConditionForm] = useState(false);
-  const [conditionForm, setConditionForm] = useState<CreateConditionForm>(emptyCondition);
+  const [conditionForm, setConditionForm] = useState<CreateConditionForm>(emptyCondition());
   const [savingCondition, setSavingCondition] = useState(false);
   const [conditionError, setConditionError] = useState<string | null>(null);
   const [editingCondition, setEditingCondition] = useState<HydroStationLogCondition | null>(null);
@@ -608,7 +608,7 @@ export default function HydroStationLogPage() {
           conditions: [...prev.conditions, res.data].sort((a, b) => a.snapshotTime.localeCompare(b.snapshotTime)),
         } : prev);
       }
-      setConditionForm(emptyCondition);
+      setConditionForm(emptyCondition());
       setShowConditionForm(false);
       setPasteMode(false);
       setPasteText('');
@@ -984,6 +984,10 @@ export default function HydroStationLogPage() {
                         <TextField label="Work Order #" size="small" fullWidth value={permitForm.workOrderNumber}
                           onChange={(e) => setPermitForm((p) => ({ ...p, workOrderNumber: e.target.value }))} />
                       </Grid>
+                      <Grid size={{ xs: 6, sm: 3 }}>
+                        <TextField label="EAM #" size="small" fullWidth value={permitForm.eamNumber}
+                          onChange={(e) => setPermitForm((p) => ({ ...p, eamNumber: e.target.value }))} />
+                      </Grid>
                       <Grid size={{ xs: 12, sm: 6 }}>
                         <TextField label="Permit Holder" size="small" fullWidth value={permitForm.permitHolder}
                           onChange={(e) => setPermitForm((p) => ({ ...p, permitHolder: e.target.value }))} />
@@ -1024,6 +1028,7 @@ export default function HydroStationLogPage() {
                         <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Type</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Permit #</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Work Order</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>EAM #</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Permit Holder</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Description</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Start</TableCell>
@@ -1041,6 +1046,7 @@ export default function HydroStationLogPage() {
                           </TableCell>
                           <TableCell sx={{ fontSize: 12 }}>{permit.permitNumber ?? '—'}</TableCell>
                           <TableCell sx={{ fontSize: 12 }}>{permit.workOrderNumber ?? '—'}</TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>{permit.eamNumber ?? '—'}</TableCell>
                           <TableCell sx={{ fontSize: 12 }}>{permit.permitHolder ?? '—'}</TableCell>
                           <TableCell sx={{ fontSize: 12, maxWidth: 200 }}>{permit.workDescription ?? '—'}</TableCell>
                           <TableCell sx={{ fontSize: 12 }}>
@@ -1051,7 +1057,7 @@ export default function HydroStationLogPage() {
                             {canEdit && (
                               <Tooltip title="Edit"><IconButton size="small" onClick={() => {
                                 setEditingPermit(permit);
-                                setPermitForm({ permitTypeCode: permit.permitTypeCode ?? '', permitTypeName: permit.permitTypeName ?? '', permitNumber: permit.permitNumber ?? '', workOrderNumber: permit.workOrderNumber ?? '', permitHolder: permit.permitHolder ?? '', workDescription: permit.workDescription ?? '', startDate: permit.startDate?.split('T')[0] ?? '', completionDate: permit.completionDate ?? '', sortOrder: permit.sortOrder });
+                                setPermitForm({ permitTypeCode: permit.permitTypeCode ?? '', permitTypeName: permit.permitTypeName ?? '', permitNumber: permit.permitNumber ?? '', workOrderNumber: permit.workOrderNumber ?? '', eamNumber: permit.eamNumber ?? '', permitHolder: permit.permitHolder ?? '', workDescription: permit.workDescription ?? '', startDate: permit.startDate?.split('T')[0] ?? '', completionDate: permit.completionDate ?? '', sortOrder: permit.sortOrder });
                                 setShowPermitForm(true);
                               }}><Edit sx={{ fontSize: 14 }} /></IconButton></Tooltip>
                             )}
@@ -1112,7 +1118,7 @@ export default function HydroStationLogPage() {
 
                   {/* System conditions button */}
                   <Button variant="outlined" size="small" startIcon={<TableChart />}
-                    onClick={() => { setEditingCondition(null); setConditionForm(emptyCondition); setShowConditionForm(true); }}
+                    onClick={() => { setEditingCondition(null); setConditionForm(emptyCondition()); setShowConditionForm(true); }}
                     sx={{ alignSelf: 'flex-start' }}>
                     Add System Conditions Snapshot
                   </Button>

@@ -22,14 +22,16 @@ interface CreateForm {
   unitCode: string;
   drainCode: string;
   drainName: string;
+  kkxCode: string;
 }
 
 interface UpdateForm {
   drainName: string;
+  kkxCode: string;
 }
 
-const emptyCreate: CreateForm = { plantCode: '', unitCode: '', drainCode: '', drainName: '' };
-const emptyUpdate: UpdateForm = { drainName: '' };
+const emptyCreate: CreateForm = { plantCode: '', unitCode: '', drainCode: '', drainName: '', kkxCode: '' };
+const emptyUpdate: UpdateForm = { drainName: '', kkxCode: '' };
 
 export default function BearingDrainPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
@@ -101,7 +103,7 @@ export default function BearingDrainPage() {
 
   const openEdit = (row: BearingDrain) => {
     setEditTarget(row);
-    setUpdateForm({ drainName: row.drainName });
+    setUpdateForm({ drainName: row.drainName, kkxCode: row.kkxCode ?? '' });
     setSaveError(null);
     setDialogOpen(true);
   };
@@ -119,13 +121,14 @@ export default function BearingDrainPage() {
     setSaveError(null);
     try {
       if (editTarget) {
-        await bearingDrainApi.update(editTarget.id, updateForm.drainName);
+        await bearingDrainApi.update(editTarget.id, { drainName: updateForm.drainName, kkxCode: updateForm.kkxCode || null });
       } else {
         await bearingDrainApi.create({
           plantCode: form.plantCode,
           unitCode: form.unitCode,
           drainCode: Number(form.drainCode),
           drainName: form.drainName,
+          kkxCode: form.kkxCode || null,
         });
       }
       closeDialog();
@@ -211,6 +214,7 @@ export default function BearingDrainPage() {
                     <TableCell>Unit</TableCell>
                     <TableCell>Drain #</TableCell>
                     <TableCell>Drain Name</TableCell>
+                    <TableCell>KKX Code</TableCell>
                     <TableCell>Created By</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
@@ -231,6 +235,13 @@ export default function BearingDrainPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">{row.drainName}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        {row.kkxCode ? (
+                          <Typography variant="body2">{row.kkxCode}</Typography>
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">N/A</Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="caption">{row.createdByName}</Typography>
@@ -282,9 +293,16 @@ export default function BearingDrainPage() {
               <TextField
                 label="Drain Name"
                 value={updateForm.drainName}
-                onChange={(e) => setUpdateForm({ drainName: e.target.value })}
+                onChange={(e) => setUpdateForm({ ...updateForm, drainName: e.target.value })}
                 fullWidth required autoFocus
                 helperText="The drain code cannot be changed after creation."
+              />
+              <TextField
+                label="KKX Code"
+                value={updateForm.kkxCode}
+                onChange={(e) => setUpdateForm({ ...updateForm, kkxCode: e.target.value })}
+                fullWidth
+                placeholder="e.g. KKX-1234"
               />
             </Stack>
           ) : (
@@ -325,6 +343,14 @@ export default function BearingDrainPage() {
                   value={form.drainName}
                   onChange={(e) => setForm((prev) => ({ ...prev, drainName: e.target.value }))}
                   placeholder="e.g. Turbine Drain #1"
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  label="KKX Code" fullWidth
+                  value={form.kkxCode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, kkxCode: e.target.value }))}
+                  placeholder="e.g. KKX-1234"
                 />
               </Grid>
             </Grid>

@@ -16,6 +16,8 @@ import { bopEquipmentApi } from '../../api/masterData/bopEquipmentApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import type { BopEquipment, BopEquipmentForm, UpdateBopEquipmentForm, PowerPlant, BalanceOfPlant, BopSystem, BopSubSystem } from '../../types/masterData';
 import { useSectionPermissions } from '../../hooks/usePermission';
+import { useUser } from '../../context/UserContext';
+import { bopTerm } from '../../utils/terminology';
 
 const emptyForm: BopEquipmentForm = {
   plantCode: '', bopCode: '', systemCode: '', subsystemCode: '',
@@ -32,6 +34,8 @@ const emptyUpdateForm: UpdateBopEquipmentForm = {
 
 export default function BopEquipmentPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
+  const { userPlantClassifications, isAdmin } = useUser();
+  const bopLabel = bopTerm(userPlantClassifications, isAdmin);
   const [rows, setRows] = useState<BopEquipment[]>([]);
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [bops, setBops] = useState<BalanceOfPlant[]>([]);
@@ -65,7 +69,7 @@ export default function BopEquipmentPage() {
     try {
       const res = await bopEquipmentApi.getAll();
       setRows(filterPlantCode ? res.data.filter((r) => r.plantCode === filterPlantCode) : res.data);
-    } catch { setError('Failed to load BOP / Auxiliary Equipment.'); } finally { setLoading(false); }
+    } catch { setError(`Failed to load ${bopLabel} Equipment.`); } finally { setLoading(false); }
   }, [filterPlantCode]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -78,12 +82,16 @@ export default function BopEquipmentPage() {
 
   const handleFormBopChange = (bopCode: string) => {
     setFormSystems(systems.filter((s) => s.plantCode === form.plantCode && s.bopCode === bopCode));
-    setFormSubSystems([]);
+    setFormSubSystems(subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.bopCode === bopCode));
     setForm((prev) => ({ ...prev, bopCode, systemCode: '', subsystemCode: '' }));
   };
 
   const handleFormSystemChange = (systemCode: string) => {
-    setFormSubSystems(subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.bopCode === form.bopCode && ss.systemCode === systemCode));
+    // When no System is selected, list ALL sub-systems for this BOP (a sub-system may itself have no System).
+    // When a System IS selected, filter to it as a convenience — it's not mandatory that a sub-system belong to it.
+    setFormSubSystems(systemCode
+      ? subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.bopCode === form.bopCode && ss.systemCode === systemCode)
+      : subSystems.filter((ss) => ss.plantCode === form.plantCode && ss.bopCode === form.bopCode));
     setForm((prev) => ({ ...prev, systemCode, subsystemCode: '' }));
   };
 
@@ -101,10 +109,10 @@ export default function BopEquipmentPage() {
       if (editTarget) {
         await bopEquipmentApi.update(editTarget.id, updateForm);
       } else {
-        await bopEquipmentApi.create(form);
+        await bopEquipmentApi.create({ ...form, systemCode: form.systemCode || null, subsystemCode: form.subsystemCode || null });
       }
       setDialogOpen(false); fetchAll();
-    } catch { setError('Failed to save.'); } finally { setSaving(false); }
+    } catch (err: any) { setError(err?.response?.data?.message || 'Failed to save.'); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -120,11 +128,11 @@ export default function BopEquipmentPage() {
 
   const isFormValid = editTarget
     ? updateForm.equipmentName.trim() && updateForm.equipmentCode.trim()
-    : form.plantCode && form.bopCode && form.systemCode && form.subsystemCode && form.equipmentName.trim() && form.equipmentCode.trim();
+    : form.plantCode && form.bopCode && form.equipmentName.trim() && form.equipmentCode.trim();
 
   return (
     <Box>
-      <PageHeader title="BOP / Auxiliary Equipment" subtitle="Manage equipment within each BOP / Auxiliary Sub System" breadcrumbs={[{ label: 'Master Data' }, { label: 'BOP / Auxiliary Equipment' }]} action={canCreate ? { label: 'Add BOP / Auxiliary Equipment', onClick: openCreate, icon: <Add /> } : undefined} />
+      <PageHeader title={`${bopLabel} Equipment`} subtitle={`Manage equipment within each ${bopLabel} Sub System`} breadcrumbs={[{ label: 'Master Data' }, { label: `${bopLabel} Equipment` }]} action={canCreate ? { label: `Add ${bopLabel} Equipment`, onClick: openCreate, icon: <Add /> } : undefined} />
       {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
 
       <Card sx={{ mb: 2 }}>
@@ -150,7 +158,7 @@ export default function BopEquipmentPage() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Plant / BOP / Auxiliary</TableCell>
+                  <TableCell>Plant / {bopLabel}</TableCell>
                   <TableCell>System / Sub-System</TableCell>
                   <TableCell>Equipment Name</TableCell>
                   <TableCell>Equipment Code</TableCell>
@@ -167,7 +175,7 @@ export default function BopEquipmentPage() {
                     <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <Tune sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
-                        <Typography variant="body2" color="text.secondary">No BOP / Auxiliary Equipment found.</Typography>
+                        <Typography variant="body2" color="text.secondary">No {bopLabel} Equipment found.</Typography>
                         <Typography variant="caption" color="text.disabled">{filterPlantCode ? 'Try clearing the filter.' : 'Click "Add Equipment" to get started.'}</Typography>
                       </Box>
                     </TableCell>
@@ -175,7 +183,7 @@ export default function BopEquipmentPage() {
                 ) : rows.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantName}</Typography><Typography variant="caption" color="text.secondary">{row.bopName} ({row.bopCode})</Typography></TableCell>
-                    <TableCell><Typography variant="body2" sx={{ fontWeight: 500 }}>{row.systemName}</Typography><Typography variant="caption" color="text.secondary">{row.subsystemName}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{ fontWeight: 500 }}>{row.systemName ?? '—'}</Typography><Typography variant="caption" color="text.secondary">{row.subsystemName ?? '—'}</Typography></TableCell>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.equipmentName}</Typography></TableCell>
                     <TableCell><Chip label={row.equipmentCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} /></TableCell>
                     <TableCell><Chip label={row.multiplier} size="small" color={row.multiplier !== 1 ? 'secondary' : 'default'} variant="outlined" /></TableCell>
@@ -193,7 +201,7 @@ export default function BopEquipmentPage() {
       </Card>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? 'Edit BOP / Auxiliary Equipment' : 'Add BOP / Auxiliary Equipment'}</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? `Edit ${bopLabel} Equipment` : `Add ${bopLabel} Equipment`}</DialogTitle>
         <Divider />
         <DialogContent sx={{ pt: '20px !important' }}>
           <Grid container spacing={2.5}>
@@ -208,8 +216,8 @@ export default function BopEquipmentPage() {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required disabled={!!editTarget || !form.plantCode}>
-                <InputLabel>BOP / Auxiliary</InputLabel>
-                <Select label="BOP / Auxiliary" value={editTarget ? editTarget.bopCode : form.bopCode} onChange={(e) => handleFormBopChange(e.target.value)}>
+                <InputLabel>{bopLabel}</InputLabel>
+                <Select label={bopLabel} value={editTarget ? editTarget.bopCode : form.bopCode} onChange={(e) => handleFormBopChange(e.target.value)}>
                   {(editTarget ? bops.filter(b => b.plantCode === editTarget.plantCode) : formBops).length === 0
                     ? <MenuItem disabled value=""><em>Select a plant first</em></MenuItem>
                     : (editTarget ? bops.filter(b => b.plantCode === editTarget.plantCode) : formBops).map((b) => (
@@ -220,28 +228,27 @@ export default function BopEquipmentPage() {
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={!!editTarget || !form.bopCode}>
-                <InputLabel>BOP / Auxiliary System</InputLabel>
-                <Select label="BOP / Auxiliary System" value={editTarget ? editTarget.systemCode : form.systemCode} onChange={(e) => handleFormSystemChange(e.target.value)}>
-                  {(editTarget ? systems.filter(s => s.plantCode === editTarget.plantCode && s.bopCode === editTarget.bopCode) : formSystems).length === 0
-                    ? <MenuItem disabled value=""><em>Select a BOP / Auxiliary first</em></MenuItem>
-                    : (editTarget ? systems.filter(s => s.plantCode === editTarget.plantCode && s.bopCode === editTarget.bopCode) : formSystems).map((s) => (
-                        <MenuItem key={s.id} value={s.systemCode}>{s.systemName} ({s.systemCode})</MenuItem>
-                      ))
-                  }
+              <FormControl fullWidth disabled={!!editTarget || !form.bopCode}>
+                <InputLabel>{bopLabel} System</InputLabel>
+                <Select label={`${bopLabel} System`} value={(editTarget ? editTarget.systemCode : form.systemCode) ?? ''} onChange={(e) => handleFormSystemChange(e.target.value)}>
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  {(editTarget ? systems.filter(s => s.plantCode === editTarget.plantCode && s.bopCode === editTarget.bopCode) : formSystems).map((s) => (
+                    <MenuItem key={s.id} value={s.systemCode}>{s.systemName} ({s.systemCode})</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={!!editTarget || !form.systemCode}>
-                <InputLabel>BOP / Auxiliary Sub System</InputLabel>
-                <Select label="BOP / Auxiliary Sub System" value={editTarget ? editTarget.subsystemCode : form.subsystemCode} onChange={(e) => setForm((prev) => ({ ...prev, subsystemCode: e.target.value }))}>
-                  {(editTarget ? subSystems.filter(ss => ss.plantCode === editTarget.plantCode && ss.bopCode === editTarget.bopCode && ss.systemCode === editTarget.systemCode) : formSubSystems).length === 0
-                    ? <MenuItem disabled value=""><em>Select a system first</em></MenuItem>
-                    : (editTarget ? subSystems.filter(ss => ss.plantCode === editTarget.plantCode && ss.bopCode === editTarget.bopCode && ss.systemCode === editTarget.systemCode) : formSubSystems).map((ss) => (
-                        <MenuItem key={ss.id} value={ss.subSystemCode}>{ss.subSystemName} ({ss.subSystemCode})</MenuItem>
-                      ))
-                  }
+              <FormControl fullWidth disabled={!!editTarget || !form.bopCode}>
+                <InputLabel>{bopLabel} Sub System</InputLabel>
+                <Select label={`${bopLabel} Sub System`} value={(editTarget ? editTarget.subsystemCode : form.subsystemCode) ?? ''} onChange={(e) => setForm((prev) => ({ ...prev, subsystemCode: e.target.value }))}>
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  {(editTarget
+                    ? subSystems.filter(ss => ss.plantCode === editTarget.plantCode && ss.bopCode === editTarget.bopCode)
+                    : formSubSystems
+                  ).map((ss) => (
+                    <MenuItem key={ss.id} value={ss.subSystemCode}>{ss.subSystemName} ({ss.subSystemCode})</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
@@ -286,7 +293,7 @@ export default function BopEquipmentPage() {
         </DialogActions>
       </Dialog>
 
-      <ConfirmDialog open={!!deleteTarget} title="Delete BOP / Auxiliary Equipment" message={`Delete "${deleteTarget?.equipmentName}" (${deleteTarget?.equipmentCode})?`} confirmLabel="Delete" loading={deleting} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+      <ConfirmDialog open={!!deleteTarget} title={`Delete ${bopLabel} Equipment`} message={`Delete "${deleteTarget?.equipmentName}" (${deleteTarget?.equipmentCode})?`} confirmLabel="Delete" loading={deleting} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
     </Box>
   );
 }

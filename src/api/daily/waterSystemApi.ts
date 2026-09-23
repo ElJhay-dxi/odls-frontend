@@ -19,5 +19,6 @@ export const freshwaterTankLevelApi = mk<FreshwaterTankLevel>('/dailyfreshwatert
 export const deminWaterTankLevelApi = mk<DeminWaterTankLevel>('/dailydeminwatertanklevel');
 export const gtCo2LevelApi          = mk<GtCo2Level>('/dailygtco2levels');
 export const desalinatedWaterApi    = mk<WaterMeterReading>('/dailydesalinatedwaterlevel');
+export const wasteWaterApi          = mk<WaterMeterReading>('/dailywastewater');
 export const hydroWaterLevelApi     = mk<HydroWaterLevel>('/dailyhydrowaterlevel');
 export const hydroWaterDischargeApi = mk<HydroWaterDischarge>('/dailyhydrowaterdischarge');

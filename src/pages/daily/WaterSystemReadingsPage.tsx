@@ -12,7 +12,7 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import {
   freshwaterInflowApi, freshwaterTotalizerApi, freshwaterTankLevelApi,
-  deminWaterTankLevelApi, gtCo2LevelApi, desalinatedWaterApi,
+  deminWaterTankLevelApi, gtCo2LevelApi, desalinatedWaterApi, wasteWaterApi,
 } from '../../api/daily/waterSystemApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { WaterMeterReading, DeminWaterTankLevel } from '../../types/waterSystem';
@@ -26,6 +26,7 @@ const TABS = [
   { label: 'd) Demin Water', key: 'deminWater' },
   { label: 'e) GT CO₂', key: 'gtCo2' },
   { label: 'f) Desalinated', key: 'desalinated' },
+  { label: 'i) Waste Water', key: 'wasteWater' },
 ];
 
 interface MeterSubFormProps {
@@ -111,7 +112,7 @@ export default function WaterSystemReadingsPage() {
   const [deleting, setDeleting] = useState(false);
 
   const tabKey = TABS[tabIndex].key;
-  const isMeterTab = ['fwInflow', 'fwTotalizer', 'deminWater', 'desalinated'].includes(tabKey);
+  const isMeterTab = ['fwInflow', 'fwTotalizer', 'deminWater', 'desalinated', 'wasteWater'].includes(tabKey);
 
   const getApi = useCallback(() => {
     switch (tabKey) {
@@ -121,6 +122,7 @@ export default function WaterSystemReadingsPage() {
       case 'deminWater': return deminWaterTankLevelApi;
       case 'gtCo2': return gtCo2LevelApi;
       case 'desalinated': return desalinatedWaterApi;
+      case 'wasteWater': return wasteWaterApi;
       default: return freshwaterInflowApi;
     }
   }, [tabKey]);
@@ -194,7 +196,7 @@ export default function WaterSystemReadingsPage() {
     const base = { plantCode, logDate };
     const isFirst = !editTarget && !priorRecord && !loadingPrior;
     switch (tabKey) {
-      case 'fwInflow': case 'fwTotalizer': case 'desalinated':
+      case 'fwInflow': case 'fwTotalizer': case 'desalinated': case 'wasteWater':
         return editTarget
           ? { currentReading: Number(currentReading) }
           : { ...base, previousReading: isFirst ? Number(manualPrev) : undefined, currentReading: Number(currentReading) };
@@ -266,7 +268,7 @@ export default function WaterSystemReadingsPage() {
           />
         </Grid>
       </Grid>
-      {['fwInflow', 'fwTotalizer', 'desalinated'].includes(tabKey) && (
+      {['fwInflow', 'fwTotalizer', 'desalinated', 'wasteWater'].includes(tabKey) && (
         <MeterSubForm plantCode={plantCode} logDate={logDate}
           currentReading={currentReading} setCurrentReading={setCurrentReading}
           showProgressive priorRecord={priorRecord} loadingPrior={loadingPrior}
@@ -312,13 +314,13 @@ export default function WaterSystemReadingsPage() {
       <TableRow key={idx} hover>
         <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{date}</Typography></TableCell>
         <TableCell>
-          {['fwInflow', 'fwTotalizer', 'desalinated', 'deminWater'].includes(tabKey) && (
+          {['fwInflow', 'fwTotalizer', 'desalinated', 'wasteWater', 'deminWater'].includes(tabKey) && (
             <Typography variant="body2">{Number(r.currentReading).toFixed(2)}</Typography>
           )}
           {tabKey === 'fwTankLevel' && <Typography variant="body2">{Number(r.levelPct).toFixed(1)}%</Typography>}
           {tabKey === 'gtCo2' && <Typography variant="body2">{Number(r.pressure)} / {Number(r.co2Pct)}%</Typography>}
         </TableCell>
-        {['fwInflow', 'fwTotalizer', 'desalinated'].includes(tabKey) && (
+        {['fwInflow', 'fwTotalizer', 'desalinated', 'wasteWater'].includes(tabKey) && (
           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{Number(r.progressiveTotal).toFixed(2)}</Typography></TableCell>
         )}
         {tabKey === 'deminWater' && (
@@ -350,7 +352,7 @@ export default function WaterSystemReadingsPage() {
     <Box>
       <PageHeader
         title="Water System Readings"
-        subtitle="Daily water system readings for thermal plants — sections a through f"
+        subtitle="Daily water system readings for thermal plants — sections a through f, i"
         breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Water System' }]}
       />
       <Alert severity="error" sx={{ mt: 2 }}
@@ -364,7 +366,7 @@ export default function WaterSystemReadingsPage() {
     <Box>
       <PageHeader
         title="Water System Readings"
-        subtitle="Daily water system readings for thermal plants — sections a through f"
+        subtitle="Daily water system readings for thermal plants — sections a through f, i"
         breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Water System' }]}
       />
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
@@ -454,7 +456,7 @@ export default function WaterSystemReadingsPage() {
                       <TableRow>
                         <TableCell>Date</TableCell>
                         <TableCell>Reading</TableCell>
-                        {['fwInflow', 'fwTotalizer', 'desalinated'].includes(tabKey) && <TableCell>Progressive</TableCell>}
+                        {['fwInflow', 'fwTotalizer', 'desalinated', 'wasteWater'].includes(tabKey) && <TableCell>Progressive</TableCell>}
                         {tabKey === 'deminWater' && <TableCell>Diff</TableCell>}
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>

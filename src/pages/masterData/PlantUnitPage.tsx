@@ -16,16 +16,17 @@ import type { PlantUnit, PlantUnitForm, UpdatePlantUnitForm, PowerPlant } from '
 import { useSectionPermissions } from '../../hooks/usePermission';
 
 const FUEL_CONFIGS = ['Single', 'Dual'];
-const FUEL_TYPES = ['Gas', 'LCO', 'DFO', 'Gas/LCO', 'Gas/DFO'];
+const FUEL_TYPES = ['Gas', 'LCO', 'DFO', 'Gas/LCO', 'Gas/DFO', 'Gas/DFO/LCO'];
+const MEASUREMENT_UNITS = ['Metric', 'Imperial'];
 
 const emptyForm: PlantUnitForm = {
   plantCode: '', unitName: '', unitCode: '', installedCapacity: 0,
-  fuelConfiguration: '', fuelType: '',
+  fuelConfiguration: '', fuelType: '', manufacturer: '', measurementUnit: 'Metric',
 };
 
 const emptyUpdateForm: UpdatePlantUnitForm = {
   unitName: '', unitCode: '', installedCapacity: 0,
-  fuelConfiguration: '', fuelType: '',
+  fuelConfiguration: '', fuelType: '', manufacturer: '', measurementUnit: 'Metric',
 };
 
 export default function PlantUnitPage() {
@@ -81,6 +82,7 @@ export default function PlantUnitPage() {
       unitName: row.unitName, unitCode: row.unitCode,
       installedCapacity: row.installedCapacity,
       fuelConfiguration: row.fuelConfiguration, fuelType: row.fuelType,
+      manufacturer: row.manufacturer, measurementUnit: row.measurementUnit,
     });
     setDialogOpen(true);
   };
@@ -95,8 +97,8 @@ export default function PlantUnitPage() {
       }
       setDialogOpen(false);
       fetchAll();
-    } catch {
-      setError('Failed to save. Please try again.');
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -171,6 +173,8 @@ export default function PlantUnitPage() {
                   <TableCell>Installed Capacity</TableCell>
                   <TableCell>Fuel Config</TableCell>
                   <TableCell>Fuel Type</TableCell>
+                  <TableCell>Manufacturer</TableCell>
+                  <TableCell>Measurement Unit</TableCell>
                   <TableCell>Created By</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
@@ -178,13 +182,13 @@ export default function PlantUnitPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
                       <CircularProgress size={32} />
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                    <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                         <AccountTree sx={{ fontSize: '2.5rem', color: 'text.disabled' }} />
                         <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
@@ -230,6 +234,16 @@ export default function PlantUnitPage() {
                         ) : (
                           <Typography variant="caption" color="text.disabled">N/A</Typography>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        {row.manufacturer ? (
+                          <Typography variant="body2">{row.manufacturer}</Typography>
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">N/A</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{row.measurementUnit}</Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">{row.createdByName}</Typography>
@@ -302,6 +316,24 @@ export default function PlantUnitPage() {
                   : setForm({ ...form, installedCapacity: Number(e.target.value) })}
                 fullWidth required
                 slotProps={{ htmlInput: { min: 0, step: 0.01 } }} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField label="Manufacturer" value={activeForm.manufacturer || ''}
+                onChange={(e) => editTarget
+                  ? setUpdateForm({ ...updateForm, manufacturer: e.target.value })
+                  : setForm({ ...form, manufacturer: e.target.value })}
+                fullWidth placeholder="e.g. GE, Siemens" />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth>
+                <InputLabel>Measurement Unit</InputLabel>
+                <Select label="Measurement Unit" value={activeForm.measurementUnit}
+                  onChange={(e) => editTarget
+                    ? setUpdateForm({ ...updateForm, measurementUnit: e.target.value })
+                    : setForm({ ...form, measurementUnit: e.target.value })}>
+                  {MEASUREMENT_UNITS.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                </Select>
+              </FormControl>
             </Grid>
             {isThermal && (
               <>

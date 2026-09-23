@@ -47,6 +47,7 @@ export interface HydroStationLogPermit {
   permitTypeName?: string;
   permitNumber?: string;
   workOrderNumber?: string;
+  eamNumber?: string | null;
   permitHolder?: string;
   workDescription?: string;
   startDate?: string;
@@ -59,6 +60,7 @@ export interface HydroStationLogPermitForm {
   permitTypeName: string;
   permitNumber: string;
   workOrderNumber: string;
+  eamNumber: string;
   permitHolder: string;
   workDescription: string;
   startDate: string;

@@ -6,6 +6,7 @@ export interface BearingMetal {
   unitCode: string;
   bearingCode: number;
   bearingName: string;
+  kkxCode?: string | null;
   createdOn: string;
   createdByName: string;
   createdByEmail: string;
@@ -19,6 +20,7 @@ export interface BearingDrain {
   unitCode: string;
   drainCode: number;
   drainName: string;
+  kkxCode?: string | null;
   createdOn: string;
   createdByName: string;
   createdByEmail: string;

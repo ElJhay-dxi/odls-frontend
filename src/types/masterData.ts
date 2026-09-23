@@ -72,6 +72,8 @@ export interface PlantUnit extends AuditFields {
   installedCapacity: number;
   fuelConfiguration: string;
   fuelType: string;
+  manufacturer?: string | null;
+  measurementUnit: string;
 }
 
 export interface PlantUnitForm {
@@ -81,6 +83,8 @@ export interface PlantUnitForm {
   installedCapacity: number;
   fuelConfiguration: string;
   fuelType: string;
+  manufacturer?: string | null;
+  measurementUnit: string;
 }
 
 export interface UpdatePlantUnitForm {
@@ -89,6 +93,8 @@ export interface UpdatePlantUnitForm {
   installedCapacity: number;
   fuelConfiguration: string;
   fuelType: string;
+  manufacturer?: string | null;
+  measurementUnit: string;
 }
 
 // ─── Plant Unit System ─────────────────────────────────────────────────────────
@@ -119,8 +125,8 @@ export interface PlantUnitSubSystem extends AuditFields {
   plantCode: string;
   unitName: string;
   unitCode: string;
-  systemName: string;
-  systemCode: string;
+  systemName: string | null;
+  systemCode: string | null;
   subSystemName: string;
   subSystemCode: string;
 }
@@ -128,7 +134,7 @@ export interface PlantUnitSubSystem extends AuditFields {
 export interface PlantUnitSubSystemForm {
   plantCode: string;
   unitCode: string;
-  systemCode: string;
+  systemCode: string | null;
   subSystemName: string;
   subSystemCode: string;
 }
@@ -144,10 +150,10 @@ export interface PlantUnitEquipment extends AuditFields {
   plantCode: string;
   unitName: string;
   unitCode: string;
-  systemName: string;
-  systemCode: string;
-  subSystemName: string;
-  subSystemCode: string;
+  systemName: string | null;
+  systemCode: string | null;
+  subSystemName: string | null;
+  subSystemCode: string | null;
   equipmentName: string;
   equipmentCode: string;
   multiplier: number;
@@ -156,8 +162,8 @@ export interface PlantUnitEquipment extends AuditFields {
 export interface PlantUnitEquipmentForm {
   plantCode: string;
   unitCode: string;
-  systemCode: string;
-  subSystemCode: string;
+  systemCode: string | null;
+  subSystemCode: string | null;
   equipmentName: string;
   equipmentCode: string;
   multiplier: number;
@@ -218,8 +224,8 @@ export interface BopSubSystem extends AuditFields {
   plantCode: string;
   bopName: string;
   bopCode: string;
-  systemName: string;
-  systemCode: string;
+  systemName: string | null;
+  systemCode: string | null;
   subSystemName: string;
   subSystemCode: string;
 }
@@ -229,8 +235,8 @@ export interface BopSubSystemForm {
   plantCode: string;
   bopName: string;
   bopCode: string;
-  systemName: string;
-  systemCode: string;
+  systemName: string | null;
+  systemCode: string | null;
   subSystemName: string;
   subSystemCode: string;
 }
@@ -246,10 +252,10 @@ export interface BopEquipment extends AuditFields {
   plantCode: string;
   bopName: string;
   bopCode: string;
-  systemName: string;
-  systemCode: string;
-  subsystemName: string;
-  subsystemCode: string;
+  systemName: string | null;
+  systemCode: string | null;
+  subsystemName: string | null;
+  subsystemCode: string | null;
   equipmentName: string;
   equipmentCode: string;
   multiplier: number;
@@ -260,10 +266,10 @@ export interface BopEquipmentForm {
   plantCode: string;
   bopName: string;
   bopCode: string;
-  systemName: string;
-  systemCode: string;
-  subsystemName: string;
-  subsystemCode: string;
+  systemName: string | null;
+  systemCode: string | null;
+  subsystemName: string | null;
+  subsystemCode: string | null;
   equipmentName: string;
   equipmentCode: string;
   multiplier: number;
