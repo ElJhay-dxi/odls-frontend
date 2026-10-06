@@ -98,7 +98,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: 'EX2000 - Excitation System', color: '#33691E',
+    title: 'EX2000', color: '#33691E',
     fields: [
       { key: 'ex2000FldCurr', label: 'Field Current', unit: 'A' },
       { key: 'ex2000FldVolt', label: 'Field Voltage', unit: 'V' },
@@ -175,7 +175,7 @@ export default function HourlyThermalReadingPage() {
   const [deleting, setDeleting] = useState(false);
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
-    'Steam Turbine Generator (STG)': true,
+    'Steam Turbine Generator (STG)': false,
     'Bearing Metal Temperatures': false,
     'Bearing Drain Temperatures': false,
   });
@@ -369,6 +369,15 @@ export default function HourlyThermalReadingPage() {
   const toggleSection = (title: string) => setCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
   const currentUnitCode = editTarget ? editTarget.unitCode : form.unitCode;
 
+  const currentPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
+  const currentUnit = units.find((u) => u.unitCode === currentUnitCode && u.plantCode === currentPlantCode);
+  const hasSteamTurbine = !!currentUnit?.hasSteamTurbine;
+  const visibleSections = SECTIONS.filter((section) => {
+    if (hasSteamTurbine && (section.title === 'Compressor' || section.title === 'Turbine')) return false;
+    if (!hasSteamTurbine && section.title === 'Steam Turbine Generator (STG)') return false;
+    return true;
+  });
+
   // ── Plant type guard ─────────────────────────────────────────────────────────
   if (isWrongPlantType) return (
     <Box>
@@ -477,7 +486,7 @@ export default function HourlyThermalReadingPage() {
                 </Grid>
               </Paper>
 
-              {SECTIONS.map((section) => (
+              {visibleSections.map((section) => (
                 <Paper key={section.title} variant="outlined" sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>
                   <Box sx={{
                     px: 2, py: 1.2, backgroundColor: `${section.color}14`,
@@ -487,7 +496,9 @@ export default function HourlyThermalReadingPage() {
                   }} onClick={() => toggleSection(section.title)}>
                     <Box>
                       <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: section.color }}>
-                        {section.title}
+                        {section.title === 'EX2000'
+                          ? ((editTarget ? editTarget.plantCode : form.plantCode) === 'KTPS' ? 'Excitation System' : 'EX2000')
+                          : section.title}
                       </Typography>
                       {'subtitle' in section && section.subtitle && (
                         <Typography variant="caption" color="text.disabled" sx={{ ml: 1 }}>— {section.subtitle}</Typography>

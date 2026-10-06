@@ -21,6 +21,7 @@ import {
 import PageHeader from '../../components/shared/PageHeader';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labReportsApi, type LabReportKind } from '../../api/lab/labReportsApi';
+import { labSampleTypesApi } from '../../api/lab/labSampleTypesApi';
 import type { PowerPlant } from '../../types/masterData';
 import type {
   LabWaterQualityRow, LabChemicalConsumptionRow, LabLubeOilRow,
@@ -57,7 +58,6 @@ const STATUS_TEXT_COLORS: Record<string, string> = {
 };
 const CONDITION_COLORS: Record<string, string> = { Good: '#1B5E20', Monitor: '#FFA000', Replace: '#B71C1C' };
 
-const SAMPLE_TYPES = ['All', 'Raw Water', 'Treated Water', 'Steam', 'Condensate', 'Cooling Water'];
 
 const TABS: { label: string; icon: React.ReactElement; kind: LabReportKind }[] = [
   { label: 'Water Quality', icon: <Biotech fontSize="small" />, kind: 'waterquality' },
@@ -379,6 +379,7 @@ export default function LabReportsPage() {
   // Tab 1 local filters
   const [samplePointFilter, setSamplePointFilter] = useState('');
   const [sampleTypeFilter, setSampleTypeFilter] = useState('All');
+  const [sampleTypeOptions, setSampleTypeOptions] = useState<string[]>(['All']);
 
   const chartsRef = useRef<HTMLDivElement>(null);
 
@@ -386,6 +387,10 @@ export default function LabReportsPage() {
     powerPlantApi.getAll().then((res) =>
       setPlants(res.data.filter((p) => p.classificationType?.toLowerCase() === 'thermal'))
     );
+    // Reports must still be filterable by inactive types (historical data), so load all types.
+    labSampleTypesApi.getAll()
+      .then((res) => setSampleTypeOptions(['All', ...res.data.map((t) => t.name)]))
+      .catch(() => { /* keep 'All' only; the filter just won't narrow by type */ });
   }, []);
 
   useEffect(() => {
@@ -495,7 +500,7 @@ export default function LabReportsPage() {
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel>Sample Type</InputLabel>
             <Select label="Sample Type" value={sampleTypeFilter} onChange={(e) => setSampleTypeFilter(e.target.value)}>
-              {SAMPLE_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+              {sampleTypeOptions.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
             </Select>
           </FormControl>
         </Stack>

@@ -74,6 +74,7 @@ export interface PlantUnit extends AuditFields {
   fuelType: string;
   manufacturer?: string | null;
   measurementUnit: string;
+  hasSteamTurbine: boolean;
 }
 
 export interface PlantUnitForm {
@@ -85,6 +86,7 @@ export interface PlantUnitForm {
   fuelType: string;
   manufacturer?: string | null;
   measurementUnit: string;
+  hasSteamTurbine: boolean;
 }
 
 export interface UpdatePlantUnitForm {
@@ -95,6 +97,7 @@ export interface UpdatePlantUnitForm {
   fuelType: string;
   manufacturer?: string | null;
   measurementUnit: string;
+  hasSteamTurbine: boolean;
 }
 
 // ─── Plant Unit System ─────────────────────────────────────────────────────────

@@ -294,7 +294,7 @@ export default function ThermalStationLogPage() {
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedBuses, setSelectedBuses] = useState<string[]>([]);
   const [currentOutputMw, setCurrentOutputMw] = useState('');
-  const [selectedSST, setSelectedSST] = useState<string>('');
+  const [selectedSST, setSelectedSST] = useState<string[]>([]);
   const [headerTextForm, setHeaderTextForm] = useState<Record<TextFieldKey, string>>({
     fireProtectionStatus: '',
     emergencyDieselGenStatus: '', applicationForOutage: '', miscNotes: '',
@@ -625,7 +625,7 @@ export default function ThermalStationLogPage() {
     setSelectedUnits(toArray(data.unitsInService));
     setSelectedBuses(toArray(data.linesInService));
     setCurrentOutputMw(data.currentOutputMw?.toString() ?? '');
-    setSelectedSST(data.stationService ?? '');
+    setSelectedSST(toArray(data.stationService));
     setHeaderTextForm({
       fireProtectionStatus: data.fireProtectionStatus ?? '',
       emergencyDieselGenStatus: data.emergencyDieselGenStatus ?? '',
@@ -783,7 +783,7 @@ export default function ThermalStationLogPage() {
         unitsInService: toStr(selectedUnits),
         linesInService: toStr(selectedBuses),
         currentOutputMw: currentOutputMw || null,
-        stationService: selectedSST,
+        stationService: toStr(selectedSST),
         ...headerTextForm,
       }));
       setLog(res.data); populateHeader(res.data); setHeaderEditing(false);
@@ -1928,35 +1928,23 @@ export default function ThermalStationLogPage() {
                   )}
 
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    {headerEditing ? (
-                      <FormControl fullWidth size="small">
-                        <InputLabel>Station Service</InputLabel>
-                        <Select
-                          label="Station Service"
-                          value={selectedSST}
-                          onChange={(e) => setSelectedSST(e.target.value)}>
-                          <MenuItem value=""><em>Not specified</em></MenuItem>
-                          {allTransformerEquipments.map((eq) => (
-                            <MenuItem key={eq.equipmentCode} value={eq.equipmentCode}>
-                              <Stack>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{eq.equipmentName}</Typography>
-                                <Typography variant="caption" color="text.secondary">{eq.groupLabel}</Typography>
-                              </Stack>
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
+                    {headerEditing ? renderMultiSelect(
+                      'Station Service',
+                      allTransformerEquipments.map((eq) => ({ value: eq.equipmentCode, label: `${eq.equipmentName} (${eq.groupLabel})` })),
+                      selectedSST, setSelectedSST, allTransformerEquipments.length === 0,
                     ) : (
                       <Box>
                         <Typography variant="caption" color="text.secondary"
                           sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                           Station Service
                         </Typography>
-                        <Typography variant="body2" sx={{ mt: 0.25 }}>
-                          {selectedSST
-                            ? allTransformerEquipments.find(e => e.equipmentCode === selectedSST)?.equipmentName ?? selectedSST
-                            : <span style={{ color: '#999', fontStyle: 'italic' }}>Not specified</span>}
-                        </Typography>
+                        <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }} useFlexGap>
+                          {toArray(log.stationService).length > 0
+                            ? toArray(log.stationService).map((code) => (
+                              <Chip key={code} label={allTransformerEquipments.find(e => e.equipmentCode === code)?.equipmentName ?? code} size="small" color="warning" variant="outlined" />
+                            ))
+                            : <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#999' }}>Not specified</Typography>}
+                        </Stack>
                       </Box>
                     )}
                   </Grid>

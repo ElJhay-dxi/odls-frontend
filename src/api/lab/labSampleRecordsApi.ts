@@ -7,6 +7,9 @@ export const labSampleRecordsApi = {
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<LabSampleRecord[]>(BASE, { params }),
 
+  getSuggestions: () =>
+    axiosInstance.get<{ containers: string[]; sampleFrom: string[]; labsToAnalyze: string[] }>(`${BASE}/suggestions`),
+
   getById: (id: string) =>
     axiosInstance.get<LabSampleRecord>(`${BASE}/${id}`),
 

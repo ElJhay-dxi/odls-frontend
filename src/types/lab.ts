@@ -49,11 +49,26 @@ export interface LabAnalysisRecord {
   analysedBy?: string;
   remarks?: string;
   sampleRecordId?: string;
+  followUpOfAnalysisId?: string | null;
+  actionToTake?: string | null;
   createdByName: string;
   createdOn: string;
   updatedByName?: string;
   updatedOn?: string;
   parameters: LabAnalysisParameter[];
+}
+
+export interface LabAnalysisAction {
+  id: string;
+  name: string;
+  description?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  usageCount: number;
+  createdByName: string;
+  createdOn: string;
+  updatedByName?: string;
+  updatedOn?: string;
 }
 
 export interface SaveLabAnalysisParameterForm {
@@ -85,6 +100,12 @@ export interface LabSampleRecord {
   logDate: string;
   samplePoint: string;
   sampleType: string;
+  sampleFrom?: string | null;
+  appearance?: string | null;
+  container?: string | null;
+  quantityOfSample?: number | null;
+  quantityUnit?: string | null;
+  labToAnalyze?: string | null;
   collectedBy?: string;
   collectedAt?: string;
   sentToLabAt?: string;
@@ -107,6 +128,7 @@ export interface LabSeaWaterReading {
   logDate: string;
   readingTime?: string;
   location?: string;
+  weatherCondition?: string | null;
   temperature?: number;
   ph?: number;
   salinity?: number;
@@ -337,4 +359,17 @@ export interface LabSamplePoint {
   updatedByName?: string;
   updatedOn?: string;
   parameters: LabSamplePointParameter[];
+}
+
+export interface LabSampleType {
+  id: string;
+  name: string;
+  description?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  samplePointCount: number;
+  createdByName: string;
+  createdOn: string;
+  updatedByName?: string | null;
+  updatedOn?: string | null;
 }

@@ -7,6 +7,9 @@ export const labSeaWaterApi = {
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<LabSeaWaterReading[]>(BASE, { params }),
 
+  getSuggestions: () =>
+    axiosInstance.get<{ weatherConditions: string[]; locations: string[] }>(`${BASE}/suggestions`),
+
   getById: (id: string) =>
     axiosInstance.get<LabSeaWaterReading>(`${BASE}/${id}`),
 

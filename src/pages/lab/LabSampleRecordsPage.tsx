@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import SuggestAutocomplete from '../../components/lab/SuggestAutocomplete';
 import PersonAutocomplete from '../../components/lab/PersonAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labSampleRecordsApi } from '../../api/lab/labSampleRecordsApi';
@@ -25,15 +26,25 @@ const STATUS_COLORS: Record<string, 'default' | 'primary' | 'success'> = {
   Pending: 'default', 'In Progress': 'primary', Complete: 'success',
 };
 
+const APPEARANCES = ['Clear', 'Dirty'];
+const QUANTITY_UNITS = ['mL', 'L', 'gal', 'g', 'kg'];
+const DEFAULT_QUANTITY_UNIT = 'mL';
+// Suggestions only — the Container field also accepts free text.
+const CONTAINER_SUGGESTIONS = ['Plastic Bottle', 'Glass Bottle', 'Amber Glass Bottle', 'Sterile Bag', 'Vial', 'Jerrycan'];
+
 interface SampleForm {
   samplePoint: string; sampleType: string; collectedBy: string;
   collectedAt: string; sentToLabAt: string; receivedAt: string;
   analysisStatus: string; remarks: string;
+  sampleFrom: string; appearance: string; container: string;
+  quantityOfSample: string; quantityUnit: string; labToAnalyze: string;
 }
 
 const emptyForm: SampleForm = {
   samplePoint: '', sampleType: 'Raw Water', collectedBy: '',
   collectedAt: '', sentToLabAt: '', receivedAt: '', analysisStatus: 'Pending', remarks: '',
+  sampleFrom: '', appearance: '', container: '',
+  quantityOfSample: '', quantityUnit: DEFAULT_QUANTITY_UNIT, labToAnalyze: '',
 };
 
 export default function LabSampleRecordsPage() {
@@ -42,6 +53,7 @@ export default function LabSampleRecordsPage() {
   const navigate = useNavigate();
 
   const [plants, setPlants] = useState<PowerPlant[]>([]);
+  const [allPlants, setAllPlants] = useState<PowerPlant[]>([]); // every plant (thermal + hydro) for From / Lab to Analyze
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [selectedPlant, setSelectedPlant] = useState('');
@@ -65,15 +77,26 @@ export default function LabSampleRecordsPage() {
 
   const [analysisModal, setAnalysisModal] = useState<LabSampleRecord | null>(null);
 
+  const [learned, setLearned] = useState<{ containers: string[]; sampleFrom: string[]; labsToAnalyze: string[] }>({ containers: [], sampleFrom: [], labsToAnalyze: [] });
+
   const [history, setHistory] = useState<LabSampleRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(true);
   const [historyStatusFilter, setHistoryStatusFilter] = useState('');
 
+  const loadSuggestions = useCallback(() => {
+    labSampleRecordsApi.getSuggestions()
+      .then((res) => setLearned(res.data))
+      .catch(() => { /* suggestions are optional */ });
+  }, []);
+
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
+
   useEffect(() => {
-    powerPlantApi.getAll().then((res) =>
-      setPlants(res.data.filter((p) => p.classificationType?.toLowerCase() === 'thermal'))
-    );
+    powerPlantApi.getAll().then((res) => {
+      setAllPlants(res.data);
+      setPlants(res.data.filter((p) => p.classificationType?.toLowerCase() === 'thermal'));
+    });
   }, []);
 
   useEffect(() => {
@@ -119,7 +142,7 @@ export default function LabSampleRecordsPage() {
 
   const openCreate = () => {
     setEditTarget(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, sampleFrom: allPlants.find((p) => p.plantCode === selectedPlant)?.plantName ?? '' });
     setSaveError(null);
     setCreatedSampleId(null);
     setDialogOpen(true);
@@ -136,14 +159,24 @@ export default function LabSampleRecordsPage() {
       receivedAt: row.receivedAt?.slice(0, 5) ?? '',
       analysisStatus: row.analysisStatus,
       remarks: row.remarks ?? '',
+      sampleFrom: row.sampleFrom ?? '',
+      appearance: row.appearance ?? '',
+      container: row.container ?? '',
+      quantityOfSample: row.quantityOfSample != null ? String(row.quantityOfSample) : '',
+      quantityUnit: row.quantityUnit ?? DEFAULT_QUANTITY_UNIT,
+      labToAnalyze: row.labToAnalyze ?? '',
     });
     setSaveError(null);
     setCreatedSampleId(null);
     setDialogOpen(true);
   };
 
+  const hasQuantity = form.quantityOfSample.trim() !== '';
+  const isQuantityValid = !hasQuantity || (Number.isFinite(Number(form.quantityOfSample)) && Number(form.quantityOfSample) >= 0);
+  const plantNameOptions = allPlants.map((p) => p.plantName);
+
   const handleSave = async () => {
-    if (!form.samplePoint.trim()) return;
+    if (!form.samplePoint.trim() || !isQuantityValid) return;
     setSaving(true); setSaveError(null);
     try {
       const payload = {
@@ -157,6 +190,12 @@ export default function LabSampleRecordsPage() {
         receivedAt: form.receivedAt || null,
         analysisStatus: form.analysisStatus,
         remarks: form.remarks || null,
+        sampleFrom: form.sampleFrom.trim() || null,
+        appearance: form.appearance || null,
+        container: form.container.trim() || null,
+        quantityOfSample: hasQuantity ? Number(form.quantityOfSample) : null,
+        quantityUnit: hasQuantity ? form.quantityUnit : null,
+        labToAnalyze: form.labToAnalyze.trim() || null,
       };
       if (editTarget) {
         await labSampleRecordsApi.update(editTarget.id, payload);
@@ -165,6 +204,7 @@ export default function LabSampleRecordsPage() {
         const res = await labSampleRecordsApi.create(payload);
         setCreatedSampleId(res.data.sampleId);
       }
+      loadSuggestions(); // new entries join the suggestions
       fetchRecords();
       fetchHistory();
     } catch (err: unknown) {
@@ -262,6 +302,11 @@ export default function LabSampleRecordsPage() {
                       <TableCell>Sample ID</TableCell>
                       <TableCell>Sample Point</TableCell>
                       <TableCell>Type</TableCell>
+                      <TableCell>From</TableCell>
+                      <TableCell>Appearance</TableCell>
+                      <TableCell>Container</TableCell>
+                      <TableCell>Quantity</TableCell>
+                      <TableCell>Lab to Analyze</TableCell>
                       <TableCell>Collected By</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Analysis</TableCell>
@@ -274,6 +319,18 @@ export default function LabSampleRecordsPage() {
                         <TableCell><Chip label={row.sampleId} size="small" variant="outlined" sx={{ fontFamily: 'monospace' }} /></TableCell>
                         <TableCell>{row.samplePoint}</TableCell>
                         <TableCell>{row.sampleType}</TableCell>
+                        <TableCell>{row.sampleFrom || '—'}</TableCell>
+                        <TableCell>
+                          {row.appearance
+                            ? <Chip label={row.appearance} size="small" variant="outlined"
+                                color={row.appearance === 'Dirty' ? 'warning' : 'info'} />
+                            : '—'}
+                        </TableCell>
+                        <TableCell>{row.container || '—'}</TableCell>
+                        <TableCell>
+                          {row.quantityOfSample != null ? `${row.quantityOfSample} ${row.quantityUnit ?? ''}`.trim() : '—'}
+                        </TableCell>
+                        <TableCell>{row.labToAnalyze || '—'}</TableCell>
                         <TableCell>{row.collectedBy ?? '—'}</TableCell>
                         <TableCell><Chip label={row.analysisStatus} size="small" color={STATUS_COLORS[row.analysisStatus] ?? 'default'} /></TableCell>
                         <TableCell>
@@ -439,6 +496,45 @@ export default function LabSampleRecordsPage() {
                 value={form.receivedAt} onChange={(e) => setForm((p) => ({ ...p, receivedAt: e.target.value }))}
                 slotProps={{ inputLabel: { shrink: true } }} />
             </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <SuggestAutocomplete label="From" value={form.sampleFrom} defaults={plantNameOptions} learned={learned.sampleFrom}
+                onChange={(v) => setForm((p) => ({ ...p, sampleFrom: v }))}
+                helperText="Pick a plant, or type an external source" />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <SuggestAutocomplete label="Lab to Analyze" value={form.labToAnalyze} defaults={plantNameOptions} learned={learned.labsToAnalyze}
+                onChange={(v) => setForm((p) => ({ ...p, labToAnalyze: v }))}
+                helperText="Pick a plant, or type an external lab" />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Appearance</InputLabel>
+                <Select label="Appearance" value={form.appearance} onChange={(e) => setForm((p) => ({ ...p, appearance: e.target.value }))}>
+                  <MenuItem value=""><em>Not specified</em></MenuItem>
+                  {APPEARANCES.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 8 }}>
+              <SuggestAutocomplete label="Container" value={form.container} defaults={CONTAINER_SUGGESTIONS} learned={learned.containers}
+                onChange={(v) => setForm((p) => ({ ...p, container: v }))} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField label="Quantity of Sample" type="number" size="small" fullWidth
+                value={form.quantityOfSample}
+                onChange={(e) => setForm((p) => ({ ...p, quantityOfSample: e.target.value }))}
+                error={!isQuantityValid}
+                helperText={!isQuantityValid ? 'Enter a number of 0 or more' : undefined}
+                slotProps={{ htmlInput: { min: 0, step: 'any' } }} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size="small" disabled={!hasQuantity}>
+                <InputLabel>Quantity Unit</InputLabel>
+                <Select label="Quantity Unit" value={form.quantityUnit} onChange={(e) => setForm((p) => ({ ...p, quantityUnit: e.target.value }))}>
+                  {QUANTITY_UNITS.map((u) => <MenuItem key={u} value={u}>{u}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
             <Grid size={{ xs: 12 }}>
               <TextField label="Remarks" size="small" fullWidth multiline rows={2}
                 value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
@@ -449,7 +545,7 @@ export default function LabSampleRecordsPage() {
         <DialogActions sx={{ px: 3, py: 1.5 }}>
           <Button variant="outlined" onClick={() => setDialogOpen(false)} disabled={saving}>Close</Button>
           <Button variant="contained" sx={{ backgroundColor: ACCENT }} onClick={handleSave}
-            disabled={saving || !form.samplePoint.trim()}
+            disabled={saving || !form.samplePoint.trim() || !isQuantityValid}
             startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <Save />}>
             {saving ? 'Saving...' : editTarget ? 'Update' : 'Create'}
           </Button>

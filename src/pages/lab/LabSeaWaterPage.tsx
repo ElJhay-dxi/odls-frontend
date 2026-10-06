@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import SuggestAutocomplete from '../../components/lab/SuggestAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labSeaWaterApi } from '../../api/lab/labSeaWaterApi';
 import type { PowerPlant } from '../../types/masterData';
@@ -20,15 +21,17 @@ import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 const ACCENT = '#00695C';
 
 interface ReadingForm {
-  readingTime: string; location: string; temperature: string; ph: string;
+  readingTime: string; location: string; weatherCondition: string; temperature: string; ph: string;
   salinity: string; tds: string; turbidity: string; chlorineResidual: string;
   dissolvedOxygen: string; intakeFlow: string; remarks: string;
 }
 
 const emptyForm: ReadingForm = {
-  readingTime: new Date().toTimeString().slice(0, 5), location: '', temperature: '', ph: '',
+  readingTime: new Date().toTimeString().slice(0, 5), location: '', weatherCondition: '', temperature: '', ph: '',
   salinity: '', tds: '', turbidity: '', chlorineResidual: '', dissolvedOxygen: '', intakeFlow: '', remarks: '',
 };
+
+const WEATHER_DEFAULTS = ['Sunny', 'Clear', 'Partly Cloudy', 'Cloudy', 'Overcast', 'Light Rain', 'Heavy Rain', 'Windy', 'Stormy', 'Foggy', 'Hazy', 'Harmattan'];
 
 const toNum = (v: string) => v === '' ? null : Number(v);
 const fmt = (v?: number) => v != null ? v.toString() : '—';
@@ -56,6 +59,9 @@ export default function LabSeaWaterPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<LabSeaWaterReading | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [learnedWeather, setLearnedWeather] = useState<string[]>([]);
+  const [learnedLocations, setLearnedLocations] = useState<string[]>([]);
 
   const [history, setHistory] = useState<LabSeaWaterReading[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -110,6 +116,14 @@ export default function LabSeaWaterPage() {
     return Array.from(map.entries()).map(([logDate, count]) => ({ logDate, count })).sort((a, b) => b.logDate.localeCompare(a.logDate));
   })();
 
+  const loadSuggestions = useCallback(() => {
+    labSeaWaterApi.getSuggestions()
+      .then((res) => { setLearnedWeather(res.data.weatherConditions); setLearnedLocations(res.data.locations); })
+      .catch(() => { /* suggestions are optional */ });
+  }, []);
+
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
+
   const openCreate = () => {
     setEditTarget(null);
     setForm({ ...emptyForm, readingTime: new Date().toTimeString().slice(0, 5) });
@@ -122,6 +136,7 @@ export default function LabSeaWaterPage() {
     setForm({
       readingTime: row.readingTime?.slice(0, 5) ?? '',
       location: row.location ?? '',
+      weatherCondition: row.weatherCondition ?? '',
       temperature: row.temperature?.toString() ?? '',
       ph: row.ph?.toString() ?? '',
       salinity: row.salinity?.toString() ?? '',
@@ -144,6 +159,7 @@ export default function LabSeaWaterPage() {
         logDate: selectedDate,
         readingTime: form.readingTime || null,
         location: form.location || null,
+        weatherCondition: form.weatherCondition.trim() || null,
         temperature: toNum(form.temperature),
         ph: toNum(form.ph),
         salinity: toNum(form.salinity),
@@ -162,6 +178,7 @@ export default function LabSeaWaterPage() {
       setDialogOpen(false);
       fetchReadings();
       fetchHistory();
+      loadSuggestions(); // new entries join the suggestions
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save reading.');
@@ -255,6 +272,7 @@ export default function LabSeaWaterPage() {
                     <TableRow>
                       <TableCell>Time</TableCell>
                       <TableCell>Location</TableCell>
+                      <TableCell>Weather</TableCell>
                       <TableCell>pH</TableCell>
                       <TableCell>Temp (°C)</TableCell>
                       <TableCell>Salinity</TableCell>
@@ -271,6 +289,7 @@ export default function LabSeaWaterPage() {
                       <TableRow key={r.id} hover>
                         <TableCell>{r.readingTime?.slice(0, 5) ?? '—'}</TableCell>
                         <TableCell>{r.location ?? '—'}</TableCell>
+                        <TableCell>{r.weatherCondition ?? '—'}</TableCell>
                         <TableCell>{fmt(r.ph)}</TableCell>
                         <TableCell>{fmt(r.temperature)}</TableCell>
                         <TableCell>{fmt(r.salinity)}</TableCell>
@@ -355,8 +374,14 @@ export default function LabSeaWaterPage() {
                 slotProps={{ inputLabel: { shrink: true } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Location" size="small" fullWidth
-                value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} />
+              <SuggestAutocomplete label="Location" value={form.location} learned={learnedLocations}
+                onChange={(v) => setForm((p) => ({ ...p, location: v }))} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <SuggestAutocomplete label="Weather Condition" value={form.weatherCondition}
+                defaults={WEATHER_DEFAULTS} learned={learnedWeather}
+                onChange={(v) => setForm((p) => ({ ...p, weatherCondition: v }))}
+                helperText="Pick a suggestion or type a new one — new entries are suggested next time" />
             </Grid>
             <Grid size={{ xs: 6 }}>
               <TextField label="Temperature (°C)" type="number" size="small" fullWidth

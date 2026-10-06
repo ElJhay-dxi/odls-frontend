@@ -26,12 +26,13 @@ interface CreateForm {
 }
 
 interface UpdateForm {
+  unitCode: string;
   bearingName: string;
   kkxCode: string;
 }
 
 const emptyCreate: CreateForm = { plantCode: '', unitCode: '', bearingCode: '', bearingName: '', kkxCode: '' };
-const emptyUpdate: UpdateForm = { bearingName: '', kkxCode: '' };
+const emptyUpdate: UpdateForm = { unitCode: '', bearingName: '', kkxCode: '' };
 
 export default function BearingMetalPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
@@ -108,7 +109,7 @@ export default function BearingMetalPage() {
 
   const openEdit = (row: BearingMetal) => {
     setEditTarget(row);
-    setUpdateForm({ bearingName: row.bearingName, kkxCode: row.kkxCode ?? '' });
+    setUpdateForm({ unitCode: row.unitCode, bearingName: row.bearingName, kkxCode: row.kkxCode ?? '' });
     setSaveError(null);
     setDialogOpen(true);
   };
@@ -126,7 +127,7 @@ export default function BearingMetalPage() {
     setSaveError(null);
     try {
       if (editTarget) {
-        await bearingMetalApi.update(editTarget.id, { bearingName: updateForm.bearingName, kkxCode: updateForm.kkxCode || null });
+        await bearingMetalApi.update(editTarget.id, { unitCode: updateForm.unitCode, bearingName: updateForm.bearingName, kkxCode: updateForm.kkxCode || null });
       } else {
         await bearingMetalApi.create({
           plantCode: form.plantCode,
@@ -161,7 +162,7 @@ export default function BearingMetalPage() {
   };
 
   const isCreateValid = form.plantCode && form.unitCode && form.bearingCode && form.bearingName.trim();
-  const isUpdateValid = updateForm.bearingName.trim();
+  const isUpdateValid = updateForm.unitCode && updateForm.bearingName.trim();
 
   return (
     <Box>
@@ -294,9 +295,17 @@ export default function BearingMetalPage() {
             <Stack spacing={2}>
               <Stack direction="row" spacing={1}>
                 <Chip label={editTarget.plantCode} size="small" variant="outlined" />
-                <Chip label={editTarget.unitCode} size="small" variant="outlined" />
                 <Chip label={`Bearing #${editTarget.bearingCode}`} size="small" color="primary" variant="outlined" />
               </Stack>
+              <FormControl fullWidth required>
+                <InputLabel>Unit</InputLabel>
+                <Select label="Unit" value={updateForm.unitCode}
+                  onChange={(e) => setUpdateForm({ ...updateForm, unitCode: e.target.value })}>
+                  {units.filter((u) => u.plantCode === editTarget.plantCode).map((u) => (
+                    <MenuItem key={u.id} value={u.unitCode}>{u.unitName} ({u.unitCode})</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <TextField
                 label="Bearing Name"
                 value={updateForm.bearingName}

@@ -3,28 +3,26 @@ import {
   MenuItem, FormControl, InputLabel, Select, Grid, Divider, Chip, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions,
-  Switch, FormControlLabel, Tabs, Tab,
+  Switch, FormControlLabel, FormHelperText, Link, Tabs, Tab,
 } from '@mui/material';
 import {
-  AdminPanelSettings, Science, Biotech, Tune, Add, Edit, Delete, Save,
-  CheckCircle, FiberManualRecord,
+  AdminPanelSettings, Science, Biotech, Tune, Category, Add, Edit, Delete, Save,
+  CheckCircle, FiberManualRecord, FactCheck,
 } from '@mui/icons-material';
 import { useEffect, useState, useCallback, type SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import LabActionsManager from '../../components/lab/LabActionsManager';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labSamplePointsApi } from '../../api/lab/labSamplePointsApi';
+import { labSampleTypesApi } from '../../api/lab/labSampleTypesApi';
 import type { PowerPlant } from '../../types/masterData';
-import type { LabSamplePoint, LabSamplePointParameter } from '../../types/lab';
+import type { LabSamplePoint, LabSamplePointParameter, LabSampleType } from '../../types/lab';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const ACCENT = '#00695C';
-
-const SAMPLE_TYPES = [
-  'Raw Water', 'Treated Water', 'Steam', 'Condensate', 'Cooling Water', 'Sea Water', 'Demineralized Water',
-];
 
 const QUICK_PARAMS: { name: string; unit: string }[] = [
   { name: 'pH', unit: '' },
@@ -41,15 +39,22 @@ const QUICK_PARAMS: { name: string; unit: string }[] = [
 ];
 
 const TABS = [
+  { label: 'Sample Types', icon: <Category fontSize="small" /> },
   { label: 'Sample Points', icon: <Science fontSize="small" /> },
   { label: 'Parameters', icon: <Biotech fontSize="small" /> },
   { label: 'Control Limits', icon: <Tune fontSize="small" /> },
+  { label: 'Actions', icon: <FactCheck fontSize="small" /> },
 ];
+const SAMPLE_TYPES_TAB = 0;
+const ACTIONS_TAB = 4;
 
 interface SamplePointForm {
   samplePointName: string; sampleType: string; description: string; isActive: boolean;
 }
-const emptySamplePointForm: SamplePointForm = { samplePointName: '', sampleType: SAMPLE_TYPES[0], description: '', isActive: true };
+const emptySamplePointForm: SamplePointForm = { samplePointName: '', sampleType: '', description: '', isActive: true };
+
+interface SampleTypeForm { name: string; description: string; isActive: boolean; }
+const emptySampleTypeForm: SampleTypeForm = { name: '', description: '', isActive: true };
 
 interface ParameterForm { parameterName: string; unit: string; }
 const emptyParameterForm: ParameterForm = { parameterName: '', unit: '' };
@@ -95,6 +100,98 @@ export default function LabAdminPage() {
 
   useEffect(() => { loadSamplePoints(); }, [loadSamplePoints]);
 
+  // ── Sample types (global master list — not plant-specific) ─────────────────
+  const [sampleTypes, setSampleTypes] = useState<LabSampleType[]>([]);
+  const [loadingSampleTypes, setLoadingSampleTypes] = useState(false);
+  const [stError, setStError] = useState<string | null>(null);
+  const [stDialogOpen, setStDialogOpen] = useState(false);
+  const [stEditTarget, setStEditTarget] = useState<LabSampleType | null>(null);
+  const [stForm, setStForm] = useState<SampleTypeForm>(emptySampleTypeForm);
+  const [stSaving, setStSaving] = useState(false);
+  const [stSaveError, setStSaveError] = useState<string | null>(null);
+  const [stDeleteTarget, setStDeleteTarget] = useState<LabSampleType | null>(null);
+  const [stDeleting, setStDeleting] = useState(false);
+
+  const loadSampleTypes = useCallback(async () => {
+    setLoadingSampleTypes(true); setStError(null);
+    try {
+      const res = await labSampleTypesApi.getAll();
+      setSampleTypes(res.data);
+    } catch {
+      setStError('Failed to load sample types.');
+    } finally {
+      setLoadingSampleTypes(false);
+    }
+  }, []);
+
+  useEffect(() => { loadSampleTypes(); }, [loadSampleTypes]);
+
+  const apiMessage = (err: unknown, fallback: string) =>
+    (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
+
+  const openCreateSt = () => {
+    setStEditTarget(null);
+    setStForm(emptySampleTypeForm);
+    setStSaveError(null);
+    setStDialogOpen(true);
+  };
+
+  const openEditSt = (row: LabSampleType) => {
+    setStEditTarget(row);
+    setStForm({ name: row.name, description: row.description ?? '', isActive: row.isActive });
+    setStSaveError(null);
+    setStDialogOpen(true);
+  };
+
+  const handleSaveSt = async () => {
+    const name = stForm.name.trim();
+    if (!name) return;
+    setStSaving(true); setStSaveError(null);
+    try {
+      const payload = { name, description: stForm.description.trim() || null, isActive: stForm.isActive };
+      const renamed = !!stEditTarget && stEditTarget.name !== name;
+      if (stEditTarget) {
+        await labSampleTypesApi.update(stEditTarget.id, payload);
+      } else {
+        await labSampleTypesApi.create(payload);
+      }
+      setStDialogOpen(false);
+      await loadSampleTypes();
+      if (renamed) loadSamplePoints(); // the rename cascades to sample points
+    } catch (err: unknown) {
+      setStSaveError(apiMessage(err, 'Failed to save sample type.'));
+    } finally {
+      setStSaving(false);
+    }
+  };
+
+  const handleToggleStActive = async (row: LabSampleType) => {
+    if (!canEdit) return;
+    try {
+      await labSampleTypesApi.update(row.id, {
+        name: row.name, description: row.description ?? null, isActive: !row.isActive,
+      });
+      loadSampleTypes();
+    } catch (err: unknown) {
+      setStError(apiMessage(err, 'Failed to update sample type.'));
+    }
+  };
+
+  const handleDeleteSt = async () => {
+    if (!stDeleteTarget) return;
+    setStDeleting(true);
+    try {
+      await labSampleTypesApi.delete(stDeleteTarget.id);
+      setStDeleteTarget(null);
+      loadSampleTypes();
+    } catch (err: unknown) {
+      setStDeleteTarget(null);
+      setStError(apiMessage(err, 'Failed to delete sample type.'));
+    } finally {
+      setStDeleting(false);
+    }
+  };
+
   // ── Tab 1: Sample Points ───────────────────────────────────────────────────
   const [spDialogOpen, setSpDialogOpen] = useState(false);
   const [spEditTarget, setSpEditTarget] = useState<LabSamplePoint | null>(null);
@@ -104,9 +201,16 @@ export default function LabAdminPage() {
   const [spDeleteTarget, setSpDeleteTarget] = useState<LabSamplePoint | null>(null);
   const [spDeleting, setSpDeleting] = useState(false);
 
+  // Sample point dialog options: active types, plus the point's current type if it has since been deactivated
+  const sampleTypeOptions = (() => {
+    const names = sampleTypes.filter((t) => t.isActive).map((t) => t.name);
+    if (spForm.sampleType && !names.includes(spForm.sampleType)) names.push(spForm.sampleType);
+    return names;
+  })();
+
   const openCreateSp = () => {
     setSpEditTarget(null);
-    setSpForm(emptySamplePointForm);
+    setSpForm({ ...emptySamplePointForm, sampleType: sampleTypes.find((t) => t.isActive)?.name ?? '' });
     setSpSaveError(null);
     setSpDialogOpen(true);
   };
@@ -124,7 +228,7 @@ export default function LabAdminPage() {
   };
 
   const handleSaveSp = async () => {
-    if (!selectedPlant || !spForm.samplePointName.trim()) return;
+    if (!selectedPlant || !spForm.samplePointName.trim() || !spForm.sampleType) return;
     setSpSaving(true); setSpSaveError(null);
     try {
       const payload = {
@@ -368,6 +472,87 @@ export default function LabAdminPage() {
     </Card>
   );
 
+  const renderSampleTypesTab = () => (
+    <Card>
+      <Box sx={{
+        px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        backgroundColor: `${ACCENT}14`, borderBottom: '1px solid', borderColor: 'divider',
+      }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: ACCENT }}>
+            Sample Types
+          </Typography>
+          <Typography variant="caption" color="text.secondary">Applies to all plants</Typography>
+        </Stack>
+        {canCreate && (
+          <Button size="small" variant="contained" sx={{ backgroundColor: ACCENT }} startIcon={<Add />} onClick={openCreateSt}>
+            Add Sample Type
+          </Button>
+        )}
+      </Box>
+      <CardContent>
+        {stError && <Alert severity="error" onClose={() => setStError(null)} sx={{ mb: 2 }}>{stError}</Alert>}
+        {loadingSampleTypes ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={28} /></Box>
+        ) : sampleTypes.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Category sx={{ fontSize: '2.5rem', color: 'text.disabled', mb: 1 }} />
+            <Typography variant="body2" color="text.secondary">No sample types yet. Click Add Sample Type to get started.</Typography>
+          </Box>
+        ) : (
+          <>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Sample Type</TableCell>
+                    <TableCell>Description</TableCell>
+                    <TableCell>Sample Points</TableCell>
+                    <TableCell>Active</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sampleTypes.map((st) => (
+                    <TableRow key={st.id} hover>
+                      <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{st.name}</Typography></TableCell>
+                      <TableCell>{st.description || '—'}</TableCell>
+                      <TableCell>{st.samplePointCount}</TableCell>
+                      <TableCell>
+                        <Chip label={st.isActive ? 'Active' : 'Inactive'} size="small"
+                          color={st.isActive ? 'success' : 'default'} variant={st.isActive ? 'filled' : 'outlined'}
+                          onClick={canEdit ? () => handleToggleStActive(st) : undefined}
+                          sx={canEdit ? { cursor: 'pointer' } : undefined} />
+                      </TableCell>
+                      <TableCell align="right">
+                        {canEdit && (
+                          <Tooltip title="Edit"><IconButton size="small" onClick={() => openEditSt(st)}><Edit fontSize="small" /></IconButton></Tooltip>
+                        )}
+                        {canDelete && (
+                          <Tooltip title={st.samplePointCount > 0 ? 'In use — deactivate instead' : 'Delete'}>
+                            <span>
+                              <IconButton size="small" color="error" disabled={st.samplePointCount > 0} onClick={() => setStDeleteTarget(st)}>
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+              Inactive types are hidden from the Sample Point dropdown but existing sample points and records keep them.
+              Renaming a type updates it everywhere it is already used.
+            </Typography>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   const renderParametersTab = () => (
     <Card>
       <Box sx={{ px: 2.5, py: 1.5, backgroundColor: `${ACCENT}14`, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -546,66 +731,72 @@ export default function LabAdminPage() {
     <Box>
       <PageHeader
         title="Lab Admin"
-        subtitle="Manage sample points, parameters and control limits"
+        subtitle="Manage sample types, sample points, parameters, control limits and actions"
         breadcrumbs={[{ label: 'Chemical Lab' }, { label: 'Lab Admin' }]}
       />
 
       <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required disabled={plantLocked}>
-                <InputLabel>Power Plant</InputLabel>
-                <Select label="Power Plant" value={selectedPlant} onChange={(e) => setSelectedPlant(e.target.value)}>
-                  {availablePlants.map((p: PowerPlant) => (
-                    <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            {loadingSamplePoints && (
-              <Grid size={{ xs: 12, sm: 2 }}>
-                <CircularProgress size={20} />
-              </Grid>
-            )}
-          </Grid>
-        </CardContent>
+        <Tabs
+          value={tabIndex}
+          onChange={(_: SyntheticEvent, v: number) => setTabIndex(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            px: 1.5, py: 1,
+            minHeight: 0,
+            '& .MuiTabs-indicator': { display: 'none' },
+            '& .MuiTabs-flexContainer': { gap: 1 },
+            '& .MuiTab-root': {
+              minHeight: 40, textTransform: 'none', fontWeight: 600,
+              borderRadius: '20px', px: 2.5, color: 'text.secondary',
+            },
+            '& .MuiTab-root.Mui-selected': { backgroundColor: ACCENT, color: '#fff' },
+          }}
+        >
+          {TABS.map((t) => <Tab key={t.label} label={t.label} icon={t.icon} iconPosition="start" />)}
+        </Tabs>
       </Card>
 
-      {spError && <Alert severity="error" onClose={() => setSpError(null)} sx={{ mb: 2 }}>{spError}</Alert>}
+      {tabIndex !== SAMPLE_TYPES_TAB && tabIndex !== ACTIONS_TAB && (
+        <>
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Grid container spacing={2} sx={{ alignItems: 'center' }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <FormControl fullWidth required disabled={plantLocked}>
+                    <InputLabel>Power Plant</InputLabel>
+                    <Select label="Power Plant" value={selectedPlant} onChange={(e) => setSelectedPlant(e.target.value)}>
+                      {availablePlants.map((p: PowerPlant) => (
+                        <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.plantCode})</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                {loadingSamplePoints && (
+                  <Grid size={{ xs: 12, sm: 2 }}>
+                    <CircularProgress size={20} />
+                  </Grid>
+                )}
+              </Grid>
+            </CardContent>
+          </Card>
 
-      {!selectedPlant ? (
+          {spError && <Alert severity="error" onClose={() => setSpError(null)} sx={{ mb: 2 }}>{spError}</Alert>}
+        </>
+      )}
+
+      {tabIndex === SAMPLE_TYPES_TAB ? renderSampleTypesTab() : tabIndex === ACTIONS_TAB ? (
+        <LabActionsManager canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
+      ) : !selectedPlant ? (
         <Box sx={{ textAlign: 'center', py: 8 }}>
           <AdminPanelSettings sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
           <Typography variant="body1" color="text.secondary">Select a plant to manage lab admin data.</Typography>
         </Box>
       ) : (
         <>
-          <Card sx={{ mb: 3 }}>
-            <Tabs
-              value={tabIndex}
-              onChange={(_: SyntheticEvent, v: number) => setTabIndex(v)}
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{
-                px: 1.5, py: 1,
-                minHeight: 0,
-                '& .MuiTabs-indicator': { display: 'none' },
-                '& .MuiTabs-flexContainer': { gap: 1 },
-                '& .MuiTab-root': {
-                  minHeight: 40, textTransform: 'none', fontWeight: 600,
-                  borderRadius: '20px', px: 2.5, color: 'text.secondary',
-                },
-                '& .MuiTab-root.Mui-selected': { backgroundColor: ACCENT, color: '#fff' },
-              }}
-            >
-              {TABS.map((t) => <Tab key={t.label} label={t.label} icon={t.icon} iconPosition="start" />)}
-            </Tabs>
-          </Card>
-
-          {tabIndex === 0 && renderSamplePointsTab()}
-          {tabIndex === 1 && renderParametersTab()}
-          {tabIndex === 2 && renderLimitsTab()}
+          {tabIndex === 1 && renderSamplePointsTab()}
+          {tabIndex === 2 && renderParametersTab()}
+          {tabIndex === 3 && renderLimitsTab()}
         </>
       )}
 
@@ -620,8 +811,15 @@ export default function LabAdminPage() {
             <FormControl fullWidth size="small">
               <InputLabel>Sample Type</InputLabel>
               <Select label="Sample Type" value={spForm.sampleType} onChange={(e) => setSpForm((p) => ({ ...p, sampleType: e.target.value }))}>
-                {SAMPLE_TYPES.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                {sampleTypeOptions.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
               </Select>
+              {sampleTypeOptions.length === 0 && !loadingSampleTypes && (
+                <FormHelperText error>
+                  {stError
+                    ? <>Sample types could not be loaded. <Link component="button" type="button" onClick={loadSampleTypes}>Retry</Link></>
+                    : 'No active sample types. Add one in the Sample Types tab first.'}
+                </FormHelperText>
+              )}
             </FormControl>
             <TextField label="Description" size="small" fullWidth multiline rows={2}
               value={spForm.description} onChange={(e) => setSpForm((p) => ({ ...p, description: e.target.value }))} />
@@ -639,7 +837,7 @@ export default function LabAdminPage() {
         <DialogActions sx={{ px: 3, py: 1.5 }}>
           <Button variant="outlined" onClick={() => setSpDialogOpen(false)} disabled={spSaving}>Cancel</Button>
           <Button variant="contained" sx={{ backgroundColor: ACCENT }} onClick={handleSaveSp}
-            disabled={spSaving || !spForm.samplePointName.trim()}
+            disabled={spSaving || !spForm.samplePointName.trim() || !spForm.sampleType}
             startIcon={spSaving ? <CircularProgress size={14} color="inherit" /> : <Save />}>
             {spSaving ? 'Saving...' : spEditTarget ? 'Update' : 'Create'}
           </Button>
@@ -677,6 +875,46 @@ export default function LabAdminPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog open={stDialogOpen} onClose={() => setStDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>{stEditTarget ? 'Edit Sample Type' : 'New Sample Type'}</DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: 2.5 }}>
+          {stSaveError && <Alert severity="error" onClose={() => setStSaveError(null)} sx={{ mb: 2 }}>{stSaveError}</Alert>}
+          <Stack spacing={2.5}>
+            <TextField label="Sample Type Name" size="small" fullWidth required autoFocus
+              slotProps={{ htmlInput: { maxLength: 50 } }}
+              helperText={stEditTarget && stEditTarget.samplePointCount > 0
+                ? `Renaming also updates the ${stEditTarget.samplePointCount} sample point(s) using it.`
+                : undefined}
+              value={stForm.name} onChange={(e) => setStForm((p) => ({ ...p, name: e.target.value }))} />
+            <TextField label="Description" size="small" fullWidth multiline rows={2}
+              slotProps={{ htmlInput: { maxLength: 255 } }}
+              value={stForm.description} onChange={(e) => setStForm((p) => ({ ...p, description: e.target.value }))} />
+            <FormControlLabel
+              control={
+                <Switch checked={stForm.isActive}
+                  onChange={(e) => setStForm((p) => ({ ...p, isActive: e.target.checked }))}
+                  color="success" />
+              }
+              label={<Typography variant="body2">{stForm.isActive ? 'Active' : 'Inactive'}</Typography>}
+            />
+          </Stack>
+        </DialogContent>
+        <Divider />
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button variant="outlined" onClick={() => setStDialogOpen(false)} disabled={stSaving}>Cancel</Button>
+          <Button variant="contained" sx={{ backgroundColor: ACCENT }} onClick={handleSaveSt}
+            disabled={stSaving || !stForm.name.trim()}
+            startIcon={stSaving ? <CircularProgress size={14} color="inherit" /> : <Save />}>
+            {stSaving ? 'Saving...' : stEditTarget ? 'Update' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <ConfirmDialog open={!!stDeleteTarget} title="Delete Sample Type"
+        message={`Delete "${stDeleteTarget?.name}"? This cannot be undone.`}
+        confirmLabel="Delete" loading={stDeleting} onConfirm={handleDeleteSt} onCancel={() => setStDeleteTarget(null)} />
 
       <ConfirmDialog open={!!spDeleteTarget} title="Delete Sample Point"
         message={`Delete "${spDeleteTarget?.samplePointName}"? This sets it inactive; existing analysis records are preserved.`}

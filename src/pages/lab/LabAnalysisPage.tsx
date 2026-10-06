@@ -3,21 +3,24 @@ import {
   MenuItem, FormControl, InputLabel, Select, Grid, Divider, Chip, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Tooltip, Collapse, Dialog, DialogTitle, DialogContent, DialogActions,
+  Autocomplete, createFilterOptions,
 } from '@mui/material';
-import { Save, Add, Edit, Delete, Biotech, History, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { Save, Add, Edit, Delete, Biotech, History, ExpandMore, ExpandLess, Timeline, Link as LinkIcon } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import PersonAutocomplete from '../../components/lab/PersonAutocomplete';
+import AnalysisTrendDialog, { buildAnalysisChain } from '../../components/lab/AnalysisTrendDialog';
+import { labAnalysisActionsApi } from '../../api/lab/labAnalysisActionsApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labAnalysisApi } from '../../api/lab/labAnalysisApi';
 import { labSamplePointsApi } from '../../api/lab/labSamplePointsApi';
 import { labSampleRecordsApi } from '../../api/lab/labSampleRecordsApi';
 import type { PowerPlant } from '../../types/masterData';
 import type {
-  LabAnalysisRecord, LabAnalysisParameter, SaveLabAnalysisParameterForm, LabSamplePoint, LabSampleRecord,
+  LabAnalysisRecord, LabAnalysisParameter, SaveLabAnalysisParameterForm, LabSamplePoint, LabSampleRecord, LabAnalysisAction,
 } from '../../types/lab';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
@@ -39,12 +42,18 @@ interface AnalysisForm {
   analysedBy: string;
   remarks: string;
   sampleRecordId?: string;
+  actionToTake: string;
+  followUpOfAnalysisId: string | null;
   parameters: SaveLabAnalysisParameterForm[];
 }
 
 const emptyForm: AnalysisForm = {
-  samplePointId: '', samplePoint: '', sampleType: '', analysisTime: '', analysedBy: '', remarks: '', sampleRecordId: undefined, parameters: [],
+  samplePointId: '', samplePoint: '', sampleType: '', analysisTime: '', analysedBy: '', remarks: '', sampleRecordId: undefined, actionToTake: '', followUpOfAnalysisId: null, parameters: [],
 };
+
+const sampleFilter = createFilterOptions<LabSampleRecord>({ limit: 100 });
+
+const fmtDate = (d: string) => dayjs(d).format('DD MMM YYYY');
 
 export default function LabAnalysisPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('lab.analysis');
@@ -73,6 +82,9 @@ export default function LabAnalysisPage() {
   const [deleteTarget, setDeleteTarget] = useState<LabAnalysisRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [actions, setActions] = useState<LabAnalysisAction[]>([]);
+  const [trendAnchor, setTrendAnchor] = useState<LabAnalysisRecord | null>(null);
+
   const [history, setHistory] = useState<LabAnalysisRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(true);
@@ -94,15 +106,20 @@ export default function LabAnalysisPage() {
       .catch(() => setSamplePoints([]));
   }, [selectedPlant]);
 
+  useEffect(() => {
+    labAnalysisActionsApi.getAll(true).then((res) => setActions(res.data)).catch(() => setActions([]));
+  }, []);
+
+  // All samples for the plant (any day) — an analysis can be done on a sample collected earlier.
   const loadSampleRecords = useCallback(async () => {
-    if (!selectedPlant || !selectedDate) { setSampleRecords([]); return; }
+    if (!selectedPlant) { setSampleRecords([]); return; }
     try {
-      const res = await labSampleRecordsApi.getAll({ plantCode: selectedPlant, date: selectedDate });
+      const res = await labSampleRecordsApi.getAll({ plantCode: selectedPlant });
       setSampleRecords(res.data);
     } catch {
       setSampleRecords([]);
     }
-  }, [selectedPlant, selectedDate]);
+  }, [selectedPlant]);
 
   useEffect(() => { loadSampleRecords(); }, [loadSampleRecords]);
 
@@ -153,6 +170,8 @@ export default function LabAnalysisPage() {
       analysedBy: row.analysedBy ?? '',
       remarks: row.remarks ?? '',
       sampleRecordId: row.sampleRecordId ?? undefined,
+      actionToTake: row.actionToTake ?? '',
+      followUpOfAnalysisId: row.followUpOfAnalysisId ?? null,
       parameters: row.parameters.map((p) => ({
         samplePointParameterId: p.samplePointParameterId,
         parameterName: p.parameterName,
@@ -207,6 +226,8 @@ export default function LabAnalysisPage() {
         analysedBy: form.analysedBy || null,
         remarks: form.remarks || null,
         sampleRecordId: form.sampleRecordId || null,
+        actionToTake: form.actionToTake || null,
+        followUpOfAnalysisId: form.followUpOfAnalysisId || null,
         parameters: form.parameters
           .filter((r) => r.parameterName.trim())
           .map((r) => ({
@@ -254,6 +275,28 @@ export default function LabAnalysisPage() {
   );
 
   const outOfRangeCount = (params: LabAnalysisParameter[]) => params.filter((p) => p.status === 'OutOfRange').length;
+
+  const refLabel = (r: LabAnalysisRecord) =>
+    `${r.labReferenceNumber || 'No ref'} · ${r.samplePoint} · ${fmtDate(r.logDate)}${r.analysisTime ? ` ${r.analysisTime.slice(0, 5)}` : ''}`;
+
+  const followUpCount = (id: string) => history.filter((h) => h.followUpOfAnalysisId === id).length;
+
+  // Previous analyses this one can follow up: same plant, not itself, not one of its own follow-ups.
+  const followUpOptions = (() => {
+    const excluded = new Set<string>();
+    if (editTarget) buildAnalysisChain(editTarget, history).forEach((r) => {
+      // exclude self and anything downstream of self
+      let cur: LabAnalysisRecord | undefined = r; const seen = new Set<string>();
+      while (cur && !seen.has(cur.id)) {
+        if (cur.id === editTarget.id) { excluded.add(r.id); break; }
+        seen.add(cur.id);
+        cur = history.find((h) => h.id === cur!.followUpOfAnalysisId);
+      }
+    });
+    return history
+      .filter((h) => !excluded.has(h.id))
+      .sort((a, b) => Number(b.samplePoint === form.samplePoint) - Number(a.samplePoint === form.samplePoint));
+  })();
 
   const isFormValid = !!form.sampleRecordId && !!form.samplePointId && form.parameters.length > 0;
 
@@ -334,8 +377,17 @@ export default function LabAnalysisPage() {
                           sx={{ fontFamily: 'monospace', backgroundColor: '#E3F2FD', color: '#1565C0' }} />
                       )}
                       {rec.analysisTime && <Typography variant="caption" color="text.secondary">{rec.analysisTime.slice(0, 5)}</Typography>}
+                      {rec.followUpOfAnalysisId && (
+                        <Chip size="small" icon={<LinkIcon />} variant="outlined" color="info" label="Follow-up" />
+                      )}
+                      {followUpCount(rec.id) > 0 && (
+                        <Chip size="small" variant="outlined" color="info" label={`${followUpCount(rec.id)} follow-up(s)`} />
+                      )}
                     </Stack>
                     <Stack direction="row" spacing={0.5}>
+                      {(rec.followUpOfAnalysisId || followUpCount(rec.id) > 0) && (
+                        <Tooltip title="View trend"><IconButton size="small" onClick={() => setTrendAnchor(rec)}><Timeline fontSize="small" /></IconButton></Tooltip>
+                      )}
                       {canEdit && (
                         <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(rec)}><Edit fontSize="small" /></IconButton></Tooltip>
                       )}
@@ -345,6 +397,12 @@ export default function LabAnalysisPage() {
                     </Stack>
                   </Stack>
                   {rec.analysedBy && <Typography variant="caption" color="text.secondary">Analysed by {rec.analysedBy}</Typography>}
+                  {rec.followUpOfAnalysisId && (() => {
+                    const parent = history.find((h) => h.id === rec.followUpOfAnalysisId);
+                    return parent ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Follow-up of {refLabel(parent)}</Typography>
+                    ) : null;
+                  })()}
                 </Box>
                 <CardContent>
                   <TableContainer>
@@ -371,6 +429,11 @@ export default function LabAnalysisPage() {
                       </TableBody>
                     </Table>
                   </TableContainer>
+                  {rec.actionToTake && (
+                    <Alert severity="info" icon={false} sx={{ mt: 1.5, py: 0 }}>
+                      <strong>Action to be taken:</strong> {rec.actionToTake}
+                    </Alert>
+                  )}
                   {outOfRangeCount(rec.parameters) > 0 && (
                     <Alert severity="warning" sx={{ mt: 1.5, py: 0 }}>
                       {outOfRangeCount(rec.parameters)} parameter(s) out of range.
@@ -447,28 +510,36 @@ export default function LabAnalysisPage() {
           )}
           <Grid container spacing={2} sx={{ mb: form.sampleRecordId ? 2.5 : 0 }}>
             <Grid size={{ xs: 12 }}>
-              <FormControl size="small" fullWidth required>
-                <InputLabel>Select Sample Record</InputLabel>
-                <Select
-                  value={form.sampleRecordId ?? ''}
-                  label="Select Sample Record"
-                  onChange={(e) => handleSampleSelect(e.target.value)}
-                >
-                  <MenuItem value="" disabled><em>Select a sample to begin</em></MenuItem>
-                  {sampleRecords.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>
-                      <Stack>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.sampleId}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {s.samplePoint} — {s.sampleType}
-                          {s.collectedAt ? ` · Collected ${s.collectedAt}` : ''}
-                          {s.linkedAnalysisCount > 0 ? ` · ${s.linkedAnalysisCount} analysis done` : ''}
-                        </Typography>
-                      </Stack>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete<LabSampleRecord>
+                size="small"
+                options={sampleRecords}
+                value={sampleRecords.find((s) => s.id === form.sampleRecordId) ?? null}
+                onChange={(_, v) => handleSampleSelect(v?.id ?? '')}
+                groupBy={(s) => `Logged ${fmtDate(s.logDate)}`}
+                getOptionLabel={(s) => s.sampleId}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                filterOptions={(opts, state) => sampleFilter(opts, {
+                  ...state, getOptionLabel: (s) => `${s.sampleId} ${s.samplePoint} ${s.sampleType} ${fmtDate(s.logDate)}`,
+                })}
+                noOptionsText="No samples found for this plant"
+                renderOption={(props, s) => (
+                  <li {...props} key={s.id}>
+                    <Stack>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.sampleId}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {s.samplePoint} — {s.sampleType}
+                        {s.collectedAt ? ` · Collected ${s.collectedAt}` : ''}
+                        {s.linkedAnalysisCount > 0 ? ` · ${s.linkedAnalysisCount} analysis done` : ''}
+                      </Typography>
+                    </Stack>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField {...params} required label="Select Sample Record"
+                    placeholder="Search by sample ID, point or type — any day"
+                    helperText={`Showing samples from all dates. This analysis will be recorded on ${fmtDate(selectedDate)} (the Log Date).`} />
+                )}
+              />
               {!form.sampleRecordId && (
                 <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
                   A sample record must be selected before entering analysis results.
@@ -504,6 +575,41 @@ export default function LabAnalysisPage() {
                 <Grid size={{ xs: 12 }}>
                   <TextField label="Remarks" size="small" fullWidth multiline rows={2}
                     value={form.remarks} onChange={(e) => setForm((p) => ({ ...p, remarks: e.target.value }))} />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <FormControl size="small" fullWidth disabled={actions.length === 0 && !form.actionToTake}>
+                    <InputLabel>Action To Be Taken</InputLabel>
+                    <Select label="Action To Be Taken" value={form.actionToTake}
+                      onChange={(e) => setForm((p) => ({ ...p, actionToTake: e.target.value }))}>
+                      <MenuItem value=""><em>None</em></MenuItem>
+                      {form.actionToTake && !actions.some((a) => a.name === form.actionToTake) && (
+                        <MenuItem value={form.actionToTake}>{form.actionToTake} (inactive)</MenuItem>
+                      )}
+                      {actions.map((a) => <MenuItem key={a.id} value={a.name}>{a.name}</MenuItem>)}
+                    </Select>
+                    {actions.length === 0 && !form.actionToTake && (
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                        No actions configured yet — add them in Lab Admin → Actions.
+                      </Typography>
+                    )}
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Autocomplete<LabAnalysisRecord>
+                    size="small"
+                    options={followUpOptions}
+                    value={history.find((h) => h.id === form.followUpOfAnalysisId) ?? null}
+                    onChange={(_, v) => setForm((p) => ({ ...p, followUpOfAnalysisId: v?.id ?? null }))}
+                    groupBy={(h) => (h.samplePoint === form.samplePoint ? 'Same sample point' : 'Other sample points')}
+                    getOptionLabel={refLabel}
+                    isOptionEqualToValue={(a, b) => a.id === b.id}
+                    noOptionsText="No previous analyses"
+                    renderInput={(params) => (
+                      <TextField {...params} label="Follow-up of (previous analysis)"
+                        placeholder="Optional — link to the earlier analysis"
+                        helperText="Use when this re-tests a sample after treatment" />
+                    )}
+                  />
                 </Grid>
               </Grid>
 
@@ -568,6 +674,8 @@ export default function LabAnalysisPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <AnalysisTrendDialog open={!!trendAnchor} onClose={() => setTrendAnchor(null)} anchor={trendAnchor} all={history} />
 
       <ConfirmDialog open={!!deleteTarget} title="Delete Analysis Record"
         message={`Delete the analysis record for "${deleteTarget?.samplePoint}"? This cannot be undone.`}

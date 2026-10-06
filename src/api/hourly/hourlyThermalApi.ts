@@ -34,7 +34,7 @@ export const bearingMetalApi = {
   create: (data: { plantCode: string; unitCode: string; bearingCode: number; bearingName: string; kkxCode?: string | null }) =>
     axiosInstance.post<BearingMetal>('/bearingmetals', data),
 
-  update: (id: string, data: { bearingName: string; kkxCode?: string | null }) =>
+  update: (id: string, data: { unitCode: string; bearingName: string; kkxCode?: string | null }) =>
     axiosInstance.put<BearingMetal>(`/bearingmetals/${id}`, data),
 
   delete: (id: string) =>
@@ -48,7 +48,7 @@ export const bearingDrainApi = {
   create: (data: { plantCode: string; unitCode: string; drainCode: number; drainName: string; kkxCode?: string | null }) =>
     axiosInstance.post<BearingDrain>('/bearingdrains', data),
 
-  update: (id: string, data: { drainName: string; kkxCode?: string | null }) =>
+  update: (id: string, data: { unitCode: string; drainName: string; kkxCode?: string | null }) =>
     axiosInstance.put<BearingDrain>(`/bearingdrains/${id}`, data),
 
   delete: (id: string) =>

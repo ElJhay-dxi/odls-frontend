@@ -26,12 +26,13 @@ interface CreateForm {
 }
 
 interface UpdateForm {
+  unitCode: string;
   drainName: string;
   kkxCode: string;
 }
 
 const emptyCreate: CreateForm = { plantCode: '', unitCode: '', drainCode: '', drainName: '', kkxCode: '' };
-const emptyUpdate: UpdateForm = { drainName: '', kkxCode: '' };
+const emptyUpdate: UpdateForm = { unitCode: '', drainName: '', kkxCode: '' };
 
 export default function BearingDrainPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('master');
@@ -103,7 +104,7 @@ export default function BearingDrainPage() {
 
   const openEdit = (row: BearingDrain) => {
     setEditTarget(row);
-    setUpdateForm({ drainName: row.drainName, kkxCode: row.kkxCode ?? '' });
+    setUpdateForm({ unitCode: row.unitCode, drainName: row.drainName, kkxCode: row.kkxCode ?? '' });
     setSaveError(null);
     setDialogOpen(true);
   };
@@ -121,7 +122,7 @@ export default function BearingDrainPage() {
     setSaveError(null);
     try {
       if (editTarget) {
-        await bearingDrainApi.update(editTarget.id, { drainName: updateForm.drainName, kkxCode: updateForm.kkxCode || null });
+        await bearingDrainApi.update(editTarget.id, { unitCode: updateForm.unitCode, drainName: updateForm.drainName, kkxCode: updateForm.kkxCode || null });
       } else {
         await bearingDrainApi.create({
           plantCode: form.plantCode,
@@ -156,7 +157,7 @@ export default function BearingDrainPage() {
   };
 
   const isCreateValid = form.plantCode && form.unitCode && form.drainCode && form.drainName.trim();
-  const isUpdateValid = updateForm.drainName.trim();
+  const isUpdateValid = updateForm.unitCode && updateForm.drainName.trim();
 
   return (
     <Box>
@@ -287,9 +288,17 @@ export default function BearingDrainPage() {
             <Stack spacing={2}>
               <Stack direction="row" spacing={1}>
                 <Chip label={editTarget.plantCode} size="small" variant="outlined" />
-                <Chip label={editTarget.unitCode} size="small" variant="outlined" />
                 <Chip label={`Drain #${editTarget.drainCode}`} size="small" color="primary" variant="outlined" />
               </Stack>
+              <FormControl fullWidth required>
+                <InputLabel>Unit</InputLabel>
+                <Select label="Unit" value={updateForm.unitCode}
+                  onChange={(e) => setUpdateForm({ ...updateForm, unitCode: e.target.value })}>
+                  {units.filter((u) => u.plantCode === editTarget.plantCode).map((u) => (
+                    <MenuItem key={u.id} value={u.unitCode}>{u.unitName} ({u.unitCode})</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               <TextField
                 label="Drain Name"
                 value={updateForm.drainName}
