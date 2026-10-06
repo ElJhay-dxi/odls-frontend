@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, TextField, Button, CircularProgress, Alert, Typography,
   MenuItem, FormControl, InputLabel, Select, Grid, Divider, Chip, Stack,
@@ -63,8 +64,10 @@ export default function LabAnalysisPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
 
   const [samplePoints, setSamplePoints] = useState<LabSamplePoint[]>([]);
   const [sampleRecords, setSampleRecords] = useState<LabSampleRecord[]>([]);
@@ -107,8 +110,9 @@ export default function LabAnalysisPage() {
   }, [selectedPlant]);
 
   useEffect(() => {
-    labAnalysisActionsApi.getAll(true).then((res) => setActions(res.data)).catch(() => setActions([]));
-  }, []);
+    if (!selectedPlant) { setActions([]); return; }
+    labAnalysisActionsApi.getAll(selectedPlant, true).then((res) => setActions(res.data)).catch(() => setActions([]));
+  }, [selectedPlant]);
 
   // All samples for the plant (any day) — an analysis can be done on a sample collected earlier.
   const loadSampleRecords = useCallback(async () => {
@@ -365,7 +369,7 @@ export default function LabAnalysisPage() {
       ) : (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {records.map((rec) => (
-            <Grid size={{ xs: 12, lg: 6 }} key={rec.id}>
+            <Grid size={{ xs: 12, lg: 6 }} key={rec.id} data-record-id={rec.id}>
               <Card variant="outlined">
                 <Box sx={{ px: 2, py: 1.5, backgroundColor: '#E0F2F1', borderBottom: '1px solid', borderColor: 'divider' }}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }} useFlexGap>
@@ -419,7 +423,7 @@ export default function LabAnalysisPage() {
                         {rec.parameters.length === 0 ? (
                           <TableRow><TableCell colSpan={4}><Typography variant="caption" color="text.secondary">No parameters recorded.</Typography></TableCell></TableRow>
                         ) : rec.parameters.map((p) => (
-                          <TableRow key={p.id}>
+                          <TableRow key={p.id} data-record-id={p.id}>
                             <TableCell>{p.parameterName}</TableCell>
                             <TableCell>{p.value ?? '—'}</TableCell>
                             <TableCell>{p.unit ?? '—'}</TableCell>
@@ -480,7 +484,7 @@ export default function LabAnalysisPage() {
                   </TableHead>
                   <TableBody>
                     {history.map((h) => (
-                      <TableRow key={h.id} hover selected={h.logDate.split('T')[0] === selectedDate}
+                      <TableRow key={h.id} data-record-id={h.id} hover selected={h.logDate.split('T')[0] === selectedDate}
                         sx={{ cursor: 'pointer' }} onClick={() => setSelectedDate(h.logDate.split('T')[0])}>
                         <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{dayjs(h.logDate).format('DD MMM YYYY')}</Typography></TableCell>
                         <TableCell>{h.samplePoint}</TableCell>
@@ -589,7 +593,7 @@ export default function LabAnalysisPage() {
                     </Select>
                     {actions.length === 0 && !form.actionToTake && (
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                        No actions configured yet — add them in Lab Admin → Actions.
+                        No actions set up for this plant yet — add them in Lab Admin → Actions.
                       </Typography>
                     )}
                   </FormControl>

@@ -11,6 +11,7 @@ import {
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useMsal } from '@azure/msal-react';
+import GlobalSearch from './GlobalSearch';
 
 interface TopBarProps {
   sidebarOpen: boolean;
@@ -58,9 +59,13 @@ export default function TopBar({ sidebarOpen, onToggleSidebar, drawerWidth }: To
           <MenuIcon />
         </IconButton>
 
-        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1rem', flexGrow: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1rem', flexGrow: 1, display: { xs: 'none', lg: 'block' } }}>
           Power Plant Operational Data Logging
         </Typography>
+
+        <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: { xs: 'flex-start', lg: 'flex-end' } }}>
+          <GlobalSearch />
+        </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Tooltip title="Notifications">

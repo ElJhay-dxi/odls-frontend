@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, TextField, Button, CircularProgress, Alert, Typography,
   MenuItem, FormControl, InputLabel, Select, Grid, Divider, Chip, Stack,
@@ -56,8 +57,10 @@ export default function LabSampleRecordsPage() {
   const [allPlants, setAllPlants] = useState<PowerPlant[]>([]); // every plant (thermal + hydro) for From / Lab to Analyze
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
 
   const [samplePoints, setSamplePoints] = useState<LabSamplePoint[]>([]);
 
@@ -315,7 +318,7 @@ export default function LabSampleRecordsPage() {
                   </TableHead>
                   <TableBody>
                     {records.map((row) => (
-                      <TableRow key={row.id} hover>
+                      <TableRow key={row.id} data-record-id={row.id} hover>
                         <TableCell><Chip label={row.sampleId} size="small" variant="outlined" sx={{ fontFamily: 'monospace' }} /></TableCell>
                         <TableCell>{row.samplePoint}</TableCell>
                         <TableCell>{row.sampleType}</TableCell>
@@ -412,7 +415,7 @@ export default function LabSampleRecordsPage() {
                     </TableHead>
                     <TableBody>
                       {filteredHistory.map((h) => (
-                        <TableRow key={h.id} hover selected={h.logDate.split('T')[0] === selectedDate}
+                        <TableRow key={h.id} data-record-id={h.id} hover selected={h.logDate.split('T')[0] === selectedDate}
                           sx={{ cursor: 'pointer' }} onClick={() => setSelectedDate(h.logDate.split('T')[0])}>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{dayjs(h.logDate).format('DD MMM YYYY')}</Typography></TableCell>
                           <TableCell>{h.sampleId}</TableCell>

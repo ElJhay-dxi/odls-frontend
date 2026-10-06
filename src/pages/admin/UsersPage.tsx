@@ -341,7 +341,7 @@ export default function UsersPage() {
                     </TableHead>
                     <TableBody>
                       {filtered.map((user) => (
-                        <TableRow key={user.id} hover>
+                        <TableRow key={user.id} data-record-id={user.id} hover>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>{user.fullName}</Typography>
                             {user.designation && (

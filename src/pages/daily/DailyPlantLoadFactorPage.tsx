@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
@@ -43,7 +44,9 @@ export default function DailyPlantLoadFactorPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const [filterPlant, setFilterPlant] = useState('');
+  const deepLink = useSearchDeepLink();
+
+  const [filterPlant, setFilterPlant] = useState(deepLink.plant ?? '');
   const [records, setRecords] = useState<DailyPlantLoadFactor[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [recordsError, setRecordsError] = useState<string | null>(null);
@@ -378,7 +381,7 @@ export default function DailyPlantLoadFactorPage() {
                     </TableHead>
                     <TableBody>
                       {records.map((row) => (
-                        <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography>
                           </TableCell>

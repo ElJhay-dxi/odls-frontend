@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
@@ -399,7 +400,7 @@ function GasTurbineSection({
                     </TableHead>
                     <TableBody>
                       {gasTurbineRecords.map((row) => (
-                        <TableRow key={row.id} selected={gasTurbineEditTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={gasTurbineEditTarget?.id === row.id} hover>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography></TableCell>
                           <TableCell><Chip label={row.unitCode} size="small" variant="outlined" sx={{ fontWeight: 700 }} /></TableCell>
                           <TableCell><Typography variant="body2">{row.difference.toFixed(1)}</Typography></TableCell>
@@ -744,7 +745,7 @@ function FlowComputerSection({
                     </TableHead>
                     <TableBody>
                       {flowComputerRecords.map((row) => (
-                        <TableRow key={row.id} selected={flowComputerEditTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={flowComputerEditTarget?.id === row.id} hover>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography></TableCell>
                           <TableCell><Chip label={row.unitCode} size="small" variant="outlined" sx={{ fontWeight: 700 }} /></TableCell>
                           <TableCell><Typography variant="body2">{row.readingMMscf.toFixed(4)}</Typography></TableCell>
@@ -1043,7 +1044,7 @@ function LcoSection({
                     </TableHead>
                     <TableBody>
                       {lcoRecords.map((row) => (
-                        <TableRow key={row.id} selected={lcoEditTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={lcoEditTarget?.id === row.id} hover>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography></TableCell>
                           <TableCell><Typography variant="body2">{row.currentReading.toFixed(1)}</Typography></TableCell>
                           <TableCell>
@@ -1345,7 +1346,7 @@ function DfoSection({
                     </TableHead>
                     <TableBody>
                       {dfoRecords.map((row) => (
-                        <TableRow key={row.id} selected={dfoEditTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={dfoEditTarget?.id === row.id} hover>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography></TableCell>
                           <TableCell><Typography variant="body2">{row.currentReading.toFixed(1)}</Typography></TableCell>
                           <TableCell>
@@ -1402,8 +1403,10 @@ export default function FuelReadingsPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(today);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? today);
 
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);

@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button, CircularProgress,
   Alert, Typography, MenuItem, FormControl, InputLabel, Select,
@@ -282,8 +283,10 @@ export default function ThermalStationLogPage() {
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
   const [plantBuses, setPlantBuses] = useState<PlantBus[]>([]);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
   const [log, setLog] = useState<ThermalStationLog | null>(null);
   const [shiftHandovers, setShiftHandovers] = useState<ShiftLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2410,7 +2413,7 @@ export default function ThermalStationLogPage() {
                       </TableHead>
                       <TableBody>
                         {log.safetyDocs.map((doc) => (
-                          <TableRow key={doc.id} hover>
+                          <TableRow key={doc.id} data-record-id={doc.id} hover>
                             <TableCell sx={{ fontSize: 12 }}>
                               {doc.safetyDocTypeCode
                                 ? <Chip label={doc.safetyDocTypeCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
@@ -2577,7 +2580,7 @@ export default function ThermalStationLogPage() {
                       if (item.type === 'entry' && item.entry) {
                         const entry = item.entry;
                         return (
-                          <Box key={item.id}>
+                          <Box key={item.id} data-record-id={item.id}>
                             {editingEntry?.id === entry.id ? (
                               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, my: 0.5 }}>
                                 <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
@@ -2610,7 +2613,7 @@ export default function ThermalStationLogPage() {
                         const totalUnits = cond.rows.reduce((s, r) => s + (r.numberOfUnits ?? 0), 0);
                         const totalLoad = cond.rows.reduce((s, r) => s + (r.totalLoadMw ?? 0), 0);
                         return (
-                          <Box key={item.id} sx={{ borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', py: 0.5 }}>
+                          <Box key={item.id} data-record-id={item.id} sx={{ borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', py: 0.5 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 0.5, py: 0.5, cursor: 'pointer', '&:hover .cond-actions': { opacity: 1 } }}
                               onClick={() => setExpandedConditions((prev) => { const next = new Set(prev); next.has(cond.id) ? next.delete(cond.id) : next.add(cond.id); return next; })}>
                               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#1B5E20', minWidth: 50, fontSize: 13 }}>{cond.snapshotTime}</Typography>
@@ -2631,7 +2634,7 @@ export default function ThermalStationLogPage() {
                                 <Table size="small">
                                   <TableHead><TableRow sx={{ backgroundColor: '#E8F5E9' }}><TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Station</TableCell><TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Units</TableCell><TableCell align="right" sx={{ fontWeight: 700, fontSize: 12 }}>Load (MW)</TableCell></TableRow></TableHead>
                                   <TableBody>
-                                    {cond.rows.map((row) => (<TableRow key={row.id}><TableCell sx={{ fontSize: 12 }}>{row.plantName}</TableCell><TableCell align="center" sx={{ fontSize: 12 }}>{row.numberOfUnits ?? '—'}</TableCell><TableCell align="right" sx={{ fontSize: 12 }}>{row.totalLoadMw?.toFixed(1) ?? '—'}</TableCell></TableRow>))}
+                                    {cond.rows.map((row) => (<TableRow key={row.id} data-record-id={row.id}><TableCell sx={{ fontSize: 12 }}>{row.plantName}</TableCell><TableCell align="center" sx={{ fontSize: 12 }}>{row.numberOfUnits ?? '—'}</TableCell><TableCell align="right" sx={{ fontSize: 12 }}>{row.totalLoadMw?.toFixed(1) ?? '—'}</TableCell></TableRow>))}
                                     <TableRow sx={{ backgroundColor: '#E8F5E9' }}><TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Total</TableCell><TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>{totalUnits}</TableCell><TableCell align="right" sx={{ fontWeight: 700, fontSize: 12 }}>{totalLoad.toFixed(1)}</TableCell></TableRow>
                                   </TableBody>
                                 </Table>
@@ -2645,7 +2648,7 @@ export default function ThermalStationLogPage() {
                         const reading = item.gasReading;
                         const expanded = expandedGasReadings.has(reading.id);
                         return (
-                          <Box key={item.id} sx={{ borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', py: 0.5 }}>
+                          <Box key={item.id} data-record-id={item.id} sx={{ borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', py: 0.5 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 0.5, py: 0.5, cursor: 'pointer', '&:hover .gas-actions': { opacity: 1 } }}
                               onClick={() => setExpandedGasReadings((prev) => { const next = new Set(prev); next.has(reading.id) ? next.delete(reading.id) : next.add(reading.id); return next; })}>
                               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#E65100', minWidth: 50, fontSize: 13 }}>{reading.readingTime}</Typography>
@@ -2664,7 +2667,7 @@ export default function ThermalStationLogPage() {
                                 <Table size="small">
                                   <TableHead><TableRow sx={{ backgroundColor: '#FFF3E0' }}><TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Terminal</TableCell><TableCell align="right" sx={{ fontWeight: 700, fontSize: 12 }}>Inlet (bar)</TableCell><TableCell align="right" sx={{ fontWeight: 700, fontSize: 12 }}>Outlet (bar)</TableCell><TableCell align="right" sx={{ fontWeight: 700, fontSize: 12 }}>Flow (MMScf/D)</TableCell></TableRow></TableHead>
                                   <TableBody>
-                                    {reading.rows.map((row) => (<TableRow key={row.id}><TableCell sx={{ fontSize: 12 }}>{row.terminal}</TableCell><TableCell align="right" sx={{ fontSize: 12 }}>{row.inletPressureBar?.toFixed(1) ?? '—'}</TableCell><TableCell align="right" sx={{ fontSize: 12 }}>{row.outletPressureBar?.toFixed(1) ?? '—'}</TableCell><TableCell align="right" sx={{ fontSize: 12 }}>{row.flowRateMmscf?.toFixed(2) ?? '—'}</TableCell></TableRow>))}
+                                    {reading.rows.map((row) => (<TableRow key={row.id} data-record-id={row.id}><TableCell sx={{ fontSize: 12 }}>{row.terminal}</TableCell><TableCell align="right" sx={{ fontSize: 12 }}>{row.inletPressureBar?.toFixed(1) ?? '—'}</TableCell><TableCell align="right" sx={{ fontSize: 12 }}>{row.outletPressureBar?.toFixed(1) ?? '—'}</TableCell><TableCell align="right" sx={{ fontSize: 12 }}>{row.flowRateMmscf?.toFixed(2) ?? '—'}</TableCell></TableRow>))}
                                   </TableBody>
                                 </Table>
                               </Box>
@@ -2675,7 +2678,7 @@ export default function ThermalStationLogPage() {
 
                       if (item.type === 'handover') {
                         return (
-                          <Box key={item.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 1, px: 0.5, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', backgroundColor: '#F3F6FF' }}>
+                          <Box key={item.id} data-record-id={item.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 1, px: 0.5, borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', backgroundColor: '#F3F6FF' }}>
                             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#1565C0', minWidth: 50, pt: 0.1, fontSize: 13 }}>{item.time}</Typography>
                             <Chip label="Handover" size="small" color="primary" variant="outlined" sx={{ fontWeight: 700, fontSize: 11 }} />
                             <Typography variant="body2" sx={{ flex: 1, lineHeight: 1.6, color: item.handoverType === 'incoming' ? '#1B5E20' : '#B71C1C', fontStyle: 'italic' }}>{item.handoverText}</Typography>
@@ -2769,7 +2772,7 @@ export default function ThermalStationLogPage() {
                       </TableHead>
                       <TableBody>
                         {log.hseEntries.map((entry) => (
-                          <TableRow key={entry.id} hover>
+                          <TableRow key={entry.id} data-record-id={entry.id} hover>
                             {editingHseEntry?.id === entry.id ? (
                               <>
                                 <TableCell><TextField size="small" type="date" value={editHseEntryForm.entryDate} onChange={(e) => setEditHseEntryForm((p) => ({ ...p, entryDate: e.target.value }))} slotProps={{ inputLabel: { shrink: true } }} /></TableCell>
@@ -3051,7 +3054,7 @@ export default function ThermalStationLogPage() {
                   : (
                     <Stack spacing={1.5}>
                       {criticalIssues.map((issue) => (
-                        <Paper key={issue.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                        <Paper key={issue.id} data-record-id={issue.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                           <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }} useFlexGap>
                             {/* Left: equipment */}
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 160 }}>
@@ -3138,7 +3141,7 @@ export default function ThermalStationLogPage() {
                     : (
                       <Stack spacing={0}>
                         {oversightEntries.map((entry, idx) => (
-                          <Box key={entry.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 1, px: 0.5, borderBottom: idx === oversightEntries.length - 1 ? 'none' : '1px solid', borderColor: 'divider', '&:hover .oversight-actions': { opacity: 1 } }}>
+                          <Box key={entry.id} data-record-id={entry.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 1, px: 0.5, borderBottom: idx === oversightEntries.length - 1 ? 'none' : '1px solid', borderColor: 'divider', '&:hover .oversight-actions': { opacity: 1 } }}>
                             <Chip label={new Date(entry.entryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} size="small" variant="outlined" sx={{ minWidth: 72 }} />
                             <Chip label={entry.entryTime} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#4A148C', borderColor: '#4A148C' }} />
                             <Typography variant="body2" sx={{ flex: 1, lineHeight: 1.6 }}>{entry.entryText}</Typography>

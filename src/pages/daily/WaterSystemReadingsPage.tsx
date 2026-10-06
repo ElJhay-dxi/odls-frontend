@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button, CircularProgress,
   Alert, Typography, MenuItem, FormControl, InputLabel, Select,
@@ -89,8 +90,10 @@ export default function WaterSystemReadingsPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [plantCode, setPlantCode] = useState('');
-  const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [plantCode, setPlantCode] = useState(deepLink.plant ?? '');
+  const [logDate, setLogDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
   const [manualPrev, setManualPrev] = useState('');
   const [currentReading, setCurrentReading] = useState('');
   const [levelPct, setLevelPct] = useState('');

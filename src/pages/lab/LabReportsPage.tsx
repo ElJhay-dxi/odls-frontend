@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, Typography, Button, CircularProgress,
   Alert, MenuItem, FormControl, InputLabel, Select, Grid, Chip,
@@ -357,7 +358,9 @@ export default function LabReportsPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
   const [dateFrom, setDateFrom] = useState(daysAgoStr(30));
   const [dateTo, setDateTo] = useState(todayStr());
   const [activeTab, setActiveTab] = useState(0);

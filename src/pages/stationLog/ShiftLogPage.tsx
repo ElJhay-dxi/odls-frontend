@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
@@ -53,8 +54,10 @@ export default function ShiftLogPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const [filterPlant, setFilterPlant] = useState('');
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [filterPlant, setFilterPlant] = useState(deepLink.plant ?? '');
+  const [filterDate, setFilterDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
   const [records, setRecords] = useState<ShiftLog[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [recordsError, setRecordsError] = useState<string | null>(null);
@@ -465,7 +468,7 @@ export default function ShiftLogPage() {
                     </TableHead>
                     <TableBody>
                       {records.map((row) => (
-                        <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
                             <Chip label={`${row.shiftCode} — ${row.shiftLabel}`}
                               size="small" variant="outlined"

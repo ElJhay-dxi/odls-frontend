@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Chip,
@@ -29,7 +30,9 @@ export default function PlantBusPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [filterPlant, setFilterPlant] = useState('');
+  const deepLink = useSearchDeepLink();
+
+  const [filterPlant, setFilterPlant] = useState(deepLink.plant ?? '');
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PlantBus | null>(null);
@@ -179,7 +182,7 @@ export default function PlantBusPage() {
                 </TableHead>
                 <TableBody>
                   {rows.map((row) => (
-                    <TableRow key={row.id} hover>
+                    <TableRow key={row.id} data-record-id={row.id} hover>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.plantCode}</Typography>
                         <Typography variant="caption" color="text.secondary">{row.plantName}</Typography>

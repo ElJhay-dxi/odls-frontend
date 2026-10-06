@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, Typography, Button, CircularProgress,
   Alert, MenuItem, FormControl, InputLabel, Select, Chip,
@@ -152,7 +153,9 @@ export default function ThermalReportsPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
   const [dateFrom, setDateFrom] = useState(daysAgoStr(7));
   const [dateTo, setDateTo] = useState(todayStr());
   const [activeTab, setActiveTab] = useState(0);

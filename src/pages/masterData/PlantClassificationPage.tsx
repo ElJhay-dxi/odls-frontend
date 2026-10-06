@@ -133,7 +133,7 @@ export default function PlantClassificationPage() {
                   </TableRow>
                 ) : (
                   rows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} data-record-id={row.id}>
                       <TableCell>
                         <Chip
                           label={row.classificationType}

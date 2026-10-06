@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button, CircularProgress,
   Alert, Typography, MenuItem, FormControl, InputLabel, Select,
@@ -82,8 +83,10 @@ export default function HydroStationLogPage() {
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
   const [plantBuses, setPlantBuses] = useState<PlantBus[]>([]);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
 
   const [log, setLog] = useState<HydroStationLog | null>(null);
   const [shiftHandovers, setShiftHandovers] = useState<ShiftLog[]>([]);
@@ -1038,7 +1041,7 @@ export default function HydroStationLogPage() {
                     </TableHead>
                     <TableBody>
                       {log.permits.map((permit) => (
-                        <TableRow key={permit.id} hover>
+                        <TableRow key={permit.id} data-record-id={permit.id} hover>
                           <TableCell sx={{ fontSize: 12 }}>
                             {permit.permitTypeCode
                               ? <Chip label={permit.permitTypeCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
@@ -1289,7 +1292,7 @@ export default function HydroStationLogPage() {
                     if (item.type === 'entry' && item.entry) {
                       const entry = item.entry;
                       return (
-                        <Box key={item.id}>
+                        <Box key={item.id} data-record-id={item.id}>
                           {editingEntry?.id === entry.id ? (
                             <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, my: 0.5 }}>
                               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
@@ -1356,7 +1359,7 @@ export default function HydroStationLogPage() {
                       const totalLoad = cond.rows.reduce((s, r) => s + (r.totalLoadMw ?? 0), 0);
 
                       return (
-                        <Box key={item.id} sx={{ borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', py: 0.5 }}>
+                        <Box key={item.id} data-record-id={item.id} sx={{ borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider', py: 0.5 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 0.5, py: 0.5,
                             cursor: 'pointer', '&:hover .cond-actions': { opacity: 1 } }}
                             onClick={() => setExpandedConditions((prev) => {
@@ -1416,7 +1419,7 @@ export default function HydroStationLogPage() {
                                 </TableHead>
                                 <TableBody>
                                   {cond.rows.map((row) => (
-                                    <TableRow key={row.id}>
+                                    <TableRow key={row.id} data-record-id={row.id}>
                                       <TableCell sx={{ fontSize: 12 }}>{row.plantName}</TableCell>
                                       <TableCell align="center" sx={{ fontSize: 12 }}>{row.numberOfUnits ?? '—'}</TableCell>
                                       <TableCell align="right" sx={{ fontSize: 12 }}>{row.totalLoadMw?.toFixed(1) ?? '—'}</TableCell>
@@ -1439,7 +1442,7 @@ export default function HydroStationLogPage() {
                     if (item.type === 'handover') {
                       const isIncoming = item.handoverType === 'incoming';
                       return (
-                        <Box key={item.id} sx={{
+                        <Box key={item.id} data-record-id={item.id} sx={{
                           display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 1, px: 0.5,
                           borderBottom: isLast ? 'none' : '1px solid', borderColor: 'divider',
                           backgroundColor: '#F3F6FF',

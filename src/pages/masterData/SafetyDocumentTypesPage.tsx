@@ -232,7 +232,7 @@ export default function SafetyDocumentTypesPage() {
                 </TableHead>
                 <TableBody>
                   {filtered.map((row) => (
-                    <TableRow key={row.id} hover>
+                    <TableRow key={row.id} data-record-id={row.id} hover>
                       <TableCell>
                         <Chip label={row.code} size="small" color="primary" variant="outlined"
                           sx={{ fontWeight: 700, fontFamily: 'monospace' }} />

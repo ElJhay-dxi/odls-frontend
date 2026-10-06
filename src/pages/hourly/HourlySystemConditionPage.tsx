@@ -420,7 +420,7 @@ export default function HourlySystemConditionPage() {
                     </TableHead>
                     <TableBody>
                       {records.map((row) => (
-                        <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
                             <Chip label={`${String(row.logHour).padStart(2, '0')}:00`}
                               size="small" variant="outlined"

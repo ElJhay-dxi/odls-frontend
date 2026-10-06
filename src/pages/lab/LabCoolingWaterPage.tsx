@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, TextField, Button, CircularProgress, Alert, Typography,
   MenuItem, FormControl, InputLabel, Select, Grid, Divider, Chip, Stack,
@@ -40,8 +41,10 @@ export default function LabCoolingWaterPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
 
   const [readings, setReadings] = useState<LabCoolingWaterReading[]>([]);
   const [loadingReadings, setLoadingReadings] = useState(false);
@@ -264,7 +267,7 @@ export default function LabCoolingWaterPage() {
                   </TableHead>
                   <TableBody>
                     {readings.map((r) => (
-                      <TableRow key={r.id} hover>
+                      <TableRow key={r.id} data-record-id={r.id} hover>
                         <TableCell>{r.readingTime?.slice(0, 5) ?? '—'}</TableCell>
                         <TableCell>{r.circuitId ?? '—'}</TableCell>
                         <TableCell>{fmt(r.ph)}</TableCell>

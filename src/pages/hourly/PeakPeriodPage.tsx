@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
@@ -22,9 +23,11 @@ export default function PeakPeriodPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const [allUnits, setAllUnits] = useState<PlantUnit[]>([]);
 
-  const [filterPlant, setFilterPlant] = useState('');
+  const deepLink = useSearchDeepLink();
+
+  const [filterPlant, setFilterPlant] = useState(deepLink.plant ?? '');
   const [filterUnit, setFilterUnit] = useState('');
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterDate, setFilterDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
   const [filterUnits, setFilterUnits] = useState<PlantUnit[]>([]);
 
   const [record, setRecord] = useState<PeakPeriodReading | null>(null);
@@ -360,7 +363,7 @@ export default function PeakPeriodPage() {
                       {record.intervals.map((interval) => {
                         const isEditing = editIntervalId === interval.id;
                         return (
-                          <TableRow key={interval.id}
+                          <TableRow key={interval.id} data-record-id={interval.id}
                             sx={{ backgroundColor: interval.intervalTime === '19:00' ? '#1B5E2008' : undefined }}>
                             <TableCell>
                               <Chip

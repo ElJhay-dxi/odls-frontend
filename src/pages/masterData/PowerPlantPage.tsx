@@ -204,7 +204,7 @@ export default function PowerPlantPage() {
                   </TableRow>
                 ) : (
                   rows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} data-record-id={row.id}>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.plantName}</Typography>
                       </TableCell>

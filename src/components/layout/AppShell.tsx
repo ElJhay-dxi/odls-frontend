@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar, { DRAWER_WIDTH } from './Sidebar';
 import TopBar from './TopBar';
+import RecordHighlighter from './RecordHighlighter';
 
 export default function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -27,6 +28,7 @@ export default function AppShell() {
         }}
       >
         <Outlet />
+        <RecordHighlighter />
       </Box>
     </Box>
   );

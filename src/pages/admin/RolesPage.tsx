@@ -193,7 +193,7 @@ export default function RolesPage() {
                     </TableHead>
                     <TableBody>
                       {roles.map((role) => (
-                        <TableRow key={role.id} hover>
+                        <TableRow key={role.id} data-record-id={role.id} hover>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>{role.name}</Typography>
                           </TableCell>

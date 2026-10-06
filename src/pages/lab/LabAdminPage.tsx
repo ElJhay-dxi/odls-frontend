@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, TextField, Button, CircularProgress, Alert, Typography,
   MenuItem, FormControl, InputLabel, Select, Grid, Divider, Chip, Stack,
@@ -68,7 +69,8 @@ export default function LabAdminPage() {
 
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
-  const [selectedPlant, setSelectedPlant] = useState('');
+  const deepLink = useSearchDeepLink();
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
   const [tabIndex, setTabIndex] = useState(0);
 
   const [samplePoints, setSamplePoints] = useState<LabSamplePoint[]>([]);
@@ -444,7 +446,7 @@ export default function LabAdminPage() {
               </TableHead>
               <TableBody>
                 {samplePoints.map((sp) => (
-                  <TableRow key={sp.id} hover>
+                  <TableRow key={sp.id} data-record-id={sp.id} hover>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{sp.samplePointName}</Typography></TableCell>
                     <TableCell>{sp.sampleType}</TableCell>
                     <TableCell>{sp.description || '—'}</TableCell>
@@ -514,7 +516,7 @@ export default function LabAdminPage() {
                 </TableHead>
                 <TableBody>
                   {sampleTypes.map((st) => (
-                    <TableRow key={st.id} hover>
+                    <TableRow key={st.id} data-record-id={st.id} hover>
                       <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{st.name}</Typography></TableCell>
                       <TableCell>{st.description || '—'}</TableCell>
                       <TableCell>{st.samplePointCount}</TableCell>
@@ -603,7 +605,7 @@ export default function LabAdminPage() {
                   {paramsSamplePoint.parameters.length === 0 ? (
                     <TableRow><TableCell colSpan={5}><Typography variant="caption" color="text.secondary">No parameters yet.</Typography></TableCell></TableRow>
                   ) : paramsSamplePoint.parameters.map((p) => (
-                    <TableRow key={p.id} hover>
+                    <TableRow key={p.id} data-record-id={p.id} hover>
                       <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{p.parameterName}</Typography></TableCell>
                       <TableCell>{p.unit || '—'}</TableCell>
                       <TableCell>
@@ -679,7 +681,7 @@ export default function LabAdminPage() {
                 {limitsSamplePoint.parameters.map((p) => {
                   const f = limitForms[p.id] ?? { minValue: '', maxValue: '', isActive: true };
                   return (
-                    <TableRow key={p.id} hover>
+                    <TableRow key={p.id} data-record-id={p.id} hover>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.parameterName}</Typography>
                         {!p.controlLimit && (
@@ -757,7 +759,7 @@ export default function LabAdminPage() {
         </Tabs>
       </Card>
 
-      {tabIndex !== SAMPLE_TYPES_TAB && tabIndex !== ACTIONS_TAB && (
+      {tabIndex !== SAMPLE_TYPES_TAB && (
         <>
           <Card sx={{ mb: 3 }}>
             <CardContent>
@@ -786,7 +788,9 @@ export default function LabAdminPage() {
       )}
 
       {tabIndex === SAMPLE_TYPES_TAB ? renderSampleTypesTab() : tabIndex === ACTIONS_TAB ? (
-        <LabActionsManager canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
+        <LabActionsManager plantCode={selectedPlant}
+          plantName={plants.find((p) => p.plantCode === selectedPlant)?.plantName}
+          canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
       ) : !selectedPlant ? (
         <Box sx={{ textAlign: 'center', py: 8 }}>
           <AdminPanelSettings sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />

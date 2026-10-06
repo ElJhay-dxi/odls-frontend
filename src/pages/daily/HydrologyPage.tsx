@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button, CircularProgress,
   Alert, Typography, MenuItem, FormControl, InputLabel, Select,
@@ -31,8 +32,10 @@ export default function HydrologyPage() {
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
   const [tabIndex, setTabIndex] = useState(0);
 
-  const [plantCode, setPlantCode] = useState('');
-  const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [plantCode, setPlantCode] = useState(deepLink.plant ?? '');
+  const [logDate, setLogDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
   const [headWaterLevel, setHeadWaterLevel] = useState('');
   const [tailWaterLevel, setTailWaterLevel] = useState('');
   const [unitDischarge, setUnitDischarge] = useState('');
@@ -309,7 +312,7 @@ export default function HydrologyPage() {
                       </TableHead>
                       <TableBody>
                         {levelRecords.map((row) => (
-                          <TableRow key={row.id} hover>
+                          <TableRow key={row.id} data-record-id={row.id} hover>
                             <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography></TableCell>
                             <TableCell><Typography variant="body2">{row.headWaterLevel.toFixed(3)}</Typography></TableCell>
                             <TableCell><Typography variant="body2">{row.tailWaterLevel.toFixed(3)}</Typography></TableCell>
@@ -342,7 +345,7 @@ export default function HydrologyPage() {
                       </TableHead>
                       <TableBody>
                         {dischargeRecords.map((row) => (
-                          <TableRow key={row.id} hover>
+                          <TableRow key={row.id} data-record-id={row.id} hover>
                             <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography></TableCell>
                             <TableCell><Typography variant="body2">{row.unitDischarge}</Typography></TableCell>
                             <TableCell><Typography variant="body2">{row.spillwayDischarge}</Typography></TableCell>

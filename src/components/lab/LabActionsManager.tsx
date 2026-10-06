@@ -11,14 +11,14 @@ import type { LabAnalysisAction } from '../../types/lab';
 
 const ACCENT = '#00695C';
 
-interface Props { canCreate: boolean; canEdit: boolean; canDelete: boolean; }
+interface Props { plantCode: string; plantName?: string; canCreate: boolean; canEdit: boolean; canDelete: boolean; }
 interface ActionForm { name: string; description: string; isActive: boolean; }
 const emptyForm: ActionForm = { name: '', description: '', isActive: true };
 
 const apiMessage = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
 
-export default function LabActionsManager({ canCreate, canEdit, canDelete }: Props) {
+export default function LabActionsManager({ plantCode, plantName, canCreate, canEdit, canDelete }: Props) {
   const [items, setItems] = useState<LabAnalysisAction[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,16 +31,17 @@ export default function LabActionsManager({ canCreate, canEdit, canDelete }: Pro
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
+    if (!plantCode) { setItems([]); return; }
     setLoading(true); setError(null);
     try {
-      const res = await labAnalysisActionsApi.getAll();
+      const res = await labAnalysisActionsApi.getAll(plantCode);
       setItems(res.data);
     } catch {
       setError('Failed to load actions.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [plantCode]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -57,7 +58,7 @@ export default function LabActionsManager({ canCreate, canEdit, canDelete }: Pro
     if (!name) return;
     setSaving(true); setSaveError(null);
     try {
-      const payload = { name, description: form.description.trim() || null, isActive: form.isActive };
+      const payload = { plantCode, name, description: form.description.trim() || null, isActive: form.isActive };
       if (editTarget) await labAnalysisActionsApi.update(editTarget.id, payload);
       else await labAnalysisActionsApi.create(payload);
       setDialogOpen(false);
@@ -72,7 +73,7 @@ export default function LabActionsManager({ canCreate, canEdit, canDelete }: Pro
   const handleToggle = async (row: LabAnalysisAction) => {
     if (!canEdit) return;
     try {
-      await labAnalysisActionsApi.update(row.id, { name: row.name, description: row.description ?? null, isActive: !row.isActive });
+      await labAnalysisActionsApi.update(row.id, { plantCode, name: row.name, description: row.description ?? null, isActive: !row.isActive });
       load();
     } catch (err: unknown) {
       setError(apiMessage(err, 'Failed to update action.'));
@@ -105,9 +106,9 @@ export default function LabActionsManager({ canCreate, canEdit, canDelete }: Pro
             <Typography variant="caption" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: ACCENT }}>
               Actions To Be Taken
             </Typography>
-            <Typography variant="caption" color="text.secondary">Applies to all plants</Typography>
+            <Typography variant="caption" color="text.secondary">{plantName ? `For ${plantName}` : 'Select a plant'}</Typography>
           </Stack>
-          {canCreate && (
+          {canCreate && plantCode && (
             <Button size="small" variant="contained" sx={{ backgroundColor: ACCENT }} startIcon={<Add />} onClick={openCreate}>
               Add Action
             </Button>
@@ -117,6 +118,10 @@ export default function LabActionsManager({ canCreate, canEdit, canDelete }: Pro
           {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={28} /></Box>
+          ) : !plantCode ? (
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+              Select a plant above to manage its actions.
+            </Typography>
           ) : items.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <FactCheck sx={{ fontSize: '2.5rem', color: 'text.disabled', mb: 1 }} />
@@ -140,7 +145,14 @@ export default function LabActionsManager({ canCreate, canEdit, canDelete }: Pro
                   <TableBody>
                     {items.map((a) => (
                       <TableRow key={a.id} hover>
-                        <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{a.name}</Typography></TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{a.name}</Typography>
+                          {!a.plantCode && (
+                            <Tooltip title="Created before actions were per plant, so every plant can still use it. Edit and save it to assign it to this plant.">
+                              <Chip label="All plants (unassigned)" size="small" color="warning" variant="outlined" sx={{ mt: 0.5 }} />
+                            </Tooltip>
+                          )}
+                        </TableCell>
                         <TableCell>{a.description || '—'}</TableCell>
                         <TableCell>{a.usageCount}</TableCell>
                         <TableCell>
@@ -169,8 +181,8 @@ export default function LabActionsManager({ canCreate, canEdit, canDelete }: Pro
                 </Table>
               </TableContainer>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-                Active actions appear in the "Action To Be Taken" dropdown on Lab Analysis. Renaming an action updates
-                existing analysis records that use it.
+                Active actions appear in the "Action To Be Taken" dropdown on Lab Analysis for this plant only. Renaming an action
+                updates this plant's analysis records that use it.
               </Typography>
             </>
           )}
@@ -185,8 +197,10 @@ export default function LabActionsManager({ canCreate, canEdit, canDelete }: Pro
           <Stack spacing={2.5}>
             <TextField label="Action Name" size="small" fullWidth required autoFocus
               slotProps={{ htmlInput: { maxLength: 100 } }}
-              helperText={editTarget && editTarget.usageCount > 0
-                ? `Renaming also updates the ${editTarget.usageCount} analysis record(s) using it.` : undefined}
+              helperText={editTarget && !editTarget.plantCode
+                ? `Saving assigns this action to ${plantName ?? 'the selected plant'}.`
+                : editTarget && editTarget.usageCount > 0
+                  ? `Renaming also updates the ${editTarget.usageCount} analysis record(s) using it.` : undefined}
               value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
             <TextField label="Description" size="small" fullWidth multiline rows={2}
               slotProps={{ htmlInput: { maxLength: 255 } }}

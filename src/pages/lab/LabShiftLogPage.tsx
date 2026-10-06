@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
@@ -62,8 +63,10 @@ export default function LabShiftLogPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
 
   const [log, setLog] = useState<LabShiftLog | null>(null);
   const [loadingLog, setLoadingLog] = useState(false);
@@ -514,7 +517,7 @@ export default function LabShiftLogPage() {
                       </TableHead>
                       <TableBody>
                         {history.map((h) => (
-                          <TableRow key={h.id} hover
+                          <TableRow key={h.id} data-record-id={h.id} hover
                             selected={h.logDate.split('T')[0] === selectedDate}
                             sx={{ cursor: 'pointer' }}
                             onClick={() => setSelectedDate(h.logDate.split('T')[0])}>

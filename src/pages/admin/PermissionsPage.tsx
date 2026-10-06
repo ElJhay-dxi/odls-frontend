@@ -200,7 +200,7 @@ export default function PermissionsPage() {
                       {perms.map((perm) => {
                         const action = perm.code.split('.').pop() ?? '';
                         return (
-                          <TableRow key={perm.id} hover>
+                          <TableRow key={perm.id} data-record-id={perm.id} hover>
                             <TableCell>
                               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
                                 {perm.code}

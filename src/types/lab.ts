@@ -60,6 +60,9 @@ export interface LabAnalysisRecord {
 
 export interface LabAnalysisAction {
   id: string;
+  /** null = legacy action available to every plant until assigned. */
+  plantCode?: string | null;
+  plantName?: string | null;
   name: string;
   description?: string | null;
   sortOrder: number;

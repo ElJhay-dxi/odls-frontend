@@ -298,7 +298,7 @@ export default function DashboardPage() {
                   </TableRow>
                 ) : (
                   activity.map((item) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} data-record-id={item.id}>
                       {/* Entity */}
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>

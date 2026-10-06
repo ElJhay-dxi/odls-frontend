@@ -233,7 +233,7 @@ export default function AuditLogPage() {
                     {result?.items.map((log) => (
                       <>
                         <TableRow
-                          key={log.id}
+                          key={log.id} data-record-id={log.id}
                           hover
                           sx={{ cursor: hasDiff(log) ? 'pointer' : 'default' }}
                           onClick={() => hasDiff(log) && toggleRow(log.id)}

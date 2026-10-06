@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
@@ -154,9 +155,11 @@ export default function HourlyThermalReadingPage() {
   const pendingMetalRows = useRef<BearingMetalReadingRow[] | null>(null);
   const pendingDrainRows = useRef<BearingDrainReadingRow[] | null>(null);
 
-  const [filterPlant, setFilterPlant] = useState('');
+  const deepLink = useSearchDeepLink();
+
+  const [filterPlant, setFilterPlant] = useState(deepLink.plant ?? '');
   const [filterUnit, setFilterUnit] = useState('');
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterDate, setFilterDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
 
   const [records, setRecords] = useState<HourlyThermalReading[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -765,7 +768,7 @@ export default function HourlyThermalReadingPage() {
                     </TableHead>
                     <TableBody>
                       {records.map((row) => (
-                        <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.unitCode}</Typography></TableCell>
                           <TableCell>
                             <Chip label={`${String(row.logHour).padStart(2, '0')}:00`} size="small" variant="outlined"

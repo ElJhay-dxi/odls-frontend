@@ -200,7 +200,7 @@ export default function PlantUnitEquipmentPage() {
                     </TableCell>
                   </TableRow>
                 ) : rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} data-record-id={row.id}>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantName}</Typography>
                       <Typography variant="caption" color="text.secondary">{row.unitName} ({row.unitCode})</Typography>

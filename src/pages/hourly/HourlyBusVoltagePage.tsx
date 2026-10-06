@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
@@ -30,8 +31,10 @@ export default function HourlyBusVoltagePage() {
   const [newBusCode, setNewBusCode] = useState<string>('');
   const [newBusVoltage, setNewBusVoltage] = useState('');
 
-  const [plantCode, setPlantCode] = useState('');
-  const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [plantCode, setPlantCode] = useState(deepLink.plant ?? '');
+  const [logDate, setLogDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
   const [logHour, setLogHour] = useState<number | string>(new Date().getHours() + 1);
   const [remarks, setRemarks] = useState('');
 
@@ -422,7 +425,7 @@ export default function HourlyBusVoltagePage() {
                     </TableHead>
                     <TableBody>
                       {records.map((row) => (
-                        <TableRow key={row.id} selected={editTarget?.id === row.id} hover>
+                        <TableRow key={row.id} data-record-id={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
                             <Chip label={`${String(row.logHour).padStart(2, '0')}:00`}
                               size="small" variant="outlined"

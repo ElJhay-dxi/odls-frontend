@@ -135,7 +135,7 @@ export default function PlantLocationPage() {
                   </TableRow>
                 ) : (
                   rows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} data-record-id={row.id}>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <LocationOn sx={{ fontSize: '1rem', color: 'text.disabled' }} />

@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
@@ -47,8 +48,10 @@ export default function DailyEnergyGenerationThermalPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
 
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
@@ -526,7 +529,7 @@ export default function DailyEnergyGenerationThermalPage() {
                       </TableHead>
                       <TableBody>
                         {history.map((row, idx) => (
-                          <TableRow key={row.id} hover
+                          <TableRow key={row.id} data-record-id={row.id} hover
                             selected={row.logDate.split('T')[0] === selectedDate}
                             sx={{ cursor: 'pointer', backgroundColor: idx % 2 === 1 ? 'action.hover' : 'inherit' }}
                             onClick={() => setSelectedDate(row.logDate.split('T')[0])}>

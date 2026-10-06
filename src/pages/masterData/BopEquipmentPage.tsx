@@ -181,7 +181,7 @@ export default function BopEquipmentPage() {
                     </TableCell>
                   </TableRow>
                 ) : rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} data-record-id={row.id}>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 500 }}>{row.plantName}</Typography><Typography variant="caption" color="text.secondary">{row.bopName} ({row.bopCode})</Typography></TableCell>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 500 }}>{row.systemName ?? '—'}</Typography><Typography variant="caption" color="text.secondary">{row.subsystemName ?? '—'}</Typography></TableCell>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.equipmentName}</Typography></TableCell>

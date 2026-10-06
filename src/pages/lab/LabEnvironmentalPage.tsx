@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, TextField, Button, CircularProgress, Alert, Typography,
   MenuItem, FormControl, InputLabel, Select, Grid, Chip, Stack,
@@ -49,8 +50,10 @@ export default function LabEnvironmentalPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
   const [selectedPeriod, setSelectedPeriod] = useState('Daily');
 
   const [record, setRecord] = useState<LabEnvironmentalReport | null>(null);
@@ -363,7 +366,7 @@ export default function LabEnvironmentalPage() {
                     </TableHead>
                     <TableBody>
                       {history.map((h) => (
-                        <TableRow key={h.id} hover
+                        <TableRow key={h.id} data-record-id={h.id} hover
                           selected={h.logDate.split('T')[0] === selectedDate && h.reportingPeriod === selectedPeriod}>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{dayjs(h.logDate).format('DD MMM YYYY')}</Typography></TableCell>
                           <TableCell>{h.reportingPeriod}</TableCell>

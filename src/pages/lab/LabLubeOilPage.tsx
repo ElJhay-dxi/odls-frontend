@@ -1,3 +1,4 @@
+import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, TextField, Button, CircularProgress, Alert, Typography,
   MenuItem, FormControl, InputLabel, Select, Grid, Divider, Chip, Stack,
@@ -46,8 +47,10 @@ export default function LabLubeOilPage() {
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [selectedPlant, setSelectedPlant] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const deepLink = useSearchDeepLink();
+
+  const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
+  const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
 
   const [records, setRecords] = useState<LabLubeOilAnalysis[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -274,7 +277,7 @@ export default function LabLubeOilPage() {
       ) : (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {records.map((rec) => (
-            <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={rec.id}>
+            <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={rec.id} data-record-id={rec.id}>
               <Card variant="outlined" sx={{ height: '100%' }}>
                 <Box sx={{
                   px: 2, py: 1.5, backgroundColor: '#E0F2F1', borderBottom: '1px solid', borderColor: 'divider',
