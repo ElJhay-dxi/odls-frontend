@@ -4,6 +4,9 @@ import type { LabLubeOilAnalysis } from '../../types/lab';
 const BASE = '/lablubeoil';
 
 export const labLubeOilApi = {
+  getSuggestions: () =>
+    axiosInstance.get<{ appearances: string[]; traceMetals: string[]; testMethods: string[] }>(`${BASE}/suggestions`),
+
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<LabLubeOilAnalysis[]>(BASE, { params }),
 

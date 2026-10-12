@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import LabActionsManager from '../../components/lab/LabActionsManager';
+import DesalLimitsManager from '../../components/lab/DesalLimitsManager';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labSamplePointsApi } from '../../api/lab/labSamplePointsApi';
 import { labSampleTypesApi } from '../../api/lab/labSampleTypesApi';
@@ -45,9 +46,11 @@ const TABS = [
   { label: 'Parameters', icon: <Biotech fontSize="small" /> },
   { label: 'Control Limits', icon: <Tune fontSize="small" /> },
   { label: 'Actions', icon: <FactCheck fontSize="small" /> },
+  { label: 'Desalination Limits', icon: <Tune fontSize="small" /> },
 ];
 const SAMPLE_TYPES_TAB = 0;
 const ACTIONS_TAB = 4;
+const DESAL_LIMITS_TAB = 5;
 
 interface SamplePointForm {
   samplePointName: string; sampleType: string; description: string; isActive: boolean;
@@ -759,7 +762,7 @@ export default function LabAdminPage() {
         </Tabs>
       </Card>
 
-      {tabIndex !== SAMPLE_TYPES_TAB && (
+      {tabIndex !== SAMPLE_TYPES_TAB && tabIndex !== DESAL_LIMITS_TAB && (
         <>
           <Card sx={{ mb: 3 }}>
             <CardContent>
@@ -787,7 +790,10 @@ export default function LabAdminPage() {
         </>
       )}
 
-      {tabIndex === SAMPLE_TYPES_TAB ? renderSampleTypesTab() : tabIndex === ACTIONS_TAB ? (
+      {tabIndex === SAMPLE_TYPES_TAB ? renderSampleTypesTab() : tabIndex === DESAL_LIMITS_TAB ? (
+        <DesalLimitsManager canEdit={canEdit}
+          plants={plants.filter((pl) => pl.classificationType?.toLowerCase() === 'thermal')} />
+      ) : tabIndex === ACTIONS_TAB ? (
         <LabActionsManager plantCode={selectedPlant}
           plantName={plants.find((p) => p.plantCode === selectedPlant)?.plantName}
           canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />

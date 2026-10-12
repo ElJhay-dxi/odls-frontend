@@ -103,7 +103,7 @@ const getNavItems = (bopLabel: string): NavItem[] => [
       { label: 'Sea Water Monitoring', icon: <Water />, path: '/lab/seawater', permission: 'lab.seawater.view' },
       { label: 'Desalination Logs', icon: <FilterAlt />, path: '/lab/desalination', permission: 'lab.desalination.view' },
       { label: 'Chemical Dosing', icon: <Science />, path: '/lab/dosing', permission: 'lab.dosing.view' },
-      { label: 'Lube Oil Analysis', icon: <OilBarrel />, path: '/lab/lube-oil', permission: 'lab.lubeoil.view' },
+      { label: 'Fuel & Oil Analysis', icon: <OilBarrel />, path: '/lab/lube-oil', permission: 'lab.lubeoil.view' },
       { label: 'Environmental Monitoring', icon: <Park />, path: '/lab/environmental', permission: 'lab.environmental.view' },
       { label: 'Close Cooling Water', icon: <WaterDrop />, path: '/lab/cooling-water', permission: 'lab.coolingwater.view' },
       { label: 'Lab Reports', icon: <Assessment />, path: '/lab/reports', permission: 'lab.reports.view' },

@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import SuggestAutocomplete from '../../components/lab/SuggestAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labCoolingWaterApi } from '../../api/lab/labCoolingWaterApi';
 import type { PowerPlant } from '../../types/masterData';
@@ -21,22 +22,30 @@ import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 const ACCENT = '#00695C';
 
 interface ReadingForm {
-  readingTime: string; circuitId: string; temperature: string; ph: string;
+  readingTime: string; location: string; circuitId: string; temperature: string; ph: string;
   conductivity: string; nitrite: string; hardness: string; chlorideContent: string; chlorineResidual: string; remarks: string;
 }
 
 const emptyForm: ReadingForm = {
-  readingTime: new Date().toTimeString().slice(0, 5), circuitId: '', temperature: '', ph: '',
+  readingTime: new Date().toTimeString().slice(0, 5), location: '', circuitId: '', temperature: '', ph: '',
   conductivity: '', nitrite: '', hardness: '', chlorideContent: '', chlorineResidual: '', remarks: '',
 };
 
 const toNum = (v: string) => v === '' ? null : Number(v);
 const fmt = (v?: number) => v != null ? v.toString() : '—';
 
+const LOCATIONS = ['GT1', 'GT2', 'STG'];
+
 export default function LabCoolingWaterPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('lab.coolingwater');
   const isWrongPlantType = usePlantTypeGuard('thermal');
   const navigate = useNavigate();
+
+  const [learnedLocations, setLearnedLocations] = useState<string[]>([]);
+  const loadSuggestions = useCallback(() => {
+    labCoolingWaterApi.getSuggestions().then((res) => setLearnedLocations(res.data.locations ?? [])).catch(() => undefined);
+  }, []);
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
 
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
@@ -123,6 +132,7 @@ export default function LabCoolingWaterPage() {
     setEditTarget(row);
     setForm({
       readingTime: row.readingTime?.slice(0, 5) ?? '',
+      location: row.location ?? '',
       circuitId: row.circuitId ?? '',
       temperature: row.temperature?.toString() ?? '',
       ph: row.ph?.toString() ?? '',
@@ -144,6 +154,7 @@ export default function LabCoolingWaterPage() {
         plantCode: selectedPlant,
         logDate: selectedDate,
         readingTime: form.readingTime || null,
+        location: form.location.trim() || null,
         circuitId: form.circuitId || null,
         temperature: toNum(form.temperature),
         ph: toNum(form.ph),
@@ -254,6 +265,7 @@ export default function LabCoolingWaterPage() {
                   <TableHead>
                     <TableRow>
                       <TableCell>Time</TableCell>
+                      <TableCell>Location</TableCell>
                       <TableCell>Circuit</TableCell>
                       <TableCell>pH</TableCell>
                       <TableCell>Temp (°C)</TableCell>
@@ -269,6 +281,7 @@ export default function LabCoolingWaterPage() {
                     {readings.map((r) => (
                       <TableRow key={r.id} data-record-id={r.id} hover>
                         <TableCell>{r.readingTime?.slice(0, 5) ?? '—'}</TableCell>
+                        <TableCell>{r.location ?? '—'}</TableCell>
                         <TableCell>{r.circuitId ?? '—'}</TableCell>
                         <TableCell>{fmt(r.ph)}</TableCell>
                         <TableCell>{fmt(r.temperature)}</TableCell>
@@ -351,6 +364,11 @@ export default function LabCoolingWaterPage() {
               <TextField label="Reading Time" type="time" size="small" fullWidth
                 value={form.readingTime} onChange={(e) => setForm((p) => ({ ...p, readingTime: e.target.value }))}
                 slotProps={{ inputLabel: { shrink: true } }} />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <SuggestAutocomplete label="Location" value={form.location}
+                onChange={(v) => setForm((p) => ({ ...p, location: v }))}
+                defaults={LOCATIONS} learned={learnedLocations} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField label="Circuit ID" size="small" fullWidth

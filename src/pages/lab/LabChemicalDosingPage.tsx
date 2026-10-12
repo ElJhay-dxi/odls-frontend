@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
+import SuggestAutocomplete from '../../components/lab/SuggestAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labChemicalDosingApi } from '../../api/lab/labChemicalDosingApi';
 import type { PowerPlant } from '../../types/masterData';
@@ -18,16 +19,18 @@ import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const ACCENT = '#00695C';
-const UNITS = ['kg', 'L', 'bags', 'drums', 'pails'];
+const UNITS = ['kg', 'g', 'L', 'mL', 'm³', 'bags', 'drums', 'pails'];
+const DOSING_POINTS = ['HRSG 1', 'HRSG 2', 'Close Cooling Water 1', 'Close Cooling Water 2', 'STG', 'Neutralizing Sump', 'RO'];
+const VOLUME_UNITS = ['mL', 'L', 'm³', 'kg', 'g'];
 
 interface DosingRowForm {
   id?: string;
-  chemicalName: string; dosingPoint: string; openingStock: string;
+  chemicalName: string; dosingPoint: string; volumeDosed: string; volumeUnit: string; openingStock: string;
   consumption: string; closingStock: string; unit: string; remarks: string;
 }
 
 const emptyRow: DosingRowForm = {
-  chemicalName: '', dosingPoint: '', openingStock: '', consumption: '', closingStock: '', unit: 'kg', remarks: '',
+  chemicalName: '', dosingPoint: '', volumeDosed: '', volumeUnit: 'mL', openingStock: '', consumption: '', closingStock: '', unit: 'kg', remarks: '',
 };
 
 const computeClosing = (opening: string, consumption: string) => {
@@ -55,6 +58,15 @@ export default function LabChemicalDosingPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  const [learnedDosingPoints, setLearnedDosingPoints] = useState<string[]>([]);
+  const [learnedVolumeUnits, setLearnedVolumeUnits] = useState<string[]>([]);
+  const loadSuggestions = useCallback(() => {
+    labChemicalDosingApi.getSuggestions()
+      .then((res) => { setLearnedDosingPoints(res.data.dosingPoints ?? []); setLearnedVolumeUnits(res.data.volumeUnits ?? []); })
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
+
   const [history, setHistory] = useState<LabChemicalDosingRow[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(true);
@@ -78,6 +90,8 @@ export default function LabChemicalDosingPage() {
           id: r.id,
           chemicalName: r.chemicalName,
           dosingPoint: r.dosingPoint ?? '',
+          volumeDosed: r.volumeDosed?.toString() ?? '',
+          volumeUnit: r.volumeUnit ?? 'mL',
           openingStock: r.openingStock?.toString() ?? '',
           consumption: r.consumption?.toString() ?? '',
           closingStock: r.closingStock?.toString() ?? '',
@@ -141,7 +155,9 @@ export default function LabChemicalDosingPage() {
         .map((r, idx) => ({
           id: r.id,
           chemicalName: r.chemicalName,
-          dosingPoint: r.dosingPoint || null,
+          dosingPoint: r.dosingPoint.trim() || null,
+          volumeDosed: r.volumeDosed !== '' ? Number(r.volumeDosed) : null,
+          volumeUnit: r.volumeDosed !== '' ? (r.volumeUnit.trim() || null) : null,
           openingStock: r.openingStock !== '' ? Number(r.openingStock) : null,
           consumption: r.consumption !== '' ? Number(r.consumption) : null,
           closingStock: r.closingStock !== '' ? Number(r.closingStock) : null,
@@ -153,6 +169,7 @@ export default function LabChemicalDosingPage() {
       setSaveSuccess(true);
       loadRows();
       fetchHistory();
+      loadSuggestions();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save chemical dosing rows.');
@@ -229,7 +246,9 @@ export default function LabChemicalDosingPage() {
                   <TableHead>
                     <TableRow>
                       <TableCell>Chemical Name</TableCell>
-                      <TableCell>Dosing Point</TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>Dosing Point</TableCell>
+                      <TableCell sx={{ width: 120 }}>Volume Dosed</TableCell>
+                      <TableCell sx={{ width: 120 }}>Volume Unit</TableCell>
                       <TableCell>Opening Stock</TableCell>
                       <TableCell>Consumption</TableCell>
                       <TableCell>Closing Stock</TableCell>
@@ -246,8 +265,18 @@ export default function LabChemicalDosingPage() {
                             onChange={(e) => updateRow(idx, 'chemicalName', e.target.value)} />
                         </TableCell>
                         <TableCell>
-                          <TextField size="small" fullWidth value={row.dosingPoint}
-                            onChange={(e) => updateRow(idx, 'dosingPoint', e.target.value)} />
+                          <SuggestAutocomplete label="Dosing Point" value={row.dosingPoint}
+                            onChange={(v) => updateRow(idx, 'dosingPoint', v)}
+                            defaults={DOSING_POINTS} learned={learnedDosingPoints} />
+                        </TableCell>
+                        <TableCell sx={{ width: 120 }}>
+                          <TextField size="small" type="number" fullWidth value={row.volumeDosed}
+                            onChange={(e) => updateRow(idx, 'volumeDosed', e.target.value)} />
+                        </TableCell>
+                        <TableCell sx={{ width: 130 }}>
+                          <SuggestAutocomplete label="Unit" value={row.volumeUnit}
+                            onChange={(v) => updateRow(idx, 'volumeUnit', v)}
+                            defaults={VOLUME_UNITS} learned={learnedVolumeUnits} />
                         </TableCell>
                         <TableCell sx={{ width: 120 }}>
                           <TextField size="small" type="number" fullWidth value={row.openingStock}

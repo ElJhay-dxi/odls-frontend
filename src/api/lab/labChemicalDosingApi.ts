@@ -4,6 +4,9 @@ import type { LabChemicalDosingRow } from '../../types/lab';
 const BASE = '/labchemicaldosing';
 
 export const labChemicalDosingApi = {
+  getSuggestions: () =>
+    axiosInstance.get<{ dosingPoints: string[]; volumeUnits: string[] }>(`${BASE}/suggestions`),
+
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<LabChemicalDosingRow[]>(BASE, { params }),
 

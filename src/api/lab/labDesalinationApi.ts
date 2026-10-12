@@ -3,6 +3,8 @@ import type { LabDesalinationLog } from '../../types/lab';
 
 const BASE = '/labdesalination';
 
+export type DesalSection = 'uf' | 'swro' | 'bwro' | 'clarifier' | 'px' | 'productwater';
+
 export const labDesalinationApi = {
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<LabDesalinationLog[]>(BASE, { params }),
@@ -22,21 +24,26 @@ export const labDesalinationApi = {
   delete: (id: string) =>
     axiosInstance.delete(`${BASE}/${id}`),
 
-  saveUF: (logId: string, data: Record<string, unknown>) =>
-    axiosInstance.post<LabDesalinationLog>(`${BASE}/${logId}/uf`, data),
+  // Timed readings: every call returns the full, refreshed log
+  addReading: (logId: string, section: DesalSection, data: Record<string, unknown>) =>
+    axiosInstance.post<LabDesalinationLog>(`${BASE}/${logId}/${section}`, data),
 
-  saveSWRO: (logId: string, data: Record<string, unknown>) =>
-    axiosInstance.post<LabDesalinationLog>(`${BASE}/${logId}/swro`, data),
+  updateReading: (logId: string, section: DesalSection, id: string, data: Record<string, unknown>) =>
+    axiosInstance.put<LabDesalinationLog>(`${BASE}/${logId}/${section}/${id}`, data),
 
-  saveBWRO: (logId: string, data: Record<string, unknown>) =>
-    axiosInstance.post<LabDesalinationLog>(`${BASE}/${logId}/bwro`, data),
+  deleteReading: (logId: string, section: DesalSection, id: string) =>
+    axiosInstance.delete<LabDesalinationLog>(`${BASE}/${logId}/${section}/${id}`),
 
-  saveClarifier: (logId: string, data: Record<string, unknown>) =>
-    axiosInstance.post<LabDesalinationLog>(`${BASE}/${logId}/clarifier`, data),
+  // Timeline entries
+  addEntry: (logId: string, data: { entryTime: string; shiftCode?: string; category: string; entryText: string }) =>
+    axiosInstance.post<LabDesalinationLog>(`${BASE}/${logId}/entries`, data),
 
-  savePX: (logId: string, data: Record<string, unknown>) =>
-    axiosInstance.post<LabDesalinationLog>(`${BASE}/${logId}/px`, data),
+  updateEntry: (logId: string, entryId: string, data: { entryTime: string; shiftCode?: string; category: string; entryText: string }) =>
+    axiosInstance.put<LabDesalinationLog>(`${BASE}/${logId}/entries/${entryId}`, data),
 
-  saveProductWater: (logId: string, data: Record<string, unknown>) =>
-    axiosInstance.post<LabDesalinationLog>(`${BASE}/${logId}/productwater`, data),
+  deleteEntry: (logId: string, entryId: string) =>
+    axiosInstance.delete<LabDesalinationLog>(`${BASE}/${logId}/entries/${entryId}`),
+
+  getSuggestions: () =>
+    axiosInstance.get<{ categories: string[] }>(`${BASE}/suggestions`),
 };

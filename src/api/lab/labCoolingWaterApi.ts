@@ -4,6 +4,9 @@ import type { LabCoolingWaterReading } from '../../types/lab';
 const BASE = '/labcoolingwater';
 
 export const labCoolingWaterApi = {
+  getSuggestions: () =>
+    axiosInstance.get<{ locations: string[] }>(`${BASE}/suggestions`),
+
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<LabCoolingWaterReading[]>(BASE, { params }),
 

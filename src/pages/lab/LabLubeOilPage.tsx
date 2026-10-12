@@ -11,6 +11,8 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import SuggestAutocomplete from '../../components/lab/SuggestAutocomplete';
+import SuggestMultiAutocomplete from '../../components/lab/SuggestMultiAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { labLubeOilApi } from '../../api/lab/labLubeOilApi';
 import { labSampleRecordsApi } from '../../api/lab/labSampleRecordsApi';
@@ -21,17 +23,22 @@ import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 
 const ACCENT = '#00695C';
 const CONDITIONS = ['Good', 'Monitor', 'Replace'];
+const OIL_TYPES = ['DFO', 'LCO', 'Lube Oil'];
+const APPEARANCES = ['Clear & Bright', 'Clear', 'Hazy', 'Cloudy', 'Milky', 'Dark', 'Amber', 'Pale Yellow', 'Brown', 'Black', 'With Sediment', 'With Free Water'];
+// Sample options — replace with the actual lists when available
+const TRACE_METALS = ['Iron (Fe)', 'Copper (Cu)', 'Lead (Pb)', 'Chromium (Cr)', 'Aluminium (Al)', 'Tin (Sn)', 'Nickel (Ni)', 'Zinc (Zn)', 'Vanadium (V)', 'Sodium (Na)', 'Silicon (Si)'];
+const TEST_METHODS = ['ASTM D445 (Viscosity)', 'ASTM D4052 (Density)', 'ASTM D93 (Flash Point)', 'ASTM D664 (Acid Number)', 'ASTM D95 (Water by Distillation)', 'ASTM D6304 (Water by Karl Fischer)', 'ASTM D4294 (Sulfur)', 'ASTM D130 (Copper Strip Corrosion)', 'ISO 4406 (Particle Count)', 'ASTM D5185 (Elemental Analysis)'];
 const CONDITION_COLORS: Record<string, string> = { Good: '#1B5E20', Monitor: '#F57C00', Replace: '#B71C1C' };
 
 interface LubeOilForm {
-  equipment: string; oilType: string; model: string; runtime: string; density: string; bsAndW: string; tan: string;
+  equipment: string; oilType: string; model: string; appearance: string; traceMetals: string; testMethods: string; runtime: string; density: string; bsAndW: string; tan: string;
   viscosity: string; acidNumber: string;
   waterContent: string; flashPoint: string; particleCount: string; condition: string; remarks: string;
   sampleRecordId?: string;
 }
 
 const emptyForm: LubeOilForm = {
-  equipment: '', oilType: '', model: '', runtime: '', density: '', bsAndW: '', tan: '',
+  equipment: '', oilType: '', model: '', appearance: '', traceMetals: '', testMethods: '', runtime: '', density: '', bsAndW: '', tan: '',
   viscosity: '', acidNumber: '', waterContent: '',
   flashPoint: '', particleCount: '', condition: 'Good', remarks: '', sampleRecordId: undefined,
 };
@@ -57,6 +64,11 @@ export default function LabLubeOilPage() {
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
   const [sampleRecords, setSampleRecords] = useState<LabSampleRecord[]>([]);
+  const [learned, setLearned] = useState<{ appearances: string[]; traceMetals: string[]; testMethods: string[] }>({ appearances: [], traceMetals: [], testMethods: [] });
+  const loadSuggestions = useCallback(() => {
+    labLubeOilApi.getSuggestions().then((res) => setLearned(res.data)).catch(() => undefined);
+  }, []);
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<LabLubeOilAnalysis | null>(null);
@@ -88,7 +100,7 @@ export default function LabLubeOilPage() {
       const res = await labLubeOilApi.getAll({ plantCode: selectedPlant, date: selectedDate });
       setRecords(res.data);
     } catch {
-      setRecordsError('Failed to load lube oil records.');
+      setRecordsError('Failed to load fuel & oil records.');
     } finally {
       setLoadingRecords(false);
     }
@@ -142,6 +154,9 @@ export default function LabLubeOilPage() {
     setForm({
       equipment: row.equipment,
       oilType: row.oilType ?? '',
+      appearance: row.appearance ?? '',
+      traceMetals: row.traceMetals ?? '',
+      testMethods: row.testMethods ?? '',
       model: row.model ?? '',
       runtime: row.runtime?.toString() ?? '',
       density: row.density?.toString() ?? '',
@@ -169,6 +184,9 @@ export default function LabLubeOilPage() {
         logDate: selectedDate,
         equipment: form.equipment,
         oilType: form.oilType || null,
+        appearance: form.appearance.trim() || null,
+        traceMetals: form.traceMetals.trim() || null,
+        testMethods: form.testMethods.trim() || null,
         model: form.model || null,
         runtime: toNum(form.runtime),
         density: toNum(form.density),
@@ -191,6 +209,7 @@ export default function LabLubeOilPage() {
       setDialogOpen(false);
       fetchRecords();
       fetchHistory();
+      loadSuggestions();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setSaveError(msg ?? 'Failed to save record.');
@@ -226,9 +245,9 @@ export default function LabLubeOilPage() {
   return (
     <Box>
       <PageHeader
-        title="Lube Oil Analysis"
-        subtitle="Equipment lubricating oil condition monitoring"
-        breadcrumbs={[{ label: 'Chemical Lab' }, { label: 'Lube Oil Analysis' }]}
+        title="Fuel & Oil Analysis"
+        subtitle="Fuel and lubricating oil condition monitoring"
+        breadcrumbs={[{ label: 'Chemical Lab' }, { label: 'Fuel & Oil Analysis' }]}
       />
 
       <Card sx={{ mb: 3 }}>
@@ -272,7 +291,7 @@ export default function LabLubeOilPage() {
       ) : records.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 6 }}>
           <OilBarrel sx={{ fontSize: '2.5rem', color: 'text.disabled', mb: 1 }} />
-          <Typography variant="body2" color="text.secondary">No lube oil records for this date.</Typography>
+          <Typography variant="body2" color="text.secondary">No fuel & oil records for this date.</Typography>
         </Box>
       ) : (
         <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -337,6 +356,24 @@ export default function LabLubeOilPage() {
                       <Typography variant="caption" color="text.secondary">Particle Count</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{fmt(rec.particleCount)}</Typography>
                     </Grid>
+                    {rec.appearance && (
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary">Appearance</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{rec.appearance}</Typography>
+                      </Grid>
+                    )}
+                    {rec.traceMetals && (
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary">Trace Metals</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{rec.traceMetals}</Typography>
+                      </Grid>
+                    )}
+                    {rec.testMethods && (
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="caption" color="text.secondary">Test Methods</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{rec.testMethods}</Typography>
+                      </Grid>
+                    )}
                   </Grid>
                   {rec.remarks && (
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>{rec.remarks}</Typography>
@@ -408,7 +445,7 @@ export default function LabLubeOilPage() {
       )}
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? 'Edit Lube Oil Record' : 'New Lube Oil Record'}</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>{editTarget ? 'Edit Fuel & Oil Record' : 'New Fuel & Oil Record'}</DialogTitle>
         <Divider />
         <DialogContent sx={{ pt: 2.5 }}>
           {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
@@ -446,8 +483,30 @@ export default function LabLubeOilPage() {
                 value={form.equipment} onChange={(e) => setForm((p) => ({ ...p, equipment: e.target.value }))} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField label="Oil Type" size="small" fullWidth
-                value={form.oilType} onChange={(e) => setForm((p) => ({ ...p, oilType: e.target.value }))} />
+              <FormControl size="small" fullWidth>
+                <InputLabel>Fuel / Oil Type</InputLabel>
+                <Select label="Fuel / Oil Type" value={form.oilType} onChange={(e) => setForm((p) => ({ ...p, oilType: e.target.value }))}>
+                  <MenuItem value=""><em>Not specified</em></MenuItem>
+                  {[...OIL_TYPES, ...(form.oilType && !OIL_TYPES.includes(form.oilType) ? [form.oilType] : [])].map((o) => (
+                    <MenuItem key={o} value={o}>{o}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <SuggestAutocomplete label="Appearance" value={form.appearance}
+                onChange={(v) => setForm((p) => ({ ...p, appearance: v }))}
+                defaults={APPEARANCES} learned={learned.appearances} helperText="Pick one or type your own" />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <SuggestMultiAutocomplete label="Trace Metals" value={form.traceMetals}
+                onChange={(v) => setForm((p) => ({ ...p, traceMetals: v }))}
+                defaults={TRACE_METALS} learned={learned.traceMetals} helperText="Pick one or more, or type your own" />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <SuggestMultiAutocomplete label="Test Methods" value={form.testMethods}
+                onChange={(v) => setForm((p) => ({ ...p, testMethods: v }))}
+                defaults={TEST_METHODS} learned={learned.testMethods} helperText="Pick one or more, or type your own" />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField label="Model" size="small" fullWidth
@@ -515,7 +574,7 @@ export default function LabLubeOilPage() {
       </Dialog>
 
       <ConfirmDialog open={!!deleteTarget} title="Delete Record"
-        message={`Delete the lube oil record for "${deleteTarget?.equipment}"?`}
+        message={`Delete the fuel & oil record for "${deleteTarget?.equipment}"?`}
         confirmLabel="Delete" loading={deleting} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
     </Box>
   );
