@@ -1,4 +1,4 @@
-import { Autocomplete, Chip, TextField } from '@mui/material';
+import { Autocomplete, TextField } from '@mui/material';
 import { mergeSuggestions } from './SuggestAutocomplete';
 
 interface Props {
@@ -23,10 +23,6 @@ export default function SuggestMultiAutocomplete({ label, value, onChange, defau
       options={mergeSuggestions(defaults, learned)}
       value={splitMulti(value)}
       onChange={(_, v) => onChange(v.map((x) => x.trim()).filter(Boolean).join(SEP))}
-      renderTags={(tags, getTagProps) => tags.map((t, i) => {
-        const { key, ...rest } = getTagProps({ index: i });
-        return <Chip key={key} label={t} size="small" {...rest} />;
-      })}
       renderInput={(params) => <TextField {...params} label={label} helperText={helperText} />}
     />
   );

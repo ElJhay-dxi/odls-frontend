@@ -109,7 +109,7 @@ export default function GlobalSearch() {
                         primary={it.title}
                         secondary={[it.subtitle, it.plantCode, it.date ? dayjs(it.date).format('DD MMM YYYY') : null]
                           .filter(Boolean).join('  ·  ')}
-                        slotProps={{ primary: { noWrap: true, fontWeight: 600 }, secondary: { noWrap: true } }}
+                        slotProps={{ primary: { noWrap: true, sx: { fontWeight: 600 } }, secondary: { noWrap: true } }}
                       />
                     </ListItemButton>
                   ))}

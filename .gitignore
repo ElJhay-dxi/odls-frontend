@@ -31,3 +31,4 @@ dist-ssr
 # Windows reserved device name created by stray shell redirects
 nul
 _gen/
+_sd_tmp/

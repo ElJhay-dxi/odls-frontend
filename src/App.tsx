@@ -63,6 +63,7 @@ const LabChemicalDosingPage = lazy(() => import('./pages/lab/LabChemicalDosingPa
 const LabLubeOilPage = lazy(() => import('./pages/lab/LabLubeOilPage'));
 const LabEnvironmentalPage = lazy(() => import('./pages/lab/LabEnvironmentalPage'));
 const LabCoolingWaterPage = lazy(() => import('./pages/lab/LabCoolingWaterPage'));
+const LabSafetyDocumentsPage = lazy(() => import('./pages/lab/LabSafetyDocumentsPage'));
 const LabReportsPage = lazy(() => import('./pages/lab/LabReportsPage'));
 const LabAdminPage = lazy(() => import('./pages/lab/LabAdminPage'));
 
@@ -164,6 +165,7 @@ export default function App() {
                   <Route path="lab/lube-oil" element={<G p="lab.lubeoil.view"><LabLubeOilPage /></G>} />
                   <Route path="lab/environmental" element={<G p="lab.environmental.view"><LabEnvironmentalPage /></G>} />
                   <Route path="lab/cooling-water" element={<G p="lab.coolingwater.view"><LabCoolingWaterPage /></G>} />
+                  <Route path="lab/safety-documents" element={<G p="lab.safetydocs.view"><LabSafetyDocumentsPage /></G>} />
                   <Route path="lab/reports" element={<G p="lab.reports.view"><LabReportsPage /></G>} />
                   <Route path="lab/admin" element={<G p="lab.control_limits.view"><LabAdminPage /></G>} />
 

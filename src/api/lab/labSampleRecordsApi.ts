@@ -4,7 +4,7 @@ import type { LabSampleRecord } from '../../types/lab';
 const BASE = '/labsamplerecords';
 
 export const labSampleRecordsApi = {
-  getAll: (params?: { plantCode?: string; date?: string }) =>
+  getAll: (params?: { plantCode?: string; date?: string; forAnalysis?: boolean }) =>
     axiosInstance.get<LabSampleRecord[]>(BASE, { params }),
 
   getSuggestions: () =>

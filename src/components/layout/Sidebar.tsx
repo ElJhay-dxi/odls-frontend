@@ -106,6 +106,7 @@ const getNavItems = (bopLabel: string): NavItem[] => [
       { label: 'Fuel & Oil Analysis', icon: <OilBarrel />, path: '/lab/lube-oil', permission: 'lab.lubeoil.view' },
       { label: 'Environmental Monitoring', icon: <Park />, path: '/lab/environmental', permission: 'lab.environmental.view' },
       { label: 'Close Cooling Water', icon: <WaterDrop />, path: '/lab/cooling-water', permission: 'lab.coolingwater.view' },
+      { label: 'Safety Documents', icon: <LocalFireDepartment />, path: '/lab/safety-documents', permission: 'lab.safetydocs.view' },
       { label: 'Lab Reports', icon: <Assessment />, path: '/lab/reports', permission: 'lab.reports.view' },
       { label: 'Lab Admin', icon: <AdminPanelSettings />, path: '/lab/admin', permission: 'lab.control_limits.view' },
     ],
@@ -159,6 +160,7 @@ const THERMAL_ONLY_PATHS = [
   '/lab/lube-oil',
   '/lab/environmental',
   '/lab/cooling-water',
+  '/lab/safety-documents',
   '/lab/admin',
   '/lab/reports',
 ];

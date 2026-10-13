@@ -1,0 +1,75 @@
+MODEL FILE | CLASS | TABLE | MASTER TEXT COLUMNS | *Id COLUMNS
+BalanceOfPlantModel.cs | BalanceOfPlantModel | BalanceOfPlant | PlantCode,PlantName | 
+BearingDrainModel.cs | BearingDrainModel | BearingDrains | PlantCode,PlantName,UnitCode,UnitName | 
+BearingMetalModel.cs | BearingMetalModel | BearingMetals | PlantCode,PlantName,UnitCode,UnitName | 
+BopSubSystemEquipmentModel.cs | BopSubSystemEquipmentModel | BopSubSystemEquipment | PlantCode,PlantName,EquipmentCode,EquipmentName,SystemCode,SystemName | 
+BopSubSystemModel.cs | BopSubSystemModel | ? | PlantCode,PlantName,SystemCode,SystemName,SubSystemCode,SubSystemName | 
+BopSystemModel.cs | BopSystemModel | BopSystem | PlantCode,PlantName,SystemCode,SystemName | 
+DailyDfoReadingModel.cs | DailyDfoReadingModel | DailyDfoReadings | PlantCode,PlantName | 
+DailyEnergyGenerationHydroModel.cs | DailyEnergyGenerationHydroModel | DailyEnergyGenerationHydro | PlantCode,PlantName,UnitCode,UnitName | 
+DailyEnergyGenerationThermalModel.cs | DailyEnergyGenerationThermalModel | DailyEnergyGenerationThermal | PlantCode,PlantName,UnitCode,UnitName | 
+DailyLcoReadingModel.cs | DailyLcoReadingModel | DailyLcoReadings | PlantCode,PlantName | 
+DailyNaturalGasChromatographModel.cs | DailyNaturalGasChromatographModel | DailyNaturalGasChromatograph | PlantCode,PlantName,UnitCode,UnitName | 
+DailyNaturalGasTurbineModel.cs | DailyNaturalGasTurbineModel | DailyNaturalGasTurbine | PlantCode,PlantName,UnitCode,UnitName | 
+DailyPlantAvailabilityModel.cs | DailyPlantAvailabilityModel | DailyPlantAvailability | PlantCode,PlantName | 
+DailyPlantLoadFactorModel.cs | DailyPlantLoadFactorModel | DailyPlantLoadFactor | PlantCode,PlantName | 
+DailyPlantReliabilityModel.cs | DailyPlantReliabilityModel | DailyPlantReliability | PlantCode,PlantName | 
+DailyPlantTripModel.cs | DailyPlantTripModel | DailyPlantTrips | PlantCode,PlantName | 
+DailyReactivePowerModel.cs | DailyReactivePowerModel | DailyReactivePower | PlantCode,PlantName,UnitCode,UnitName | 
+DailySccReadingModel.cs | DailySccReadingModel | DailySccReadings | PlantCode,PlantName | 
+DailyStationEnergyConsumptionModel.cs | DailyStationEnergyConsumptionModel | DailyStationEnergyConsumption | PlantCode,PlantName | 
+DailyUnitAvailabilityModel.cs | DailyUnitAvailabilityModel | DailyUnitAvailability | PlantCode,PlantName,UnitCode,UnitName | 
+DailyUnitTripModel.cs | DailyUnitTripModel | DailyUnitTrips | PlantCode,PlantName,UnitCode,UnitName | 
+HourlyBusVoltageModel.cs | HourlyBusVoltageModel | HourlyBusVoltages | PlantCode,PlantName | 
+HourlyHydroReadingModel.cs | HourlyHydroReadingModel | HourlyHydroReadings | PlantCode,PlantName,UnitCode,UnitName | 
+HourlyThermalReadingModel.cs | HourlyThermalReadingModel | HourlyThermalReadings | PlantCode,PlantName,UnitCode,UnitName | 
+HydroStationLogConditionRowModel.cs | HydroStationLogConditionRowModel | HydroStationLogConditionRows | PlantCode,PlantName | ConditionId
+HydroStationLogModel.cs | HydroStationLogModel | HydroStationLogs | PlantCode,PlantName | 
+LabAnalysisActionModel.cs | LabAnalysisActionModel | LabAnalysisActions | PlantCode | 
+LabAnalysisModel.cs | LabAnalysisRecordModel | LabAnalysisRecords | PlantCode,PlantName | SampleRecordId,SamplePointId,FollowUpOfAnalysisId
+LabChemicalDosingModel.cs | LabChemicalDosingRowModel | LabChemicalDosingRows | PlantCode,PlantName | 
+LabCoolingWaterModel.cs | LabCoolingWaterReadingModel | LabCoolingWaterReadings | PlantCode,PlantName | CircuitId
+LabDesalinationModel.cs | LabDesalinationLogModel | LabDesalinationLogs | PlantCode,PlantName | 
+LabDesalinationModel.cs | LabDesalinationLimitModel | LabDesalinationLimits | PlantCode | 
+LabEnvironmentalReportModel.cs | LabEnvironmentalReportModel | LabEnvironmentalReports | PlantCode,PlantName | 
+LabLubeOilModel.cs | LabLubeOilAnalysisModel | LabLubeOilAnalysis | PlantCode,PlantName | SampleRecordId
+LabSamplePointModel.cs | LabSamplePointModel | LabSamplePoints | PlantCode,PlantName | 
+LabSampleRecordModel.cs | LabSampleRecordModel | LabSampleRecords | PlantCode,PlantName | SampleId
+LabSeaWaterReadingModel.cs | LabSeaWaterReadingModel | LabSeaWaterReadings | PlantCode,PlantName | 
+LabShiftLogModel.cs | LabShiftLogModel | LabShiftLogs | PlantCode,PlantName | 
+PeakPeriodReadingModel.cs | PeakPeriodReadingModel | PeakPeriodReadings | PlantCode,PlantName,UnitCode,UnitName | 
+PlantBusModel.cs | PlantBusModel | PlantBuses | PlantCode,PlantName | 
+PlantLineModel.cs | PlantLineModel | PlantLines | PlantCode,PlantName | 
+PlantUnitEquipmentModel.cs | PlantUnitEquipmentModel | PlantUnitEquipments | PlantCode,PlantName,UnitCode,UnitName,EquipmentCode,EquipmentName,SystemCode,SystemName,SubSystemCode,SubSystemName | 
+PlantUnitModel.cs | PlantUnitModel | PlantUnits | PlantCode,PlantName,UnitCode,UnitName | 
+PlantUnitSubSystemModel.cs | PlantUnitSubSystemModel | PlantUnitSubSystems | PlantCode,PlantName,UnitCode,UnitName,SystemCode,SystemName,SubSystemCode,SubSystemName | 
+PlantUnitSystemModel.cs | PlantUnitSystemModel | PlantUnitSystems | PlantCode,PlantName,UnitCode,UnitName,SystemCode,SystemName | 
+PowerPlantModel.cs | PowerPlantModel | PowerPlants | PlantCode,PlantName | 
+SafetyDocumentModels.cs | LabHotWorkPermitModel | LabHotWorkPermits | PlantCode,PlantName | 
+SafetyDocumentModels.cs | LabGasFreeCertificateModel | LabGasFreeCertificates | PlantCode,PlantName | 
+ShiftLogModel.cs | ShiftLogModel | ? | PlantCode,PlantName | 
+StationLogUnitOutputModels.cs | ThermalStationLogUnitOutputModel | ThermalStationLogUnitOutputs | UnitCode,UnitName | StationLogId
+StationLogUnitOutputModels.cs | HydroStationLogUnitOutputModel | HydroStationLogUnitOutputs | UnitCode,UnitName | StationLogId
+ThermalStationLogAdditionsModels.cs | ThermalStationLogCriticalIssueModel | ThermalStationLogCriticalIssues | EquipmentCode,EquipmentName | StationLogId
+ThermalStationLogAdditionsModels.cs | ThermalStationLogEquipmentStatusModel | ThermalStationLogEquipmentStatus | EquipmentCode,EquipmentName | StationLogId
+ThermalStationLogConditionRowModel.cs | ThermalStationLogConditionRowModel | ThermalStationLogConditionRows | PlantCode,PlantName | ConditionId
+ThermalStationLogGasConditioningRowModel.cs | ThermalStationLogGasConditioningRowModel | ThermalStationLogGasConditioningRows | ComponentName | StationLogId
+ThermalStationLogModel.cs | ThermalStationLogModel | ThermalStationLogs | PlantCode,PlantName | 
+ThermalStationLogSectionEquipmentRowModel.cs | ThermalStationLogSectionEquipmentRowModel | ThermalStationLogSectionEquipmentRows | EquipmentCode,EquipmentName | StationLogId
+UserManagementModels.cs | UserPlantModel | UserPlants | PlantCode,PlantName | AppUserId
+WaterSystemModels.cs | DailyFreshwaterInflowModel | DailyFreshwaterInflow | PlantCode,PlantName | 
+WaterSystemModels.cs | DailyFreshwaterTotalizerModel | DailyFreshwaterTotalizer | PlantCode,PlantName | 
+WaterSystemModels.cs | DailyFreshwaterTankLevelModel | DailyFreshwaterTankLevel | PlantCode,PlantName | 
+WaterSystemModels.cs | DailyDeminWaterTankLevelModel | DailyDeminWaterTankLevel | PlantCode,PlantName | 
+WaterSystemModels.cs | DailyGtCo2LevelModel | DailyGtCo2Levels | PlantCode,PlantName | 
+WaterSystemModels.cs | DailyDesalinatedWaterLevelModel | DailyDesalinatedWaterLevel | PlantCode,PlantName | 
+WaterSystemModels.cs | DailyHydroWaterLevelModel | DailyHydroWaterLevel | PlantCode,PlantName | 
+WaterSystemModels.cs | DailyHydroWaterDischargeModel | DailyHydroWaterDischarge | PlantCode,PlantName | 
+WaterSystemModels.cs | DailyWasteWaterModel | DailyWasteWater | PlantCode,PlantName | 
+
+COLUMN COUNTS: PlantCode=61, PlantName=59, UnitCode=18, UnitName=18, SystemCode=6, SystemName=6, EquipmentCode=5, EquipmentName=5, SubSystemCode=3, SubSystemName=3, ComponentName=1
+TABLES AFFECTED: 67 of 114 classes
+
+UNIT-LEVEL (UnitCode) tables: BearingDrains, BearingMetals, DailyEnergyGenerationHydro, DailyEnergyGenerationThermal, DailyNaturalGasChromatograph, DailyNaturalGasTurbine, DailyReactivePower, DailyUnitAvailability, DailyUnitTrips, HourlyHydroReadings, HourlyThermalReadings, PeakPeriodReadings, PlantUnitEquipments, PlantUnits, PlantUnitSubSystems, PlantUnitSystems, ThermalStationLogUnitOutputs, HydroStationLogUnitOutputs
+EQUIPMENT-LEVEL tables: BopSubSystemEquipment, PlantUnitEquipments, ThermalStationLogCriticalIssues, ThermalStationLogEquipmentStatus, ThermalStationLogSectionEquipmentRows
+SYSTEM-LEVEL tables: BopSubSystemEquipment, ?, BopSystem, PlantUnitEquipments, PlantUnitSubSystems, PlantUnitSystems

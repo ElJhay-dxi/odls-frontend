@@ -14,7 +14,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import PersonAutocomplete from '../../components/lab/PersonAutocomplete';
 import SuggestAutocomplete from '../../components/lab/SuggestAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
-import { labDesalinationApi, type DesalSection } from '../../api/lab/labDesalinationApi';
+import { labDesalinationApi } from '../../api/lab/labDesalinationApi';
 import type { PowerPlant } from '../../types/masterData';
 import type { LabDesalinationLog, LabDesalinationLogEntry } from '../../types/lab';
 import { DESAL_SECTIONS, type DesalField, type DesalSectionConfig, type DesalSectionKey } from './desalinationConfig';

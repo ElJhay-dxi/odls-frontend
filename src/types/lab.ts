@@ -533,3 +533,81 @@ export interface LabSampleType {
   updatedByName?: string | null;
   updatedOn?: string | null;
 }
+
+// ── Safety Documents ──────────────────────────────────────────────────────────
+
+export interface HotWorkPermit {
+  id: string;
+  plantCode: string;
+  plantName: string;
+  logDate: string;
+  canBeDoneElsewhere?: boolean | null;
+  issuedTime?: string;
+  permitNumber?: string;
+  workArea?: string;
+  workToBeDone?: string;
+  hotWorkOperator?: string;
+  sectionUnit?: string;
+  seniorAuthorisedPerson?: string;
+  nominatedSupervisor?: string;
+  expiresTime?: string;
+  expiresDate?: string | null;
+  supervisorSignedBy?: string;
+  supervisorSignedTime?: string;
+  supervisorSignedDate?: string | null;
+  operatorSignedBy?: string;
+  timeStarted?: string;
+  timeCompleted?: string;
+  fireWatchRequired?: boolean | null;
+  fireWatchName?: string;
+  gasTestRequired?: boolean | null;
+  gasO2?: number | null;
+  gasCh4?: number | null;
+  gasCo?: number | null;
+  gasH2s?: number | null;
+  gasOthers?: string;
+  gasTesterName?: string;
+  finalCheckSupervisor?: string;
+  finalCheckSupervisorDate?: string | null;
+  finalCheckFireOfficer?: string;
+  finalCheckFireOfficerDate?: string | null;
+  finalCheckSafetyOfficer?: string;
+  finalCheckSafetyOfficerDate?: string | null;
+  checklistItems?: string;
+  checklistCompletedBy?: string;
+  checklistCompletedDate?: string | null;
+  remarks?: string;
+  createdByName?: string;
+  createdByEmail?: string;
+  createdOn?: string;
+  updatedByName?: string;
+  updatedOn?: string;
+}
+
+export interface GasFreeCertificate {
+  id: string;
+  plantCode: string;
+  plantName: string;
+  logDate: string;
+  certificateNo?: string;
+  safetyDocumentNo?: string;
+  location?: string;
+  plantApparatus?: string;
+  confinedSpace?: string;
+  hazardsAnticipated?: string;
+  testsCarriedOut?: string;
+  precautions?: string;
+  validUntilTime?: string;
+  validUntilDate?: string | null;
+  issuedByName?: string;
+  issuedTime?: string;
+  receivedByName?: string;
+  receivedTime?: string;
+  receivedDate?: string | null;
+  remarks?: string;
+  createdByName?: string;
+  createdByEmail?: string;
+  createdOn?: string;
+  updatedByName?: string;
+  updatedOn?: string;
+}

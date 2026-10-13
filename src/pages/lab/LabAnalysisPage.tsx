@@ -114,11 +114,11 @@ export default function LabAnalysisPage() {
     labAnalysisActionsApi.getAll(selectedPlant, true).then((res) => setActions(res.data)).catch(() => setActions([]));
   }, [selectedPlant]);
 
-  // All samples for the plant (any day) — an analysis can be done on a sample collected earlier.
+  // All samples for the plant (any day) plus samples other plants sent to this plant's lab — an analysis can be done on a sample collected earlier or elsewhere.
   const loadSampleRecords = useCallback(async () => {
     if (!selectedPlant) { setSampleRecords([]); return; }
     try {
-      const res = await labSampleRecordsApi.getAll({ plantCode: selectedPlant });
+      const res = await labSampleRecordsApi.getAll({ plantCode: selectedPlant, forAnalysis: true });
       setSampleRecords(res.data);
     } catch {
       setSampleRecords([]);
@@ -187,10 +187,15 @@ export default function LabAnalysisPage() {
     setDialogOpen(true);
   };
 
-  const handleSampleSelect = (sampleRecordId: string) => {
+  const handleSampleSelect = async (sampleRecordId: string) => {
     const sample = sampleRecords.find((s) => s.id === sampleRecordId);
     if (sample) {
-      const sp = samplePoints.find((p) => p.samplePointName === sample.samplePoint);
+      // A sample sent here from another plant uses that plant's sample point and parameters
+      let pointList = samplePoints;
+      if (sample.plantCode && selectedPlant && sample.plantCode.toLowerCase() !== selectedPlant.toLowerCase()) {
+        try { pointList = (await labSamplePointsApi.getAll(sample.plantCode, true)).data; } catch { pointList = []; }
+      }
+      const sp = pointList.find((p) => p.samplePointName === sample.samplePoint);
       setForm((prev) => ({
         ...prev,
         sampleRecordId,
@@ -525,13 +530,14 @@ export default function LabAnalysisPage() {
                 filterOptions={(opts, state) => sampleFilter(opts, {
                   ...state, getOptionLabel: (s) => `${s.sampleId} ${s.samplePoint} ${s.sampleType} ${fmtDate(s.logDate)}`,
                 })}
-                noOptionsText="No samples found for this plant"
+                noOptionsText="No samples found for this plant or sent to its lab"
                 renderOption={(props, s) => (
                   <li {...props} key={s.id}>
                     <Stack>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{s.sampleId}</Typography>
                       <Typography variant="caption" color="text.secondary">
                         {s.samplePoint} — {s.sampleType}
+                        {selectedPlant && s.plantCode?.toLowerCase() !== selectedPlant.toLowerCase() ? ` · From ${s.plantName || s.plantCode}` : ''}
                         {s.collectedAt ? ` · Collected ${s.collectedAt}` : ''}
                         {s.linkedAnalysisCount > 0 ? ` · ${s.linkedAnalysisCount} analysis done` : ''}
                       </Typography>
