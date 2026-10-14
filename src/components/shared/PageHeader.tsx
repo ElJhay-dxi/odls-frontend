@@ -16,9 +16,11 @@ interface PageHeaderProps {
     onClick: () => void;
     icon?: React.ReactNode;
   };
+  /** Extra controls (e.g. an icon button) shown at the top right, before the action button */
+  extra?: React.ReactNode;
 }
 
-export default function PageHeader({ title, subtitle, breadcrumbs, action }: PageHeaderProps) {
+export default function PageHeader({ title, subtitle, breadcrumbs, action, extra }: PageHeaderProps) {
   const navigate = useNavigate();
 
   return (
@@ -60,6 +62,9 @@ export default function PageHeader({ title, subtitle, breadcrumbs, action }: Pag
           )}
         </Box>
 
+        {(extra || action) && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {extra}
         {action && (
           <Button
             variant="contained"
@@ -68,6 +73,8 @@ export default function PageHeader({ title, subtitle, breadcrumbs, action }: Pag
           >
             {action.label}
           </Button>
+        )}
+        </Box>
         )}
       </Box>
     </Box>

@@ -9,11 +9,14 @@ import {
 import {
   Save, Edit, Delete, Add, ExpandMore, ExpandLess,
   Assignment, CheckCircle, LocalFireDepartment, TableChart, GasMeter,
+  History,
 } from '@mui/icons-material';
 import { useEffect, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import CarryOverDialog from '../../components/stationLog/CarryOverDialog';
+import StationLogHistoryDialog from '../../components/stationLog/StationLogHistoryDialog';
 import PersonAutocomplete from '../../components/lab/PersonAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
@@ -292,6 +295,10 @@ export default function ThermalStationLogPage() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creatingLog, setCreatingLog] = useState(false);
+  const [carryOverOpen, setCarryOverOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState(false);
+  const [carryNotice, setCarryNotice] = useState<string | null>(null);
 
   // Header
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
@@ -311,6 +318,7 @@ export default function ThermalStationLogPage() {
   const [unitOutputs, setUnitOutputs] = useState<SaveStationLogUnitOutputItem[]>([]);
   const [savingUnitOutputs, setSavingUnitOutputs] = useState(false);
   const [unitOutputsSaved, setUnitOutputsSaved] = useState(false);
+  const [unitOutputsLoads, setUnitOutputsLoads] = useState(0); // bumps when saved outputs arrive, so rows for selected units without a saved output are added
   const [unitOutputsError, setUnitOutputsError] = useState<string | null>(null);
 
   // Entry
@@ -575,7 +583,7 @@ export default function ThermalStationLogPage() {
       const unit = plantUnits.find((u) => u.unitCode === code);
       return { unitCode: code, unitName: unit?.unitName ?? code, unitStatus: 'In Service', outputMW: null, outputMVAr: null };
     }));
-  }, [selectedUnits, plantUnits]);
+  }, [selectedUnits, plantUnits, unitOutputsLoads]);
 
   useEffect(() => {
     setPumpRows(pumpStatuses.map((s) => ({
@@ -705,6 +713,7 @@ export default function ThermalStationLogPage() {
         unitCode: u.unitCode, unitName: u.unitName, unitStatus: u.unitStatus,
         outputMW: u.outputMW, outputMVAr: u.outputMVAr,
       })));
+      setUnitOutputsLoads((n) => n + 1);
     }
   };
 
@@ -767,10 +776,23 @@ export default function ThermalStationLogPage() {
     } finally { setLoading(false); }
   };
 
-  const handleCreateLog = async () => {
+  // Opened from the history popup with "Edit": switch the header to edit mode once that day's log has loaded
+  useEffect(() => {
+    if (pendingEdit && log && log.logDate.slice(0, 10) === selectedDate) { setHeaderEditing(true); setPendingEdit(false); }
+  }, [pendingEdit, log, selectedDate]);
+
+  const handleCreateLog = async (carryFrom: string | null = null, carrySections: string[] = []) => {
     setCreatingLog(true);
     try {
-      await thermalStationLogApi.create({ plantCode: selectedPlant, logDate: selectedDate });
+      const res = await thermalStationLogApi.create({
+        plantCode: selectedPlant, logDate: selectedDate,
+        ...(carryFrom ? { carryOverFromDate: carryFrom, carryOverSections: carrySections } : {}),
+      });
+      setCarryOverOpen(false);
+      setCarryNotice(carryFrom
+        ? `Started with data carried over from ${new Date(carryFrom + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}. Review and edit it for today.`
+          + (res.data.carryOverSkipped ? ` ${res.data.carryOverSkipped} row(s) were left out because their equipment no longer exists.` : '')
+        : null);
       await loadLog(); setHeaderEditing(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -1758,7 +1780,8 @@ export default function ThermalStationLogPage() {
   return (
     <Box>
       <PageHeader title="Thermal Station Log" subtitle="Daily operational log for thermal power stations"
-        breadcrumbs={[{ label: 'Station Logs' }, { label: 'Thermal Station Log' }]} />
+        breadcrumbs={[{ label: 'Station Logs' }, { label: 'Thermal Station Log' }]}
+        extra={selectedPlant ? (<Tooltip title="Station log history"><IconButton onClick={() => setHistoryOpen(true)}><History /></IconButton></Tooltip>) : undefined} />
 
       {isWrongPlantType && (
         <Alert severity="warning" sx={{ mb: 3 }}
@@ -1787,6 +1810,16 @@ export default function ThermalStationLogPage() {
       </Card>
 
       {loadError && <Alert severity="error" onClose={() => setLoadError(null)} sx={{ mb: 2 }}>{loadError}</Alert>}
+      {carryNotice && <Alert severity="info" onClose={() => setCarryNotice(null)} sx={{ mb: 2 }}>{carryNotice}</Alert>}
+      <StationLogHistoryDialog open={historyOpen} plantName={plantDisplayName} currentDate={selectedDate}
+        load={async (filters) => (await thermalStationLogApi.getHistory(selectedPlant, filters)).data}
+        onClose={() => setHistoryOpen(false)}
+        onOpenLog={(date, edit) => { setHistoryOpen(false); setPendingEdit(edit); setSelectedDate(date); }}
+        onDelete={async (item) => { await thermalStationLogApi.delete(item.id); if (log?.id === item.id) { setLog(null); await loadLog(); } }} />
+      <CarryOverDialog open={carryOverOpen} date={selectedDate} plantName={plantDisplayName} busy={creatingLog}
+        load={async (src) => (await thermalStationLogApi.getCarryOverOptions(selectedPlant, selectedDate, src)).data}
+        onClose={() => setCarryOverOpen(false)}
+        onStart={(src, sections) => handleCreateLog(src, sections)} />
 
       {!loading && !log && selectedPlant && (
         <Card sx={{ mb: 3 }}>
@@ -1797,7 +1830,7 @@ export default function ThermalStationLogPage() {
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>Start the log for this date to begin recording entries.</Typography>
             {canCreate && (
-              <Button variant="contained" color="error" startIcon={creatingLog ? <CircularProgress size={16} color="inherit" /> : <Add />} onClick={handleCreateLog} disabled={creatingLog}>
+              <Button variant="contained" color="error" startIcon={creatingLog ? <CircularProgress size={16} color="inherit" /> : <Add />} onClick={() => setCarryOverOpen(true)} disabled={creatingLog}>
                 {creatingLog ? 'Creating...' : 'Start Station Log'}
               </Button>
             )}

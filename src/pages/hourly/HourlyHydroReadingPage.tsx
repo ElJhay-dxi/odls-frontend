@@ -2,7 +2,7 @@ import { useSearchDeepLink } from '../../hooks/useSearchDeepLink';
 import {
   Box, Card, CardContent, CardHeader, TextField, Button,
   CircularProgress, Alert, Typography, MenuItem, FormControl,
-  InputLabel, Select, Grid, Divider, Chip, Stack, Paper,
+  InputLabel, Select, Grid, Divider, Chip, Stack, Paper, Autocomplete,
   Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, IconButton, Tooltip, Collapse, Checkbox, FormControlLabel,
 } from '@mui/material';
@@ -25,6 +25,7 @@ import type {
 } from '../../types/hourlyReadings';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
+import { HYDRO_UNIT_STATUSES } from './unitStatusOptions';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
@@ -119,6 +120,7 @@ export default function HourlyHydroReadingPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [unitDown, setUnitDown] = useState(false);
+  const [unitStatus, setUnitStatus] = useState('');
   const [missingHours, setMissingHours] = useState<number[] | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<HourlyHydroReading | null>(null);
@@ -188,6 +190,7 @@ export default function HourlyHydroReadingPage() {
 
   const openEdit = (row: HourlyHydroReading) => {
     setEditTarget(row);
+    setUnitDown(!!row.unitStatus); setUnitStatus(row.unitStatus ?? '');
     setSaveSuccess(false);
     setSaveError(null);
     setUpdateForm({
@@ -209,15 +212,11 @@ export default function HourlyHydroReadingPage() {
     }));
   };
 
-  const cancelEdit = () => { setEditTarget(null); setUpdateForm(emptyUpdateForm); setUnitDown(false); };
+  const cancelEdit = () => { setEditTarget(null); setUpdateForm(emptyUpdateForm); setUnitDown(false); setUnitStatus(''); };
 
   const handleUnitDownToggle = (checked: boolean) => {
     setUnitDown(checked);
-    if (!checked) return;
-    const zeroed: Record<string, string> = {};
-    NUMERIC_FIELD_KEYS.forEach((k) => { zeroed[k] = '0'; });
-    if (editTarget) setUpdateForm((prev) => ({ ...prev, ...zeroed }));
-    else setForm((prev) => ({ ...prev, ...zeroed }));
+    if (!checked) setUnitStatus('');
   };
 
   const checkMissingHours = async (plantCode: string, unitCode: string, logDate: string) => {
@@ -230,6 +229,7 @@ export default function HourlyHydroReadingPage() {
   };
 
   const handleSave = async () => {
+    if (unitDown && !unitStatus.trim()) { setSaveError('Select or type the unit status.'); return; }
     setSaving(true); setSaveError(null); setSaveSuccess(false);
     const savedPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
     const savedUnitCode = editTarget ? editTarget.unitCode : form.unitCode;
@@ -256,6 +256,7 @@ export default function HourlyHydroReadingPage() {
           transformerOilTemperature: toNum(updateForm.transformerOilTemperature),
           transformerWindingTemperature: toNum(updateForm.transformerWindingTemperature),
           remarks: updateForm.remarks || undefined,
+          unitStatus: unitDown ? unitStatus.trim() : null,
         });
         setEditTarget(null); setUpdateForm(emptyUpdateForm);
       } else {
@@ -277,10 +278,11 @@ export default function HourlyHydroReadingPage() {
           transformerOilTemperature: toNum(form.transformerOilTemperature),
           transformerWindingTemperature: toNum(form.transformerWindingTemperature),
           remarks: form.remarks || undefined,
+          unitStatus: unitDown ? unitStatus.trim() : null,
         });
         setForm(emptyForm);
       }
-      setUnitDown(false);
+      setUnitDown(false); setUnitStatus('');
       setSaveSuccess(true);
       fetchRecords();
       checkMissingHours(savedPlantCode, savedUnitCode, savedLogDate);
@@ -364,8 +366,23 @@ export default function HourlyHydroReadingPage() {
               <FormControlLabel
                 sx={{ mb: 1.5 }}
                 control={<Checkbox checked={unitDown} onChange={(e) => handleUnitDownToggle(e.target.checked)} color="error" />}
-                label={<Typography variant="body2" sx={{ fontWeight: 600 }}>Unit Down — zero out all readings for this hour</Typography>}
+                label={<Typography variant="body2" sx={{ fontWeight: 600 }}>Unit down / not in service this hour</Typography>}
               />
+
+              {unitDown && (
+                <Autocomplete
+                  freeSolo size="small" options={HYDRO_UNIT_STATUSES}
+                  value={unitStatus} inputValue={unitStatus}
+                  onChange={(_, v) => setUnitStatus(v ?? '')}
+                  onInputChange={(_, v) => setUnitStatus(v)}
+                  sx={{ mb: 2, maxWidth: 360 }}
+                  renderInput={(params) => (
+                    <TextField {...params} required label="Unit Status"
+                      placeholder="Select a status or type your own"
+                      helperText="Fill in only the readings you have; leave the rest blank." />
+                  )}
+                />
+              )}
 
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary"
@@ -563,6 +580,7 @@ export default function HourlyHydroReadingPage() {
                         <TableRow key={row.id} data-record-id={row.id} selected={editTarget?.id === row.id} hover>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.unitCode}</Typography>
+                            {row.unitStatus && <Chip label={row.unitStatus} size="small" color="error" variant="outlined" sx={{ mt: 0.5, height: 20, fontSize: 11 }} />}
                           </TableCell>
                           <TableCell>
                             <Chip label={`${String(row.logHour).padStart(2, '0')}:00`}

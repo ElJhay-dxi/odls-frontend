@@ -1,3 +1,4 @@
+import type { CarryOverOptions, StationLogHistoryItem, StationLogHistoryFilters } from '../../types/stationLogCarryOver';
 import axiosInstance from '../axiosInstance';
 import type {
   HydroStationLogGenerationRow, HydroGenerationRowForm,
@@ -28,6 +29,20 @@ export const hydroStationLogApi = {
 
   create: (data: CreateHydroStationLogForm) =>
     axiosInstance.post<HydroStationLog>(BASE, data),
+
+  getHistory: (plantCode: string, filters?: StationLogHistoryFilters) =>
+    axiosInstance.get<StationLogHistoryItem[]>(`${BASE}/history`, {
+      params: {
+        plantCode,
+        from: filters?.from || undefined,
+        to: filters?.to || undefined,
+        search: filters?.search || undefined,
+        take: filters && (filters.from || filters.to || filters.search) ? 366 : 90,
+      },
+    }),
+
+  getCarryOverOptions: (plantCode: string, date: string, sourceDate?: string) =>
+    axiosInstance.get<CarryOverOptions>(`${BASE}/carry-over-options`, { params: { plantCode, date, sourceDate } }),
 
   update: (id: string, data: UpdateHydroStationLogForm) =>
     axiosInstance.put<HydroStationLog>(`${BASE}/${id}`, {

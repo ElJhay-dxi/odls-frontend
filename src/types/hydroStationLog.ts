@@ -70,6 +70,8 @@ export interface HydroStationLogPermitForm {
 
 export interface HydroStationLog {
   id: string;
+  /** Only on the response to Create: rows left behind because their equipment no longer exists. */
+  carryOverSkipped?: number | null;
   plantCode: string;
   plantName: string;
   logDate: string;
@@ -109,6 +111,9 @@ export interface CreateHydroStationLogForm {
   permitsInEffect: string;
   applicationsForOutage: string;
   miscNotes: string;
+  /** Start from an earlier log: the date to copy from and the section keys to copy. */
+  carryOverFromDate?: string;
+  carryOverSections?: string[];
 }
 
 export interface UpdateHydroStationLogForm {

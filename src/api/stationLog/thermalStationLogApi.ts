@@ -1,3 +1,4 @@
+import type { CarryOverOptions, StationLogHistoryItem, StationLogHistoryFilters } from '../../types/stationLogCarryOver';
 import axiosInstance from '../axiosInstance';
 import type {
   ThermalStationLog, UpdateThermalStationLogForm, CreateThermalStationLogForm,
@@ -22,7 +23,24 @@ export const thermalStationLogApi = {
     axiosInstance.get<ThermalStationLog>(`${BASE}/${id}`),
 
   create: (data: CreateThermalStationLogForm) =>
-    axiosInstance.post<ThermalStationLog>(BASE, { plantCode: data.plantCode, logDate: data.logDate }),
+    axiosInstance.post<ThermalStationLog>(BASE, {
+      plantCode: data.plantCode, logDate: data.logDate,
+      carryOverFromDate: data.carryOverFromDate, carryOverSections: data.carryOverSections,
+    }),
+
+  getHistory: (plantCode: string, filters?: StationLogHistoryFilters) =>
+    axiosInstance.get<StationLogHistoryItem[]>(`${BASE}/history`, {
+      params: {
+        plantCode,
+        from: filters?.from || undefined,
+        to: filters?.to || undefined,
+        search: filters?.search || undefined,
+        take: filters && (filters.from || filters.to || filters.search) ? 366 : 90,
+      },
+    }),
+
+  getCarryOverOptions: (plantCode: string, date: string, sourceDate?: string) =>
+    axiosInstance.get<CarryOverOptions>(`${BASE}/carry-over-options`, { params: { plantCode, date, sourceDate } }),
 
   update: (id: string, data: UpdateThermalStationLogForm) =>
     axiosInstance.put<ThermalStationLog>(`${BASE}/${id}`, {

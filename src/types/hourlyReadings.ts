@@ -13,6 +13,7 @@ export interface HourlyReadingAudit {
   createdByName: string;
   createdByEmail: string;
   remarks?: string;
+  unitStatus?: string | null;
 }
 
 // ─── Hydro ────────────────────────────────────────────────────────────────────
@@ -97,6 +98,7 @@ export interface CreateHourlyHydroReadingPayload {
   transformerOilTemperature?: number;
   transformerWindingTemperature?: number;
   remarks?: string;
+  unitStatus?: string | null;
 }
 
 export interface UpdateHourlyHydroReadingPayload {
@@ -116,6 +118,7 @@ export interface UpdateHourlyHydroReadingPayload {
   transformerOilTemperature?: number;
   transformerWindingTemperature?: number;
   remarks?: string;
+  unitStatus?: string | null;
 }
 
 // ─── Thermal ──────────────────────────────────────────────────────────────────

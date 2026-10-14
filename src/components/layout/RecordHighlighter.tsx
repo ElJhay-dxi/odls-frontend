@@ -51,6 +51,19 @@ function findRanges(term: string): Range[] {
   return ranges;
 }
 
+/** Collapsed sections (MUI Collapse) that contain `node`, outermost first. Their content stays in the page but is invisible. */
+function hiddenSections(node: Node | null): HTMLElement[] {
+  const list: HTMLElement[] = [];
+  let el: HTMLElement | null = node instanceof HTMLElement ? node : node?.parentElement ?? null;
+  while (el) {
+    if (el.classList.contains('MuiCollapse-hidden')) list.unshift(el);
+    el = el.parentElement;
+  }
+  return list;
+}
+
+const MAX_SECTION_OPENS = 8;
+
 /**
  * Runs when a page is opened from global search (…?record=<id>&q=<text>):
  *  - scrolls to and flashes the row/card carrying data-record-id="<id>"
@@ -74,6 +87,21 @@ export default function RecordHighlighter() {
     let clearTimer: ReturnType<typeof setTimeout> | undefined;
     let scrollTimer: ReturnType<typeof setTimeout> | undefined;
     let raf = 0;
+    const opened = new WeakSet<Element>();
+    let opens = 0;
+
+    /** Opens the outermost collapsed section around `node` by clicking its header (the element just before it). Returns true if one was opened. */
+    const openSectionAround = (node: Node | null): boolean => {
+      if (opens >= MAX_SECTION_OPENS) return false;
+      const target = hiddenSections(node).find((h) => !opened.has(h));
+      if (!target) return false;
+      opened.add(target);
+      const header = target.previousElementSibling as HTMLElement | null;
+      if (!header) return false;
+      opens += 1;
+      header.click();
+      return true;
+    };
 
     const flashRecord = (el: HTMLElement) => {
       recordDone = true;
@@ -98,6 +126,11 @@ export default function RecordHighlighter() {
       if (textStartedAt && Date.now() - textStartedAt > TEXT_HIGHLIGHT_MS) return; // already expired
       const ranges = findRanges(term);
       if (ranges.length === 0) return;
+      // A hit inside a collapsed section: open it (one level per pass, so nested sections open in turn).
+      if (!record) {
+        const hiddenHit = ranges.find((r) => hiddenSections(r.startContainer).length > 0);
+        if (hiddenHit) openSectionAround(hiddenHit.startContainer);
+      }
       ensureStyle();
       reg.set('search-hit', new Ctor(...ranges));
       if (!textStartedAt) {
@@ -108,9 +141,11 @@ export default function RecordHighlighter() {
       // row a moment to appear and only fall back to the text if it never does (e.g. a whole-log page).
       if (!scrolledToText) {
         const scrollToText = () => {
+          scrollTimer = undefined;
           if (scrolledToText || (record && recordDone)) return;
+          const first = findRanges(term).find((r) => hiddenSections(r.startContainer).length === 0);
+          if (!first) return; // every match is inside a collapsed section; it is being opened, try again on the next change
           scrolledToText = true;
-          const first = findRanges(term)[0] ?? ranges[0];
           first.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         };
         if (!record) scrollToText();
@@ -122,14 +157,17 @@ export default function RecordHighlighter() {
       raf = 0;
       if (!recordDone) {
         const el = document.querySelector<HTMLElement>(selector);
-        if (el) flashRecord(el);
+        if (el) {
+          if (hiddenSections(el).length > 0) openSectionAround(el); // wait for it to open, then flash on the next pass
+          else flashRecord(el);
+        }
       }
       applyText();
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(run); };
 
     const observer = new MutationObserver(schedule);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] });
     schedule();
     const giveUp = setTimeout(() => observer.disconnect(), WAIT_MS);
 

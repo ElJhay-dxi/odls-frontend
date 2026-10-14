@@ -8,12 +8,14 @@ import {
 } from '@mui/material';
 import {
   Save, Edit, Delete, Add, WaterDrop, ExpandMore, ExpandLess,
-  Assignment, CheckCircle, TableChart,
+  Assignment, CheckCircle, TableChart, History,
 } from '@mui/icons-material';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import CarryOverDialog from '../../components/stationLog/CarryOverDialog';
+import StationLogHistoryDialog from '../../components/stationLog/StationLogHistoryDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
 import { plantBusApi } from '../../api/hourly/hourlyBusVoltageApi';
@@ -93,6 +95,10 @@ export default function HydroStationLogPage() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creatingLog, setCreatingLog] = useState(false);
+  const [carryOverOpen, setCarryOverOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState(false);
+  const [carryNotice, setCarryNotice] = useState<string | null>(null);
 
   // Header
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
@@ -165,6 +171,7 @@ export default function HydroStationLogPage() {
   const [unitOutputs, setUnitOutputs] = useState<SaveStationLogUnitOutputItem[]>([]);
   const [savingUnitOutputs, setSavingUnitOutputs] = useState(false);
   const [unitOutputsSaved, setUnitOutputsSaved] = useState(false);
+  const [unitOutputsLoads, setUnitOutputsLoads] = useState(0); // bumps when saved outputs arrive, so rows for selected units without a saved output are added
   const [unitOutputsError, setUnitOutputsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -199,7 +206,7 @@ export default function HydroStationLogPage() {
       const unit = plantUnits.find((u) => u.unitCode === code);
       return { unitCode: code, unitName: unit?.unitName ?? code, unitStatus: 'In Service', outputMW: null, outputMVAr: null };
     }));
-  }, [selectedUnits, plantUnits]);
+  }, [selectedUnits, plantUnits, unitOutputsLoads]);
 
   const populateHeaderState = (data: HydroStationLog) => {
     setSelectedUnits(toArray(data.unitsInService));
@@ -246,6 +253,7 @@ export default function HydroStationLogPage() {
             unitCode: u.unitCode, unitName: u.unitName, unitStatus: u.unitStatus,
             outputMW: u.outputMW, outputMVAr: u.outputMVAr,
           })));
+          setUnitOutputsLoads((n) => n + 1);
         }).catch(() => {});
       } else {
         const status = (logRes.reason as { response?: { status?: number } })?.response?.status;
@@ -397,14 +405,25 @@ export default function HydroStationLogPage() {
     return items.sort((a, b) => a.time.localeCompare(b.time));
   };
 
-  const handleCreateLog = async () => {
+  // Opened from the history popup with "Edit": switch the header to edit mode once that day's log has loaded
+  useEffect(() => {
+    if (pendingEdit && log && log.logDate.slice(0, 10) === selectedDate) { setHeaderEditing(true); setPendingEdit(false); }
+  }, [pendingEdit, log, selectedDate]);
+
+  const handleCreateLog = async (carryFrom: string | null = null, carrySections: string[] = []) => {
     setCreatingLog(true); setLoadError(null);
     try {
-      await hydroStationLogApi.create({
+      const res = await hydroStationLogApi.create({
         plantCode: selectedPlant, logDate: selectedDate,
         unitsInService: '', linesInService: '', stationService: '',
         permitsInEffect: '', applicationsForOutage: '', miscNotes: '',
+        ...(carryFrom ? { carryOverFromDate: carryFrom, carryOverSections: carrySections } : {}),
       });
+      setCarryOverOpen(false);
+      setCarryNotice(carryFrom
+        ? `Started with data carried over from ${new Date(carryFrom + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}. Review and edit it for today.`
+          + (res.data.carryOverSkipped ? ` ${res.data.carryOverSkipped} row(s) were left out because their equipment no longer exists.` : '')
+        : null);
       await loadLog();
       setHeaderEditing(true);
     } catch (err: unknown) {
@@ -673,6 +692,7 @@ export default function HydroStationLogPage() {
         title="Hydro Station Log"
         subtitle="Daily operational log for hydro power stations"
         breadcrumbs={[{ label: 'Station Logs' }, { label: 'Hydro Station Log' }]}
+        extra={selectedPlant ? (<Tooltip title="Station log history"><IconButton onClick={() => setHistoryOpen(true)}><History /></IconButton></Tooltip>) : undefined}
       />
 
       {isWrongPlantType && (
@@ -714,6 +734,16 @@ export default function HydroStationLogPage() {
       </Card>
 
       {loadError && <Alert severity="error" onClose={() => setLoadError(null)} sx={{ mb: 2 }}>{loadError}</Alert>}
+      {carryNotice && <Alert severity="info" onClose={() => setCarryNotice(null)} sx={{ mb: 2 }}>{carryNotice}</Alert>}
+      <StationLogHistoryDialog open={historyOpen} plantName={plantDisplayName} currentDate={selectedDate}
+        load={async (filters) => (await hydroStationLogApi.getHistory(selectedPlant, filters)).data}
+        onClose={() => setHistoryOpen(false)}
+        onOpenLog={(date, edit) => { setHistoryOpen(false); setPendingEdit(edit); setSelectedDate(date); }}
+        onDelete={async (item) => { await hydroStationLogApi.delete(item.id); if (log?.id === item.id) { setLog(null); await loadLog(); } }} />
+      <CarryOverDialog open={carryOverOpen} date={selectedDate} plantName={plantDisplayName} busy={creatingLog}
+        load={async (src) => (await hydroStationLogApi.getCarryOverOptions(selectedPlant, selectedDate, src)).data}
+        onClose={() => setCarryOverOpen(false)}
+        onStart={(src, sections) => handleCreateLog(src, sections)} />
 
       {/* No log yet */}
       {!loading && !log && selectedPlant && (
@@ -729,7 +759,7 @@ export default function HydroStationLogPage() {
             {canCreate && (
               <Button variant="contained"
                 startIcon={creatingLog ? <CircularProgress size={16} color="inherit" /> : <Add />}
-                onClick={handleCreateLog} disabled={creatingLog}>
+                onClick={() => setCarryOverOpen(true)} disabled={creatingLog}>
                 {creatingLog ? 'Creating...' : 'Start Station Log'}
               </Button>
             )}
