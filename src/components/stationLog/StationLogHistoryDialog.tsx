@@ -3,7 +3,7 @@ import {
   Alert, Box, Button, CircularProgress, Dialog, DialogContent, DialogTitle, IconButton, InputAdornment, Table,
   TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
-import { Clear, Close, Delete, Edit, Search, Visibility } from '@mui/icons-material';
+import { Clear, Close, Delete, Edit, PictureAsPdf, Search, Visibility } from '@mui/icons-material';
 import ConfirmDialog from '../shared/ConfirmDialog';
 import type { StationLogHistoryItem, StationLogHistoryFilters } from '../../types/stationLogCarryOver';
 
@@ -18,6 +18,8 @@ interface Props {
   onOpenLog: (date: string, edit: boolean) => void;
   /** Delete the log. Rejects if the server refuses. */
   onDelete: (item: StationLogHistoryItem) => Promise<void>;
+  /** Download that log as a PDF */
+  onPdf?: (item: StationLogHistoryItem) => Promise<void>;
 }
 
 const fmtDate = (iso: string) =>
@@ -26,7 +28,7 @@ const fmtStamp = (iso: string) =>
   new Date(iso.endsWith('Z') ? iso : iso + 'Z').toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 /** Past station logs for the selected plant. Edit/Delete show only where the server says the user may. */
-export default function StationLogHistoryDialog({ open, plantName, currentDate, load, onClose, onOpenLog, onDelete }: Props) {
+export default function StationLogHistoryDialog({ open, plantName, currentDate, load, onClose, onOpenLog, onDelete, onPdf }: Props) {
   const [items, setItems] = useState<StationLogHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +140,7 @@ export default function StationLogHistoryDialog({ open, plantName, currentDate, 
                       <TableCell align="center">{it.entryCount}</TableCell>
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                         <Tooltip title="Open"><IconButton size="small" onClick={() => onOpenLog(it.logDate.slice(0, 10), false)}><Visibility fontSize="small" /></IconButton></Tooltip>
+                        {onPdf && <Tooltip title="Download PDF"><IconButton size="small" onClick={() => { void onPdf(it); }}><PictureAsPdf fontSize="small" /></IconButton></Tooltip>}
                         {it.canEdit && <Tooltip title="Edit"><IconButton size="small" onClick={() => onOpenLog(it.logDate.slice(0, 10), true)}><Edit fontSize="small" /></IconButton></Tooltip>}
                         {it.canDelete && <Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => setToDelete(it)}><Delete fontSize="small" /></IconButton></Tooltip>}
                       </TableCell>

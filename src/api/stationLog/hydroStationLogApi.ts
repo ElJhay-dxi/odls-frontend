@@ -21,6 +21,9 @@ export const hydroStationLogApi = {
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<HydroStationLog[]>(BASE, { params }),
 
+  downloadPdf: (id: string) =>
+    axiosInstance.get<Blob>(`${BASE}/${id}/pdf`, { responseType: 'blob' }),
+
   getById: (id: string) =>
     axiosInstance.get<HydroStationLog>(`${BASE}/${id}`),
 

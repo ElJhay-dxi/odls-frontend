@@ -19,6 +19,9 @@ export const thermalStationLogApi = {
   getByDate: (plantCode: string, date: string) =>
     axiosInstance.get<ThermalStationLog>(`${BASE}/by-date`, { params: { plantCode, date } }),
 
+  downloadPdf: (id: string) =>
+    axiosInstance.get<Blob>(`${BASE}/${id}/pdf`, { responseType: 'blob' }),
+
   getById: (id: string) =>
     axiosInstance.get<ThermalStationLog>(`${BASE}/${id}`),
 

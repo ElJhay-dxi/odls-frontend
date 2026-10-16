@@ -9,10 +9,11 @@ import {
 import {
   Save, Edit, Delete, Add, ExpandMore, ExpandLess,
   Assignment, CheckCircle, LocalFireDepartment, TableChart, GasMeter,
-  History,
+  History, PictureAsPdf,
 } from '@mui/icons-material';
 import { useEffect, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { savePdfResponse } from '../../utils/downloadPdf';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import CarryOverDialog from '../../components/stationLog/CarryOverDialog';
@@ -297,6 +298,13 @@ export default function ThermalStationLogPage() {
   const [creatingLog, setCreatingLog] = useState(false);
   const [carryOverOpen, setCarryOverOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const downloadPdf = async (id: string, plant: string, date: string) => {
+    setPdfBusy(true);
+    try { savePdfResponse(await thermalStationLogApi.downloadPdf(id), `Station_Log_${plant}_${date}.pdf`); }
+    catch { setLoadError('Could not generate the PDF. Please try again.'); }
+    finally { setPdfBusy(false); }
+  };
   const [pendingEdit, setPendingEdit] = useState(false);
   const [carryNotice, setCarryNotice] = useState<string | null>(null);
 
@@ -1781,7 +1789,7 @@ export default function ThermalStationLogPage() {
     <Box>
       <PageHeader title="Thermal Station Log" subtitle="Daily operational log for thermal power stations"
         breadcrumbs={[{ label: 'Station Logs' }, { label: 'Thermal Station Log' }]}
-        extra={selectedPlant ? (<Tooltip title="Station log history"><IconButton onClick={() => setHistoryOpen(true)}><History /></IconButton></Tooltip>) : undefined} />
+        extra={selectedPlant ? (<>{log && <Tooltip title="Download PDF"><span><IconButton disabled={pdfBusy} onClick={() => downloadPdf(log.id, selectedPlant, selectedDate)}><PictureAsPdf /></IconButton></span></Tooltip>}<Tooltip title="Station log history"><IconButton onClick={() => setHistoryOpen(true)}><History /></IconButton></Tooltip></>) : undefined} />
 
       {isWrongPlantType && (
         <Alert severity="warning" sx={{ mb: 3 }}
@@ -1815,6 +1823,7 @@ export default function ThermalStationLogPage() {
         load={async (filters) => (await thermalStationLogApi.getHistory(selectedPlant, filters)).data}
         onClose={() => setHistoryOpen(false)}
         onOpenLog={(date, edit) => { setHistoryOpen(false); setPendingEdit(edit); setSelectedDate(date); }}
+        onPdf={(item) => downloadPdf(item.id, selectedPlant, item.logDate.slice(0, 10))}
         onDelete={async (item) => { await thermalStationLogApi.delete(item.id); if (log?.id === item.id) { setLog(null); await loadLog(); } }} />
       <CarryOverDialog open={carryOverOpen} date={selectedDate} plantName={plantDisplayName} busy={creatingLog}
         load={async (src) => (await thermalStationLogApi.getCarryOverOptions(selectedPlant, selectedDate, src)).data}
