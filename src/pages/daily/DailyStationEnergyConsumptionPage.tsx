@@ -4,151 +4,168 @@ import {
   CircularProgress, Alert, Typography, MenuItem, FormControl,
   InputLabel, Select, Grid, Divider, Chip, Stack, Paper,
   Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, IconButton, Tooltip,
+  TableRow, IconButton, Tooltip, FormControlLabel, Switch,
 } from '@mui/material';
-import { Save, Search, Edit, Delete, ElectricMeter, History } from '@mui/icons-material';
-import { useEffect, useState, useCallback } from 'react';
+import { Save, Edit, Delete, ElectricMeter, History } from '@mui/icons-material';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import { isStationServiceTransformer, type TransformerOption } from '../../components/stationLog/StationServiceEditor';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
+import { plantUnitEquipmentApi } from '../../api/masterData/plantUnitEquipmentApi';
+import { bopEquipmentApi } from '../../api/masterData/bopEquipmentApi';
 import { dailyStationEnergyConsumptionApi } from '../../api/daily/dailyStationEnergyConsumptionApi';
 import type { PowerPlant } from '../../types/masterData';
-import type {
-  DailyStationEnergyConsumption,
-  DailyStationEnergyConsumptionForm,
-} from '../../types/dailyStationEnergyConsumption';
+import type { DailyStationEnergyConsumption } from '../../types/dailyStationEnergyConsumption';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
-const emptyForm: DailyStationEnergyConsumptionForm = {
-  plantCode: '',
-  logDate: new Date().toISOString().split('T')[0],
-  currentReading: '',
-};
+interface Meter { code: string; name: string }
+interface CardInput { current: string; previous: string }
+
+const today = () => new Date().toISOString().split('T')[0];
+const dateOnly = (v: string) => v.split('T')[0];
+const same = (a: string, b: string) => (a ?? '').toLowerCase() === (b ?? '').toLowerCase();
 
 export default function DailyStationEnergyConsumptionPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.station_energy');
+  const deepLink = useSearchDeepLink();
+
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
-  const [form, setForm] = useState<DailyStationEnergyConsumptionForm>(emptyForm);
-  const [updateForm, setUpdateForm] = useState<{ currentReading: number | string }>({ currentReading: '' });
-  const [editTarget, setEditTarget] = useState<DailyStationEnergyConsumption | null>(null);
+  const [plantCode, setPlantCode] = useState(deepLink.plant ?? '');
+  const [logDate, setLogDate] = useState(today());
 
-  const [manualPreviousReading, setManualPreviousReading] = useState('');
-  const [priorRecord, setPriorRecord] = useState<DailyStationEnergyConsumption | null>(null);
-  const [loadingPrior, setLoadingPrior] = useState(false);
+  const [transformers, setTransformers] = useState<TransformerOption[]>([]);
+  const [loadingTransformers, setLoadingTransformers] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  const deepLink = useSearchDeepLink();
-
-  const [filterPlant, setFilterPlant] = useState(deepLink.plant ?? '');
   const [records, setRecords] = useState<DailyStationEnergyConsumption[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
+  const [inputs, setInputs] = useState<Record<string, CardInput>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+
   const [deleteTarget, setDeleteTarget] = useState<DailyStationEnergyConsumption | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    powerPlantApi.getAll().then((res) => setPlants(res.data));
-  }, []);
+  useEffect(() => { powerPlantApi.getAll().then((res) => setPlants(res.data)); }, []);
+  useEffect(() => { if (autoPlantCode) setPlantCode(autoPlantCode); }, [autoPlantCode]);
 
+  // Transformers of the plant from master data (unit hierarchy + balance of plant) - TSS/SST are picked out below
   useEffect(() => {
-    if (autoPlantCode) {
-      setForm((prev) => ({ ...prev, plantCode: autoPlantCode }));
-      setFilterPlant(autoPlantCode);
-    }
-  }, [autoPlantCode]);
-
-  useEffect(() => {
-    if (editTarget || !form.plantCode || !form.logDate) {
-      setPriorRecord(null);
-      return;
-    }
-    setLoadingPrior(true);
-    dailyStationEnergyConsumptionApi.getAll({ plantCode: form.plantCode })
-      .then((res) => {
-        const prior = res.data
-          .filter((r) => r.logDate.split('T')[0] < form.logDate)
-          .sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
-        setPriorRecord(prior ?? null);
-        if (prior) setManualPreviousReading('');
-      })
-      .catch(() => setPriorRecord(null))
-      .finally(() => setLoadingPrior(false));
-  }, [form.plantCode, form.logDate, editTarget]);
+    if (!plantCode) { setTransformers([]); return; }
+    let cancelled = false;
+    setLoadingTransformers(true);
+    Promise.allSettled([plantUnitEquipmentApi.getAll(), bopEquipmentApi.search(plantCode, 'transformer')]).then(([u, b]) => {
+      if (cancelled) return;
+      const unit: TransformerOption[] = u.status === 'fulfilled'
+        ? u.value.data
+          .filter((e) => e.plantCode === plantCode
+            && /transformer/i.test([e.unitName, e.systemName, e.subSystemName, e.equipmentName].filter(Boolean).join(' ')))
+          .map((e) => ({ equipmentCode: e.equipmentCode, equipmentName: e.equipmentName, groupLabel: [e.unitName, e.systemName, e.subSystemName].filter(Boolean).join(' / ') }))
+        : [];
+      const bop: TransformerOption[] = b.status === 'fulfilled'
+        ? b.value.data.map((e) => ({ equipmentCode: e.equipmentCode, equipmentName: e.equipmentName, groupLabel: e.groupLabel }))
+        : [];
+      setTransformers([...unit, ...bop].filter((o, i, arr) => arr.findIndex((x) => x.equipmentCode === o.equipmentCode) === i));
+    }).finally(() => { if (!cancelled) setLoadingTransformers(false); });
+    return () => { cancelled = true; };
+  }, [plantCode]);
 
   const fetchRecords = useCallback(async () => {
-    if (!filterPlant) return;
+    if (!plantCode) { setRecords([]); return; }
     setLoadingRecords(true);
     setRecordsError(null);
     try {
-      const res = await dailyStationEnergyConsumptionApi.getAll({ plantCode: filterPlant });
-      setRecords(res.data.sort((a, b) => b.logDate.localeCompare(a.logDate)));
+      const res = await dailyStationEnergyConsumptionApi.getAll({ plantCode });
+      setRecords(res.data);
     } catch {
       setRecordsError('Failed to load records.');
     } finally {
       setLoadingRecords(false);
     }
-  }, [filterPlant]);
-
+  }, [plantCode]);
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
-  const isFirstEntry = !editTarget && !priorRecord && !loadingPrior;
-  const previewPreviousReading = editTarget
-    ? editTarget.previousReading
-    : priorRecord
-    ? priorRecord.currentReading
-    : Number(manualPreviousReading) || 0;
-  const previewPriorProgressiveTotal = editTarget
-    ? editTarget.progressiveTotal - editTarget.difference
-    : (priorRecord?.progressiveTotal ?? 0);
-  const currentVal = Number(editTarget ? updateForm.currentReading : form.currentReading) || 0;
-  const previewDifference = currentVal - previewPreviousReading;
-  const previewProgressiveTotal = previewPriorProgressiveTotal + previewDifference;
+  // entered values belong to one plant + date
+  useEffect(() => { setInputs({}); setSaveError(null); setSaveSuccess(null); }, [plantCode, logDate]);
 
-  const selectedPlant = plants.find((p) => p.plantCode === (editTarget ? editTarget.plantCode : form.plantCode));
+  const tss = useMemo(() => transformers.filter(isStationServiceTransformer), [transformers]);
+  const noTss = tss.length === 0 && transformers.length > 0;
+  const meters: Meter[] = useMemo(() => {
+    const pool = showAll || tss.length === 0 ? transformers : tss;
+    if (pool.length === 0) return plantCode ? [{ code: '', name: 'Plant (whole station)' }] : [];
+    return pool.map((t) => ({ code: t.equipmentCode, name: t.equipmentName || t.equipmentCode }));
+  }, [tss, transformers, showAll, plantCode]);
 
-  const openEdit = (row: DailyStationEnergyConsumption) => {
-    setEditTarget(row);
-    setSaveError(null);
-    setSaveSuccess(false);
-    setUpdateForm({ currentReading: row.currentReading });
+  const sortedRecords = useMemo(
+    () => [...records].sort((a, b) => b.logDate.localeCompare(a.logDate) || a.transformerCode.localeCompare(b.transformerCode)),
+    [records],
+  );
+
+  const meterState = (m: Meter) => {
+    const own = records.filter((r) => same(r.transformerCode, m.code));
+    const existing = own.find((r) => dateOnly(r.logDate) === logDate) ?? null;
+    const prior = own.filter((r) => dateOnly(r.logDate) < logDate).sort((a, b) => b.logDate.localeCompare(a.logDate))[0] ?? null;
+    const inp = inputs[m.code];
+    const currentStr = inp?.current ?? (existing ? String(existing.currentReading) : '');
+    const firstEntry = !existing && !prior;
+    const previous = existing ? existing.previousReading : prior ? prior.currentReading : Number(inp?.previous) || 0;
+    const baseProgressive = existing
+      ? existing.progressiveTotal - existing.difference
+      : prior && dateOnly(prior.logDate).slice(0, 7) === logDate.slice(0, 7) ? prior.progressiveTotal : 0;
+    const hasCurrent = currentStr !== '';
+    const difference = hasCurrent ? Number(currentStr) - previous : 0;
+    const dirty = hasCurrent && (!existing || Number(currentStr) !== existing.currentReading);
+    return { existing, prior, currentStr, firstEntry, previous, difference, progressive: baseProgressive + difference, hasCurrent, dirty };
   };
 
-  const cancelEdit = () => { setEditTarget(null); setUpdateForm({ currentReading: '' }); };
+  const patchInput = (code: string, p: Partial<CardInput>) =>
+    setInputs((prev) => ({ ...prev, [code]: { ...(prev[code] ?? { current: '', previous: '' }), ...p } }));
 
-  const handleSave = async () => {
+  const states = meters.map((m) => ({ m, s: meterState(m) }));
+  const plantTotal = states.reduce((sum, { s }) => sum + (s.hasCurrent ? s.difference : 0), 0);
+  const dirtyCount = states.filter(({ s }) => s.dirty).length;
+
+  const canSaveAll = dirtyCount > 0 && states.every(({ m, s }) =>
+    !s.dirty || (s.existing ? canEdit : canCreate) && (!s.firstEntry || (inputs[m.code]?.previous ?? '') !== ''));
+
+  const handleSaveAll = async () => {
     setSaving(true);
     setSaveError(null);
-    setSaveSuccess(false);
-    try {
-      if (editTarget) {
-        await dailyStationEnergyConsumptionApi.update(editTarget.id, {
-          currentReading: Number(updateForm.currentReading),
-        });
-        cancelEdit();
-      } else {
-        await dailyStationEnergyConsumptionApi.create({
-          plantCode: form.plantCode,
-          logDate: form.logDate,
-          previousReading: isFirstEntry ? Number(manualPreviousReading) : undefined,
-          currentReading: Number(form.currentReading),
-        });
-        setForm(emptyForm);
-        setManualPreviousReading('');
+    setSaveSuccess(null);
+    const failures: string[] = [];
+    let saved = 0;
+    for (const { m, s } of states) {
+      if (!s.dirty) continue;
+      try {
+        if (s.existing) {
+          await dailyStationEnergyConsumptionApi.update(s.existing.id, { currentReading: Number(s.currentStr) });
+        } else {
+          await dailyStationEnergyConsumptionApi.create({
+            plantCode,
+            transformerCode: m.code,
+            transformerName: m.code ? m.name : '',
+            logDate,
+            previousReading: s.firstEntry ? Number(inputs[m.code]?.previous) : undefined,
+            currentReading: Number(s.currentStr),
+          });
+        }
+        saved += 1;
+      } catch (err) {
+        const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Failed to save.';
+        failures.push(`${m.name}: ${msg}`);
       }
-      setSaveSuccess(true);
-      fetchRecords();
-    } catch (err) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      setSaveError(axiosErr.response?.data?.message ?? 'Failed to save. Please try again.');
-    } finally {
-      setSaving(false);
     }
+    await fetchRecords();
+    setInputs({});
+    if (saved > 0) setSaveSuccess(`${saved} reading${saved === 1 ? '' : 's'} saved.`);
+    if (failures.length) setSaveError(failures.join(' | '));
+    setSaving(false);
   };
 
   const handleDelete = async () => {
@@ -165,55 +182,44 @@ export default function DailyStationEnergyConsumptionPage() {
     }
   };
 
-  const isFormValid = editTarget
-    ? updateForm.currentReading !== '' && updateForm.currentReading !== undefined
-    : form.plantCode && form.logDate && form.currentReading !== '';
+  const selectedPlant = plants.find((p) => p.plantCode === plantCode);
+  const label = (t: string) => (
+    <Typography variant="caption" color="text.secondary"
+      sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>{t}</Typography>
+  );
 
   return (
     <Box>
       <PageHeader
         title="Daily Station Energy Consumption"
-        subtitle="Daily MWh station energy consumption readings — applies to both Hydro and Thermal plants"
+        subtitle="Daily MWh readings recorded per station service transformer (SST / TSS) — Hydro and Thermal plants"
         breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Station Energy Consumption' }]}
       />
 
       <Grid container spacing={3}>
-        {/* ── Left: Entry form ── */}
-        <Grid size={{ xs: 12, lg: 6 }}>
+        {/* ── Left: entry ── */}
+        <Grid size={{ xs: 12, lg: 7 }}>
           <Card>
             <CardHeader
               title={
                 <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1.5}>
                   <ElectricMeter sx={{ color: '#1565C0' }} />
-                  <Typography sx={{ fontWeight: 700 }}>
-                    {editTarget
-                      ? `Editing: ${editTarget.plantCode} — ${editTarget.logDate?.split('T')[0]}`
-                      : 'New Daily Reading'}
-                  </Typography>
-                  {editTarget && (
-                    <Chip label="Edit Mode" size="small" color="warning" onDelete={cancelEdit} />
-                  )}
+                  <Typography sx={{ fontWeight: 700 }}>Daily Readings</Typography>
                 </Stack>
               }
             />
             <Divider />
             <CardContent>
               {saveError && <Alert severity="error" onClose={() => setSaveError(null)} sx={{ mb: 2 }}>{saveError}</Alert>}
-              {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(false)} sx={{ mb: 2 }}>Reading saved successfully.</Alert>}
+              {saveSuccess && <Alert severity="success" onClose={() => setSaveSuccess(null)} sx={{ mb: 2 }}>{saveSuccess}</Alert>}
 
-              {/* Identity */}
               <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
-                <Typography variant="caption" color="text.secondary"
-                  sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                  Log Identity
-                </Typography>
+                {label('Log Identity')}
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth required disabled={plantLocked || !!editTarget}>
+                    <FormControl fullWidth required disabled={plantLocked}>
                       <InputLabel>Power Plant</InputLabel>
-                      <Select label="Power Plant"
-                        value={editTarget ? editTarget.plantCode : form.plantCode}
-                        onChange={(e) => setForm((prev) => ({ ...prev, plantCode: e.target.value }))}>
+                      <Select label="Power Plant" value={plantCode} onChange={(e) => setPlantCode(e.target.value)}>
                         {availablePlants.map((p: PowerPlant) => (
                           <MenuItem key={p.id} value={p.plantCode}>
                             {p.plantName} ({p.plantCode}) — {p.classificationType}
@@ -223,161 +229,163 @@ export default function DailyStationEnergyConsumptionPage() {
                     </FormControl>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Log Date" type="date" fullWidth required
-                      value={editTarget ? editTarget.logDate?.split('T')[0] : form.logDate}
-                      onChange={(e) => setForm((prev) => ({ ...prev, logDate: e.target.value }))}
-                      disabled={!!editTarget}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
+                    <TextField label="Log Date" type="date" fullWidth required value={logDate}
+                      onChange={(e) => setLogDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                   </Grid>
-                  {(editTarget || selectedPlant) && (
+                  {selectedPlant && (
                     <Grid size={{ xs: 12 }}>
-                      <Chip
-                        label={editTarget ? editTarget.classificationType : selectedPlant?.classificationType}
-                        size="small"
-                        color={(editTarget ? editTarget.classificationType : selectedPlant?.classificationType) === 'Hydro' ? 'info' : 'error'}
-                        variant="outlined"
-                      />
+                      <Chip label={selectedPlant.classificationType} size="small" variant="outlined"
+                        color={selectedPlant.classificationType === 'Hydro' ? 'info' : 'error'} />
                     </Grid>
                   )}
                 </Grid>
               </Paper>
 
-              {/* Readings */}
-              <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2 }}>
-                <Typography variant="caption" color="text.secondary"
-                  sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                  Meter Readings (MWh)
+              {!plantCode ? (
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
+                  Select a plant to see its station service transformers.
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      label="Previous Reading" fullWidth
-                      type={isFirstEntry ? 'number' : 'text'}
-                      disabled={!isFirstEntry}
-                      value={isFirstEntry ? manualPreviousReading : loadingPrior ? '…' : previewPreviousReading.toFixed(2)}
-                      onChange={(e) => isFirstEntry && setManualPreviousReading(e.target.value)}
-                      helperText={isFirstEntry ? 'Enter the prior meter reading (first entry only)' : 'Auto-carried from prior day'}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Current Reading" type="number" fullWidth required
-                      value={editTarget ? updateForm.currentReading : form.currentReading}
-                      onChange={(e) => {
-                        if (editTarget) setUpdateForm({ currentReading: e.target.value });
-                        else setForm((prev) => ({ ...prev, currentReading: e.target.value }));
-                      }}
-                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }}
-                    />
-                  </Grid>
-                </Grid>
-              </Paper>
+              ) : loadingTransformers ? (
+                <Box sx={{ textAlign: 'center', py: 3 }}><CircularProgress size={24} /></Box>
+              ) : (
+                <>
+                  {transformers.length === 0 && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      No transformers found in master data for this plant — recording a single plant-level meter. Add the SST/TSS under the plant's equipment to get a card for each.
+                    </Alert>
+                  )}
+                  {noTss && (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      No transformer matching TSS / SST / "station service" was found, so all of the plant's transformers are listed.
+                    </Alert>
+                  )}
+                  {tss.length > 0 && tss.length < transformers.length && (
+                    <FormControlLabel sx={{ mb: 1 }}
+                      control={<Switch size="small" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />}
+                      label={<Typography variant="body2">Show all transformers ({transformers.length})</Typography>} />
+                  )}
 
-              {/* Computed preview */}
-              <Paper variant="outlined" sx={{ p: 2, mb: 2.5, borderRadius: 2, backgroundColor: 'action.hover' }}>
-                <Typography variant="caption" color="text.secondary"
-                  sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                  Computed Preview
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" color="text.secondary">Difference</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewDifference.toFixed(2)} MWh</Typography>
+                  <Grid container spacing={2}>
+                    {states.map(({ m, s }) => (
+                      <Grid key={m.code || 'plant'} size={{ xs: 12, md: 6 }}>
+                        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
+                            <ElectricMeter fontSize="small" color="primary" />
+                            <Typography sx={{ fontWeight: 700, flexGrow: 1 }} noWrap>{m.name}</Typography>
+                            {m.code && <Chip size="small" label={m.code} variant="outlined" />}
+                            {s.existing && <Chip size="small" color="success" label="Logged" />}
+                          </Stack>
+                          <Grid container spacing={1.5}>
+                            <Grid size={{ xs: 6 }}>
+                              <TextField label="Previous" size="small" fullWidth
+                                type={s.firstEntry ? 'number' : 'text'}
+                                disabled={!s.firstEntry}
+                                required={s.firstEntry}
+                                value={s.firstEntry ? (inputs[m.code]?.previous ?? '') : s.previous.toFixed(2)}
+                                onChange={(e) => s.firstEntry && patchInput(m.code, { previous: e.target.value })}
+                                helperText={s.firstEntry ? 'First entry' : 'Auto-carried'} />
+                            </Grid>
+                            <Grid size={{ xs: 6 }}>
+                              <TextField label="Current" type="number" size="small" fullWidth
+                                disabled={s.existing ? !canEdit : !canCreate}
+                                value={s.currentStr}
+                                onChange={(e) => patchInput(m.code, { current: e.target.value })}
+                                slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
+                            </Grid>
+                          </Grid>
+                          <Divider sx={{ my: 1.5 }} />
+                          <Stack direction="row" spacing={3}>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">Difference</Typography>
+                              <Typography sx={{ fontWeight: 700 }} color={s.difference < 0 ? 'error.main' : 'text.primary'}>
+                                {s.hasCurrent ? s.difference.toFixed(2) : '—'}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">Progressive (month)</Typography>
+                              <Typography sx={{ fontWeight: 700 }}>{s.hasCurrent ? s.progressive.toFixed(2) : '—'}</Typography>
+                            </Box>
+                          </Stack>
+                        </Paper>
+                      </Grid>
+                    ))}
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" color="text.secondary">Progressive Total</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{previewProgressiveTotal.toFixed(2)} MWh</Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
 
-              <Stack direction="row" spacing={1.5}>
-                {editTarget && <Button variant="outlined" onClick={cancelEdit} disabled={saving}>Cancel</Button>}
-                {(editTarget ? canEdit : canCreate) && (
-                  <Button variant="contained" onClick={handleSave}
-                    disabled={saving || !isFormValid}
-                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                    sx={{ minWidth: 140 }}>
-                    {saving ? 'Saving...' : editTarget ? 'Update Reading' : 'Save Reading'}
-                  </Button>
-                )}
-              </Stack>
+                  {states.length > 1 && (
+                    <Paper variant="outlined" sx={{ p: 2, mt: 2, borderRadius: 2, backgroundColor: 'action.hover' }}>
+                      <Typography variant="caption" color="text.secondary">Plant total for {logDate} (sum of the cards above)</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>{plantTotal.toFixed(2)} MWh</Typography>
+                    </Paper>
+                  )}
+
+                  <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
+                    <Button variant="contained" onClick={handleSaveAll} disabled={saving || !canSaveAll}
+                      startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />} sx={{ minWidth: 160 }}>
+                      {saving ? 'Saving...' : dirtyCount > 1 ? `Save ${dirtyCount} Readings` : 'Save Reading'}
+                    </Button>
+                    {dirtyCount > 0 && !saving && (
+                      <Button variant="outlined" onClick={() => setInputs({})}>Reset</Button>
+                    )}
+                  </Stack>
+                </>
+              )}
             </CardContent>
           </Card>
         </Grid>
 
-        {/* ── Right: Records ── */}
-        <Grid size={{ xs: 12, lg: 6 }}>
+        {/* ── Right: logged readings ── */}
+        <Grid size={{ xs: 12, lg: 5 }}>
           <Card>
             <CardHeader
               title={
                 <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
                   <History sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
                   <Typography sx={{ fontWeight: 700 }}>Logged Readings</Typography>
+                  {loadingRecords && <CircularProgress size={14} />}
                 </Stack>
               }
             />
             <Divider />
             <CardContent>
-              <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                <FormControl size="small" fullWidth>
-                  <InputLabel>Plant</InputLabel>
-                  <Select label="Plant" value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} disabled={plantLocked}>
-                    <MenuItem value="">Select plant…</MenuItem>
-                    {availablePlants.map((p: PowerPlant) => (
-                      <MenuItem key={p.id} value={p.plantCode}>{p.plantName} ({p.classificationType})</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Button variant="outlined" size="small"
-                  startIcon={loadingRecords ? <CircularProgress size={14} /> : <Search />}
-                  onClick={fetchRecords} disabled={!filterPlant || loadingRecords}>
-                  {loadingRecords ? 'Loading...' : 'Load'}
-                </Button>
-              </Stack>
-
               {recordsError && <Alert severity="error" onClose={() => setRecordsError(null)} sx={{ mb: 1.5 }}>{recordsError}</Alert>}
-
-              {records.length === 0 && !loadingRecords ? (
+              {sortedRecords.length === 0 && !loadingRecords ? (
                 <Box sx={{ textAlign: 'center', py: 4 }}>
                   <ElectricMeter sx={{ fontSize: '2rem', color: 'text.disabled', mb: 1 }} />
                   <Typography variant="body2" color="text.secondary">
-                    {filterPlant ? 'No records found.' : 'Select a plant and click Load.'}
+                    {plantCode ? 'No records found.' : 'Select a plant to see its readings.'}
                   </Typography>
                 </Box>
               ) : (
-                <TableContainer sx={{ maxHeight: 540 }}>
+                <TableContainer sx={{ maxHeight: 620 }}>
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow>
                         <TableCell>Date</TableCell>
+                        <TableCell>Transformer</TableCell>
                         <TableCell>Current</TableCell>
                         <TableCell>Diff</TableCell>
-                        <TableCell>Progressive</TableCell>
+                        <TableCell>Progr.</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {records.map((row) => (
-                        <TableRow key={row.id} data-record-id={row.id} selected={editTarget?.id === row.id} hover>
+                      {sortedRecords.map((row) => (
+                        <TableRow key={row.id} data-record-id={row.id} selected={dateOnly(row.logDate) === logDate} hover>
+                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{dateOnly(row.logDate)}</Typography></TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2">{row.currentReading.toFixed(1)}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" color={row.difference < 0 ? 'error.main' : 'text.primary'}>
-                              {row.difference.toFixed(1)}
+                            <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
+                              {row.transformerName || row.transformerCode || 'Plant (legacy)'}
                             </Typography>
                           </TableCell>
+                          <TableCell><Typography variant="body2">{row.currentReading.toFixed(1)}</Typography></TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.progressiveTotal.toFixed(1)}</Typography>
+                            <Typography variant="body2" color={row.difference < 0 ? 'error.main' : 'text.primary'}>{row.difference.toFixed(1)}</Typography>
                           </TableCell>
+                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.progressiveTotal.toFixed(1)}</Typography></TableCell>
                           <TableCell align="right">
                             {canEdit && (
-                              <Tooltip title="Edit">
-                                <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
+                              <Tooltip title="Open this date to edit">
+                                <IconButton size="small" color="primary" onClick={() => setLogDate(dateOnly(row.logDate))}>
                                   <Edit fontSize="small" />
                                 </IconButton>
                               </Tooltip>
@@ -404,7 +412,7 @@ export default function DailyStationEnergyConsumptionPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Reading"
-        message={`Delete station energy consumption record for ${deleteTarget?.plantCode} on ${deleteTarget?.logDate?.split('T')[0]}? This will recompute progressive totals for any later readings.`}
+        message={`Delete the ${deleteTarget?.transformerName || deleteTarget?.transformerCode || 'plant-level'} reading for ${deleteTarget?.plantCode} on ${deleteTarget ? dateOnly(deleteTarget.logDate) : ''}? Later readings of the same transformer will be recomputed.`}
         confirmLabel="Delete" loading={deleting}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}
       />

@@ -48,5 +48,7 @@ export interface UpdateDailyEnergyGenerationThermalDto {
 // "Gas/DFO" → ['Gas', 'DFO']
 export const parseFuelOptions = (fuelType: string): string[] => {
   if (!fuelType) return [];
+  // Steam turbines burn no fuel directly: one card, labelled 'Steam'
+  if (fuelType.trim().toLowerCase() === 'none') return ['Steam'];
   return fuelType.split('/').map(f => f.trim()).filter(Boolean);
 };

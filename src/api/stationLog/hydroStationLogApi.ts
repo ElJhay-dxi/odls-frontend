@@ -1,3 +1,4 @@
+import type { StationServiceRow } from '../../types/stationService';
 import type { CarryOverOptions, StationLogHistoryItem, StationLogHistoryFilters } from '../../types/stationLogCarryOver';
 import axiosInstance from '../axiosInstance';
 import type {
@@ -20,6 +21,14 @@ const BASE = '/hydrostationlogs';
 export const hydroStationLogApi = {
   getAll: (params?: { plantCode?: string; date?: string }) =>
     axiosInstance.get<HydroStationLog[]>(BASE, { params }),
+
+  getStationService: (logId: string) =>
+    axiosInstance.get<StationServiceRow[]>(`${BASE}/${logId}/stationservice`),
+
+  saveStationService: (logId: string, rows: StationServiceRow[]) =>
+    axiosInstance.post<StationServiceRow[]>(`${BASE}/${logId}/stationservice/save-all`, {
+      rows: rows.map((r) => ({ equipmentCode: r.equipmentCode, equipmentName: r.equipmentName, status: r.status, remarks: r.remarks || null })),
+    }),
 
   downloadPdf: (id: string) =>
     axiosInstance.get<Blob>(`${BASE}/${id}/pdf`, { responseType: 'blob' }),
@@ -122,6 +131,7 @@ export const hydroStationLogApi = {
       permitTypeName: data.permitTypeName || null,
       permitNumber: data.permitNumber || null,
       workOrderNumber: data.workOrderNumber || null,
+      eamNumber: data.eamNumber || null,
       permitHolder: data.permitHolder || null,
       workDescription: data.workDescription || null,
       startDate: data.startDate || null,
@@ -135,6 +145,7 @@ export const hydroStationLogApi = {
       permitTypeName: data.permitTypeName || null,
       permitNumber: data.permitNumber || null,
       workOrderNumber: data.workOrderNumber || null,
+      eamNumber: data.eamNumber || null,
       permitHolder: data.permitHolder || null,
       workDescription: data.workDescription || null,
       startDate: data.startDate || null,

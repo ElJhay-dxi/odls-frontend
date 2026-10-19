@@ -15,8 +15,15 @@ import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import type { PlantUnit, PlantUnitForm, UpdatePlantUnitForm, PowerPlant } from '../../types/masterData';
 import { useSectionPermissions } from '../../hooks/usePermission';
 
-const FUEL_CONFIGS = ['Single', 'Dual'];
-const FUEL_TYPES = ['Gas', 'LCO', 'DFO', 'Gas/LCO', 'Gas/DFO', 'Gas/DFO/LCO'];
+const FUEL_CONFIGS = ['Single', 'Dual', 'None'];
+const FUEL_TYPES = ['Gas', 'LCO', 'DFO', 'Gas/LCO', 'Gas/DFO', 'Gas/DFO/LCO', 'None'];
+const fuelLabel = (f: string) => (f === 'None' ? 'None (steam turbine)' : f);
+/** Choosing config None means no fuel, so the fuel type follows; leaving None clears it again. */
+const withConfig = <T extends { fuelConfiguration: string; fuelType: string }>(f: T, value: string): T => ({
+  ...f,
+  fuelConfiguration: value,
+  fuelType: value === 'None' ? 'None' : (f.fuelType === 'None' ? '' : f.fuelType),
+});
 const MEASUREMENT_UNITS = ['Metric', 'Imperial'];
 
 const emptyForm: PlantUnitForm = {
@@ -381,20 +388,20 @@ export default function PlantUnitPage() {
                     <InputLabel>Fuel Configuration</InputLabel>
                     <Select label="Fuel Configuration" value={activeForm.fuelConfiguration}
                       onChange={(e) => editTarget
-                        ? setUpdateForm({ ...updateForm, fuelConfiguration: e.target.value })
-                        : setForm({ ...form, fuelConfiguration: e.target.value })}>
-                      {FUEL_CONFIGS.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
+                        ? setUpdateForm(withConfig(updateForm, e.target.value))
+                        : setForm(withConfig(form, e.target.value))}>
+                      {FUEL_CONFIGS.map((f) => <MenuItem key={f} value={f}>{fuelLabel(f)}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth>
                     <InputLabel>Fuel Type</InputLabel>
-                    <Select label="Fuel Type" value={activeForm.fuelType}
+                    <Select label="Fuel Type" value={activeForm.fuelType} disabled={activeForm.fuelConfiguration === 'None'}
                       onChange={(e) => editTarget
                         ? setUpdateForm({ ...updateForm, fuelType: e.target.value })
                         : setForm({ ...form, fuelType: e.target.value })}>
-                      {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{f}</MenuItem>)}
+                      {FUEL_TYPES.map((f) => <MenuItem key={f} value={f}>{fuelLabel(f)}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </Grid>

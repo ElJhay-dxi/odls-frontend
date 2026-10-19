@@ -11,12 +11,16 @@ import {
   Assignment, CheckCircle, LocalFireDepartment, TableChart, GasMeter,
   History, PictureAsPdf,
 } from '@mui/icons-material';
-import { useEffect, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { savePdfResponse } from '../../utils/downloadPdf';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import CarryOverDialog from '../../components/stationLog/CarryOverDialog';
+import type { ThermalAmbientRow } from '../../types/thermalStationLog';
+import PendingNumberCell from '../../components/stationLog/PendingNumberCell';
+import StationServiceEditor from '../../components/stationLog/StationServiceEditor';
+import type { StationServiceRow } from '../../types/stationService';
 import StationLogHistoryDialog from '../../components/stationLog/StationLogHistoryDialog';
 import PersonAutocomplete from '../../components/lab/PersonAutocomplete';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
@@ -312,7 +316,8 @@ export default function ThermalStationLogPage() {
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedBuses, setSelectedBuses] = useState<string[]>([]);
   const [currentOutputMw, setCurrentOutputMw] = useState('');
-  const [selectedSST, setSelectedSST] = useState<string[]>([]);
+  const [ssRows, setSsRows] = useState<StationServiceRow[]>([]);
+  const savedSsRef = useRef<StationServiceRow[]>([]);
   const [headerTextForm, setHeaderTextForm] = useState<Record<TextFieldKey, string>>({
     fireProtectionStatus: '',
     emergencyDieselGenStatus: '', applicationForOutage: '', miscNotes: '',
@@ -411,6 +416,10 @@ export default function ThermalStationLogPage() {
   const [ambientPressureMbar, setAmbientPressureMbar] = useState('');
   const [relativeHumidityPct, setRelativeHumidityPct] = useState('');
   const [ambientCollapsed, setAmbientCollapsed] = useState(false);
+  // Ambient conditions are recorded per unit. Edits are kept by unit code until saved.
+  type AmbientCell = { t: string; p: string; h: string };
+  const [ambientSaved, setAmbientSaved] = useState<ThermalAmbientRow[] | null>(null);
+  const [ambientEdits, setAmbientEdits] = useState<Record<string, AmbientCell>>({});
 
   // End of Day Summary
   const [summaryEditing, setSummaryEditing] = useState(false);
@@ -640,11 +649,64 @@ export default function ThermalStationLogPage() {
     arr.findIndex((e) => e.equipmentCode === eq.equipmentCode) === idx
   );
 
+  // Station service transformers (TSS) with their statuses. Older logs only have the saved codes - show those as In Service.
+  useEffect(() => {
+    if (!log?.id) { savedSsRef.current = []; setSsRows([]); return; }
+    let cancelled = false;
+    thermalStationLogApi.getStationService(log.id).then((res) => {
+      if (cancelled) return;
+      let rows = res.data;
+      if (rows.length === 0 && log.stationService) {
+        rows = toArray(log.stationService).map((code) => ({
+          equipmentCode: code,
+          equipmentName: allTransformerEquipments.find((e) => e.equipmentCode === code)?.equipmentName ?? code,
+          status: 'In Service', remarks: '',
+        }));
+      }
+      savedSsRef.current = rows; setSsRows(rows);
+    }).catch(() => { /* leave as is */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [log?.id]);
+
+  // Ambient conditions per unit
+  useEffect(() => {
+    setAmbientEdits({});
+    if (!log?.id) { setAmbientSaved(null); return; }
+    let cancelled = false;
+    thermalStationLogApi.getAmbient(log.id).then((res) => { if (!cancelled) setAmbientSaved(res.data); })
+      .catch(() => { if (!cancelled) setAmbientSaved([]); });
+    return () => { cancelled = true; };
+  }, [log?.id]);
+
+  // One row per unit of the plant (plus any saved unit that is no longer in master data).
+  // Logs written before per-unit readings existed show their single reading against every unit until saved.
+  const ambientRows = (() => {
+    const fmt = (v?: number | null) => (v == null ? '' : String(v));
+    const legacy = ambientSaved && ambientSaved.length === 0 && log
+      ? { t: fmt(log.ambientTempC), p: fmt(log.ambientPressureMbar), h: fmt(log.relativeHumidityPct) }
+      : { t: '', p: '', h: '' };
+    const codes = plantUnits.map((u) => ({ code: u.unitCode, name: u.unitName }));
+    (ambientSaved ?? []).forEach((r) => { if (!codes.some((c) => c.code === r.unitCode)) codes.push({ code: r.unitCode, name: r.unitName }); });
+    return codes.map((c) => {
+      const saved = (ambientSaved ?? []).find((r) => r.unitCode === c.code);
+      const cell: AmbientCell = ambientEdits[c.code]
+        ?? (saved ? { t: fmt(saved.airTempC), p: fmt(saved.airPressureMbar), h: fmt(saved.relativeHumidityPct) } : legacy);
+      return { ...c, ...cell };
+    });
+  })();
+  const setAmbientCell = (code: string, field: keyof AmbientCell, value: string) =>
+    setAmbientEdits((prev) => {
+      const row = ambientRows.find((r) => r.code === code);
+      const base = prev[code] ?? { t: row?.t ?? '', p: row?.p ?? '', h: row?.h ?? '' };
+      return { ...prev, [code]: { ...base, [field]: value } };
+    });
+
   const populateHeader = (data: ThermalStationLog) => {
     setSelectedUnits(toArray(data.unitsInService));
     setSelectedBuses(toArray(data.linesInService));
     setCurrentOutputMw(data.currentOutputMw?.toString() ?? '');
-    setSelectedSST(toArray(data.stationService));
+    setSsRows(savedSsRef.current);
     setHeaderTextForm({
       fireProtectionStatus: data.fireProtectionStatus ?? '',
       emergencyDieselGenStatus: data.emergencyDieselGenStatus ?? '',
@@ -816,9 +878,11 @@ export default function ThermalStationLogPage() {
         unitsInService: toStr(selectedUnits),
         linesInService: toStr(selectedBuses),
         currentOutputMw: currentOutputMw || null,
-        stationService: toStr(selectedSST),
+        stationService: ssRows.map((r) => r.equipmentCode).join(', '),
         ...headerTextForm,
       }));
+      const saved = await thermalStationLogApi.saveStationService(log.id, ssRows);
+      savedSsRef.current = saved.data;
       setLog(res.data); populateHeader(res.data); setHeaderEditing(false);
     } catch { setHeaderError('Failed to save header.'); }
     finally { setSavingHeader(false); }
@@ -887,6 +951,19 @@ export default function ThermalStationLogPage() {
       setSafetyDocForm(emptySafetyDoc); setShowSafetyDocForm(false);
     } catch { setSafetyDocError('Failed to save safety document.'); }
     finally { setSavingSafetyDoc(false); }
+  };
+
+  // Fill in a work order / EAM number that was not known when the document was entered
+  const quickSetSafetyDocNumber = async (doc: NonNullable<typeof log>['safetyDocs'][number], field: 'workOrderNumber' | 'eamNumber', value: string) => {
+    if (!log) return;
+    const res = await thermalStationLogApi.updateSafetyDoc(log.id, doc.id, {
+      safetyDocTypeCode: doc.safetyDocTypeCode ?? '', safetyDocTypeName: doc.safetyDocTypeName ?? '',
+      docNumber: doc.docNumber ?? '', workOrderNumber: doc.workOrderNumber ?? '', eamNumber: doc.eamNumber ?? '',
+      permitHolder: doc.permitHolder ?? '', workDescription: doc.workDescription ?? '',
+      startDate: doc.startDate?.split('T')[0] ?? '', completionDate: doc.completionDate ?? '', sortOrder: doc.sortOrder,
+      [field]: value,
+    });
+    setLog((p) => p ? { ...p, safetyDocs: p.safetyDocs.map((d) => d.id === doc.id ? res.data : d) } : p);
   };
 
   const handleDeleteSafetyDoc = async () => {
@@ -1059,8 +1136,12 @@ export default function ThermalStationLogPage() {
     if (!log) return;
     setSavingHeader(true);
     try {
-      const res = await thermalStationLogApi.update(log.id, buildUpdatePayload());
-      setLog(res.data);
+      const num = (s: string) => (s.trim() === '' ? null : Number(s));
+      const rows: ThermalAmbientRow[] = ambientRows
+        .filter((r) => r.t.trim() !== '' || r.p.trim() !== '' || r.h.trim() !== '')
+        .map((r) => ({ unitCode: r.code, unitName: r.name, airTempC: num(r.t), airPressureMbar: num(r.p), relativeHumidityPct: num(r.h) }));
+      const res = await thermalStationLogApi.saveAmbient(log.id, rows);
+      setAmbientSaved(res.data); setAmbientEdits({});
     } catch { setHeaderError('Failed to save ambient conditions.'); }
     finally { setSavingHeader(false); }
   };
@@ -1972,26 +2053,10 @@ export default function ThermalStationLogPage() {
                     </Grid>
                   )}
 
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    {headerEditing ? renderMultiSelect(
-                      'Station Service',
-                      allTransformerEquipments.map((eq) => ({ value: eq.equipmentCode, label: `${eq.equipmentName} (${eq.groupLabel})` })),
-                      selectedSST, setSelectedSST, allTransformerEquipments.length === 0,
-                    ) : (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary"
-                          sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                          Station Service
-                        </Typography>
-                        <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }} useFlexGap>
-                          {toArray(log.stationService).length > 0
-                            ? toArray(log.stationService).map((code) => (
-                              <Chip key={code} label={allTransformerEquipments.find(e => e.equipmentCode === code)?.equipmentName ?? code} size="small" color="warning" variant="outlined" />
-                            ))
-                            : <Typography variant="body2" sx={{ fontStyle: 'italic', color: '#999' }}>Not specified</Typography>}
-                        </Stack>
-                      </Box>
-                    )}
+                  <Grid size={{ xs: 12 }}>
+                    <StationServiceEditor
+                      options={allTransformerEquipments.map((eq) => ({ equipmentCode: eq.equipmentCode, equipmentName: eq.equipmentName, groupLabel: eq.groupLabel }))}
+                      rows={ssRows} onChange={setSsRows} editing={headerEditing} />
                   </Grid>
 
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -2436,6 +2501,16 @@ export default function ThermalStationLogPage() {
                     </Stack>
                   </Paper>
                 )}
+                {(() => {
+                  const wo = log.safetyDocs.filter((d) => !d.workOrderNumber?.trim()).length;
+                  const eam = log.safetyDocs.filter((d) => !d.eamNumber?.trim()).length;
+                  if (wo + eam === 0) return null;
+                  return (
+                    <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>
+                      Awaiting numbers:{wo > 0 ? ` ${wo} work order #` : ''}{wo > 0 && eam > 0 ? ',' : ''}{eam > 0 ? ` ${eam} EAM #` : ''}. Click a "pending" tag to enter it.
+                    </Alert>
+                  );
+                })()}
                 {log.safetyDocs.length === 0 && !showSafetyDocForm
                   ? <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2, fontStyle: 'italic' }}>No safety documents in effect.</Typography>
                   : (
@@ -2462,8 +2537,8 @@ export default function ThermalStationLogPage() {
                                 : <Typography variant="caption" color="text.disabled">—</Typography>}
                             </TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{doc.docNumber ?? '—'}</TableCell>
-                            <TableCell sx={{ fontSize: 12 }}>{doc.workOrderNumber ?? '—'}</TableCell>
-                            <TableCell sx={{ fontSize: 12 }}>{doc.eamNumber ?? '—'}</TableCell>
+                            <TableCell sx={{ fontSize: 12 }}><PendingNumberCell value={doc.workOrderNumber} label="WO" canEdit={canEdit} onSave={(v) => quickSetSafetyDocNumber(doc, 'workOrderNumber', v)} /></TableCell>
+                            <TableCell sx={{ fontSize: 12 }}><PendingNumberCell value={doc.eamNumber} label="EAM" canEdit={canEdit} onSave={(v) => quickSetSafetyDocNumber(doc, 'eamNumber', v)} /></TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{doc.permitHolder ?? '—'}</TableCell>
                             <TableCell sx={{ fontSize: 12, maxWidth: 200 }}>{doc.workDescription ?? '—'}</TableCell>
                             <TableCell sx={{ fontSize: 12 }}>{doc.startDate ? new Date(doc.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</TableCell>
@@ -2743,17 +2818,29 @@ export default function ThermalStationLogPage() {
               </Box>
               <Collapse in={!ambientCollapsed}>
                 <CardContent>
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField label="Air Temperature" type="number" fullWidth size="small" value={ambientTempC} onChange={(e) => setAmbientTempC(e.target.value)} disabled={!canEdit} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">°C</Typography> } }} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField label="Air Pressure" type="number" fullWidth size="small" value={ambientPressureMbar} onChange={(e) => setAmbientPressureMbar(e.target.value)} disabled={!canEdit} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">mbar</Typography> } }} />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField label="Relative Humidity" type="number" fullWidth size="small" value={relativeHumidityPct} onChange={(e) => setRelativeHumidityPct(e.target.value)} disabled={!canEdit} slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">%RH</Typography> } }} />
-                    </Grid>
-                  </Grid>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 700 }}>Unit</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Air Temperature (°C)</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Air Pressure (mbar)</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Relative Humidity (%RH)</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {ambientRows.length === 0 && (
+                        <TableRow><TableCell colSpan={4}><Typography variant="body2" sx={{ fontStyle: 'italic', color: '#999' }}>No units found for this plant.</Typography></TableCell></TableRow>
+                      )}
+                      {ambientRows.map((r) => (
+                        <TableRow key={r.code}>
+                          <TableCell>{r.name} ({r.code})</TableCell>
+                          <TableCell><TextField type="number" size="small" fullWidth value={r.t} onChange={(e) => setAmbientCell(r.code, 't', e.target.value)} disabled={!canEdit} /></TableCell>
+                          <TableCell><TextField type="number" size="small" fullWidth value={r.p} onChange={(e) => setAmbientCell(r.code, 'p', e.target.value)} disabled={!canEdit} /></TableCell>
+                          <TableCell><TextField type="number" size="small" fullWidth value={r.h} onChange={(e) => setAmbientCell(r.code, 'h', e.target.value)} disabled={!canEdit} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                   {headerError && <Alert severity="error" onClose={() => setHeaderError(null)} sx={{ mt: 1.5 }}>{headerError}</Alert>}
                   {canEdit && (
                     <Button size="small" variant="contained" sx={{ mt: 2, backgroundColor: '#0277BD' }} onClick={handleSaveAmbientConditions} disabled={savingHeader} startIcon={savingHeader ? <CircularProgress size={14} color="inherit" /> : <Save />}>

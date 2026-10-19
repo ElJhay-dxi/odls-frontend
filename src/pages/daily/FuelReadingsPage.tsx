@@ -39,6 +39,8 @@ const NOT_CONFIGURED_MESSAGE =
 interface SectionBaseProps {
   plantCode: string;
   logDate: string;
+  /** Gas reading slot picked beside plant and date (00:00 or 05:00); only the gas sections use it */
+  logTime?: string;
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -84,10 +86,16 @@ function NotConfiguredNote() {
   );
 }
 
+/** Sort/compare key for a gas reading: date + time (missing time counts as 00:00) */
+const readingKey = (r: { logDate: string; logTime?: string | null }) =>
+  `${r.logDate.split('T')[0]} ${r.logTime || '00:00'}`;
+
+const GAS_READING_TIMES = ['00:00', '05:00'];
+
 // ─── Natural Gas (Turbine) ──────────────────────────────────────────────────
 
 function GasTurbineSection({
-  plantCode, logDate, units, canCreate, canEdit, canDelete, configured, collapsed, onToggle,
+  plantCode, logDate, logTime = '00:00', units, canCreate, canEdit, canDelete, configured, collapsed, onToggle,
 }: UnitSectionProps) {
   const accentColor = '#4A148C';
 
@@ -122,13 +130,13 @@ function GasTurbineSection({
     dailyNaturalGasTurbineApi.getAll({ plantCode, unitCode: gasTurbineUnitCode })
       .then((res) => {
         const prior = res.data
-          .filter((r) => r.logDate.split('T')[0] < logDate)
+          .filter((r) => (r.logTime || '00:00') === logTime && r.logDate.split('T')[0] < logDate)
           .sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
         setGasTurbinePriorRecord(prior ?? null);
       })
       .catch(() => setGasTurbinePriorRecord(null))
       .finally(() => setGasTurbineLoadingPrior(false));
-  }, [plantCode, gasTurbineUnitCode, logDate, gasTurbineEditTarget]);
+  }, [plantCode, gasTurbineUnitCode, logDate, logTime, gasTurbineEditTarget]);
 
   const fetchGasTurbineRecords = useCallback(async () => {
     if (!plantCode) { setGasTurbineRecords([]); return; }
@@ -136,7 +144,7 @@ function GasTurbineSection({
     setGasTurbineRecordsError(null);
     try {
       const res = await dailyNaturalGasTurbineApi.getAll({ plantCode, unitCode: gasTurbineFilterUnit || undefined });
-      setGasTurbineRecords(res.data.sort((a, b) => b.logDate.localeCompare(a.logDate)));
+      setGasTurbineRecords(res.data.sort((a, b) => readingKey(b).localeCompare(readingKey(a))));
     } catch {
       setGasTurbineRecordsError('Failed to load records.');
     } finally {
@@ -183,7 +191,7 @@ function GasTurbineSection({
     try {
       if (gasTurbineEditTarget) {
         await dailyNaturalGasTurbineApi.update(gasTurbineEditTarget.id, {
-          logTime: gasTurbineUpdateForm.logTime || undefined,
+          logTime: gasTurbineEditTarget.logTime || undefined,
           currentReading: Number(gasTurbineUpdateForm.currentReading),
           heatingValue: Number(gasTurbineUpdateForm.heatingValue),
         });
@@ -191,7 +199,7 @@ function GasTurbineSection({
       } else {
         await dailyNaturalGasTurbineApi.create({
           plantCode, unitCode: gasTurbineUnitCode,
-          logDate, logTime: gasTurbineForm.logTime || undefined,
+          logDate, logTime,
           currentReading: Number(gasTurbineForm.currentReading),
           heatingValue: Number(gasTurbineForm.heatingValue),
         });
@@ -269,13 +277,9 @@ function GasTurbineSection({
                     </FormControl>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Log Time" type="time" fullWidth
-                      value={gasTurbineEditTarget ? (gasTurbineUpdateForm.logTime ?? '') : gasTurbineForm.logTime}
-                      onChange={(e) => {
-                        if (gasTurbineEditTarget) setGasTurbineUpdateForm((prev) => ({ ...prev, logTime: e.target.value }));
-                        else setGasTurbineForm((prev) => ({ ...prev, logTime: e.target.value }));
-                      }}
-                      slotProps={{ inputLabel: { shrink: true } }}
+                    <TextField label="Reading Time" fullWidth disabled
+                      value={gasTurbineEditTarget ? (gasTurbineEditTarget.logTime || '00:00') : logTime}
+                      helperText="Chosen beside plant and date"
                     />
                   </Grid>
                 </Grid>
@@ -290,7 +294,7 @@ function GasTurbineSection({
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField label="Previous Reading" fullWidth disabled
                       value={gasTurbineLoadingPrior ? '…' : previewPrevious.toFixed(2)}
-                      helperText="Auto-carried from prior day (same plant + unit)"
+                      helperText="Auto-carried from the previous day's reading at the same time (same unit)"
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -401,7 +405,7 @@ function GasTurbineSection({
                     <TableBody>
                       {gasTurbineRecords.map((row) => (
                         <TableRow key={row.id} data-record-id={row.id} selected={gasTurbineEditTarget?.id === row.id} hover>
-                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography></TableCell>
+                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography><Typography variant="caption" color="text.secondary">{row.logTime || '00:00'}</Typography></TableCell>
                           <TableCell><Chip label={row.unitCode} size="small" variant="outlined" sx={{ fontWeight: 700 }} /></TableCell>
                           <TableCell><Typography variant="body2">{row.difference.toFixed(1)}</Typography></TableCell>
                           <TableCell><Typography variant="body2">{row.consumptionMMscf.toFixed(4)}</Typography></TableCell>
@@ -447,7 +451,7 @@ function GasTurbineSection({
 // ─── Natural Gas (Flow Computer) ────────────────────────────────────────────
 
 function FlowComputerSection({
-  plantCode, logDate, units, canCreate, canEdit, canDelete, configured, collapsed, onToggle,
+  plantCode, logDate, logTime = '00:00', units, canCreate, canEdit, canDelete, configured, collapsed, onToggle,
 }: UnitSectionProps) {
   const accentColor = '#6A1B9A';
 
@@ -482,13 +486,13 @@ function FlowComputerSection({
     dailyNaturalGasChromatographApi.getAll({ plantCode, unitCode: flowComputerUnitCode })
       .then((res) => {
         const prior = res.data
-          .filter((r) => r.logDate.split('T')[0] < logDate)
+          .filter((r) => (r.logTime || '00:00') === logTime && r.logDate.split('T')[0] < logDate)
           .sort((a, b) => b.logDate.localeCompare(a.logDate))[0];
         setFlowComputerPriorRecord(prior ?? null);
       })
       .catch(() => setFlowComputerPriorRecord(null))
       .finally(() => setFlowComputerLoadingPrior(false));
-  }, [plantCode, flowComputerUnitCode, logDate, flowComputerEditTarget]);
+  }, [plantCode, flowComputerUnitCode, logDate, logTime, flowComputerEditTarget]);
 
   const fetchFlowComputerRecords = useCallback(async () => {
     if (!plantCode) { setFlowComputerRecords([]); return; }
@@ -496,7 +500,7 @@ function FlowComputerSection({
     setFlowComputerRecordsError(null);
     try {
       const res = await dailyNaturalGasChromatographApi.getAll({ plantCode, unitCode: flowComputerFilterUnit || undefined });
-      setFlowComputerRecords(res.data.sort((a, b) => b.logDate.localeCompare(a.logDate)));
+      setFlowComputerRecords(res.data.sort((a, b) => readingKey(b).localeCompare(readingKey(a))));
     } catch {
       setFlowComputerRecordsError('Failed to load records.');
     } finally {
@@ -534,7 +538,7 @@ function FlowComputerSection({
     try {
       if (flowComputerEditTarget) {
         await dailyNaturalGasChromatographApi.update(flowComputerEditTarget.id, {
-          logTime: flowComputerUpdateForm.logTime || undefined,
+          logTime: flowComputerEditTarget.logTime || undefined,
           readingMMscf: Number(flowComputerUpdateForm.readingMMscf),
           heatingValue: Number(flowComputerUpdateForm.heatingValue),
         });
@@ -542,7 +546,7 @@ function FlowComputerSection({
       } else {
         await dailyNaturalGasChromatographApi.create({
           plantCode, unitCode: flowComputerUnitCode,
-          logDate, logTime: flowComputerForm.logTime || undefined,
+          logDate, logTime,
           readingMMscf: Number(flowComputerForm.readingMMscf),
           heatingValue: Number(flowComputerForm.heatingValue),
         });
@@ -620,13 +624,9 @@ function FlowComputerSection({
                     </FormControl>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField label="Log Time" type="time" fullWidth
-                      value={flowComputerEditTarget ? (flowComputerUpdateForm.logTime ?? '') : flowComputerForm.logTime}
-                      onChange={(e) => {
-                        if (flowComputerEditTarget) setFlowComputerUpdateForm((prev) => ({ ...prev, logTime: e.target.value }));
-                        else setFlowComputerForm((prev) => ({ ...prev, logTime: e.target.value }));
-                      }}
-                      slotProps={{ inputLabel: { shrink: true } }}
+                    <TextField label="Reading Time" fullWidth disabled
+                      value={flowComputerEditTarget ? (flowComputerEditTarget.logTime || '00:00') : logTime}
+                      helperText="Chosen beside plant and date"
                     />
                   </Grid>
                 </Grid>
@@ -746,7 +746,7 @@ function FlowComputerSection({
                     <TableBody>
                       {flowComputerRecords.map((row) => (
                         <TableRow key={row.id} data-record-id={row.id} selected={flowComputerEditTarget?.id === row.id} hover>
-                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography></TableCell>
+                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.logDate.split('T')[0]}</Typography><Typography variant="caption" color="text.secondary">{row.logTime || '00:00'}</Typography></TableCell>
                           <TableCell><Chip label={row.unitCode} size="small" variant="outlined" sx={{ fontWeight: 700 }} /></TableCell>
                           <TableCell><Typography variant="body2">{row.readingMMscf.toFixed(4)}</Typography></TableCell>
                           <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.progressiveTotal.toFixed(4)}</Typography></TableCell>
@@ -1407,6 +1407,7 @@ export default function FuelReadingsPage() {
 
   const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
   const [selectedDate, setSelectedDate] = useState(deepLink.date ?? today);
+  const [selectedTime, setSelectedTime] = useState(GAS_READING_TIMES[0]);
 
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
@@ -1436,6 +1437,8 @@ export default function FuelReadingsPage() {
   }, [selectedPlant]);
 
   const fuelTypeStr = plantUnits.map((u) => u.fuelType ?? '').join('/');
+  // Gas sections only list units that burn gas - steam turbines (fuel "None") and oil-only units are left out
+  const gasUnits = plantUnits.filter((u) => !u.fuelType || u.fuelType.includes('Gas'));
   const gasConfigured = fuelTypeStr.includes('Gas');
   const lcoConfigured = fuelTypeStr.includes('LCO');
   const dfoConfigured = fuelTypeStr.includes('DFO');
@@ -1474,7 +1477,7 @@ export default function FuelReadingsPage() {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-            <Grid size={{ xs: 12, sm: 5 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <FormControl fullWidth required disabled={plantLocked}>
                 <InputLabel>Power Plant</InputLabel>
                 <Select label="Power Plant" value={selectedPlant} onChange={(e) => setSelectedPlant(e.target.value)}>
@@ -1484,12 +1487,20 @@ export default function FuelReadingsPage() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <TextField label="Log Date" type="date" fullWidth required
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 2 }}>
+              <FormControl fullWidth required>
+                <InputLabel>Gas Reading</InputLabel>
+                <Select label="Gas Reading" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)}>
+                  {GAS_READING_TIMES.map((t) => <MenuItem key={t} value={t}>{t} hrs</MenuItem>)}
+                </Select>
+              </FormControl>
             </Grid>
             {loadingUnits && (
               <Grid size={{ xs: 12, sm: 3 }}>
@@ -1512,30 +1523,43 @@ export default function FuelReadingsPage() {
         </Box>
       ) : (
         <>
-          <GasTurbineSection
-            plantCode={selectedPlant} logDate={selectedDate} units={plantUnits}
-            canCreate={canCreate} canEdit={canEdit} canDelete={canDelete}
-            configured={gasConfigured} collapsed={gasTurbineCollapsed}
-            onToggle={() => setGasTurbineCollapsed((p) => !p)}
-          />
-          <FlowComputerSection
-            plantCode={selectedPlant} logDate={selectedDate} units={plantUnits}
-            canCreate={canCreate} canEdit={canEdit} canDelete={canDelete}
-            configured={gasConfigured} collapsed={flowComputerCollapsed}
-            onToggle={() => setFlowComputerCollapsed((p) => !p)}
-          />
-          <LcoSection
-            plantCode={selectedPlant} logDate={selectedDate}
-            canCreate={canCreate} canEdit={canEdit} canDelete={canDelete}
-            configured={lcoConfigured} collapsed={lcoCollapsed}
-            onToggle={() => setLcoCollapsed((p) => !p)}
-          />
-          <DfoSection
-            plantCode={selectedPlant} logDate={selectedDate}
-            canCreate={canCreate} canEdit={canEdit} canDelete={canDelete}
-            configured={dfoConfigured} collapsed={dfoCollapsed}
-            onToggle={() => setDfoCollapsed((p) => !p)}
-          />
+          {!loadingUnits && !gasConfigured && !lcoConfigured && !dfoConfigured && (
+            <Alert severity="info">
+              None of this plant's units has a fuel type that needs readings here. Set the fuel type of its units in Master Data &rarr; Plant Units.
+            </Alert>
+          )}
+          {gasConfigured && (
+            <GasTurbineSection
+              plantCode={selectedPlant} logDate={selectedDate} logTime={selectedTime} units={gasUnits}
+              canCreate={canCreate} canEdit={canEdit} canDelete={canDelete}
+              configured={gasConfigured} collapsed={gasTurbineCollapsed}
+              onToggle={() => setGasTurbineCollapsed((p) => !p)}
+            />
+          )}
+          {gasConfigured && (
+            <FlowComputerSection
+              plantCode={selectedPlant} logDate={selectedDate} logTime={selectedTime} units={gasUnits}
+              canCreate={canCreate} canEdit={canEdit} canDelete={canDelete}
+              configured={gasConfigured} collapsed={flowComputerCollapsed}
+              onToggle={() => setFlowComputerCollapsed((p) => !p)}
+            />
+          )}
+          {lcoConfigured && (
+            <LcoSection
+              plantCode={selectedPlant} logDate={selectedDate}
+              canCreate={canCreate} canEdit={canEdit} canDelete={canDelete}
+              configured={lcoConfigured} collapsed={lcoCollapsed}
+              onToggle={() => setLcoCollapsed((p) => !p)}
+            />
+          )}
+          {dfoConfigured && (
+            <DfoSection
+              plantCode={selectedPlant} logDate={selectedDate}
+              canCreate={canCreate} canEdit={canEdit} canDelete={canDelete}
+              configured={dfoConfigured} collapsed={dfoCollapsed}
+              onToggle={() => setDfoCollapsed((p) => !p)}
+            />
+          )}
         </>
       )}
     </Box>

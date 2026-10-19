@@ -379,13 +379,13 @@ export default function ShiftLogPage() {
 
               {/* Remarks */}
               <TextField
-                label="Handover Remarks"
+                label="Notes"
                 value={editTarget ? updateForm.handoverRemarks : form.handoverRemarks}
                 onChange={(e) => editTarget
                   ? setUpdateForm((prev) => ({ ...prev, handoverRemarks: e.target.value }))
                   : setForm((prev) => ({ ...prev, handoverRemarks: e.target.value }))}
                 fullWidth multiline rows={2}
-                placeholder="Any brief remarks about the handover…"
+                placeholder="Any brief notes about the handover…"
               />
 
               <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>

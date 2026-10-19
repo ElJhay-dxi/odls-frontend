@@ -10,12 +10,17 @@ import {
   Save, Edit, Delete, Add, WaterDrop, ExpandMore, ExpandLess,
   Assignment, CheckCircle, TableChart, History, PictureAsPdf,
 } from '@mui/icons-material';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { savePdfResponse } from '../../utils/downloadPdf';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import CarryOverDialog from '../../components/stationLog/CarryOverDialog';
+import PendingNumberCell from '../../components/stationLog/PendingNumberCell';
+import StationServiceEditor, { type TransformerOption } from '../../components/stationLog/StationServiceEditor';
+import type { StationServiceRow } from '../../types/stationService';
+import { plantUnitEquipmentApi } from '../../api/masterData/plantUnitEquipmentApi';
+import { bopEquipmentApi } from '../../api/masterData/bopEquipmentApi';
 import StationLogHistoryDialog from '../../components/stationLog/StationLogHistoryDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
@@ -51,7 +56,6 @@ const emptyCondition = (): CreateConditionForm => ({
 });
 
 const TEXT_HEADER_FIELDS = [
-  { key: 'stationService',        label: 'Station Service' },
   { key: 'applicationsForOutage', label: 'Applications for Outage' },
   { key: 'miscNotes',             label: 'Miscellaneous Notes' },
 ] as const;
@@ -105,6 +109,9 @@ export default function HydroStationLogPage() {
     catch { setLoadError('Could not generate the PDF. Please try again.'); }
     finally { setPdfBusy(false); }
   };
+  const [ssRows, setSsRows] = useState<StationServiceRow[]>([]);
+  const savedSsRef = useRef<StationServiceRow[]>([]);
+  const [transformerOptions, setTransformerOptions] = useState<TransformerOption[]>([]);
   const [pendingEdit, setPendingEdit] = useState(false);
   const [carryNotice, setCarryNotice] = useState<string | null>(null);
 
@@ -216,7 +223,48 @@ export default function HydroStationLogPage() {
     }));
   }, [selectedUnits, plantUnits, unitOutputsLoads]);
 
+  // Transformers of this plant from master data (unit hierarchy + balance of plant)
+  useEffect(() => {
+    if (!selectedPlant) { setTransformerOptions([]); return; }
+    let cancelled = false;
+    Promise.allSettled([plantUnitEquipmentApi.getAll(), bopEquipmentApi.search(selectedPlant, 'transformer')]).then(([u, b]) => {
+      if (cancelled) return;
+      const unit: TransformerOption[] = u.status === 'fulfilled'
+        ? u.value.data
+          .filter((e) => e.plantCode === selectedPlant
+            && /transformer/i.test([e.unitName, e.systemName, e.subSystemName, e.equipmentName].filter(Boolean).join(' ')))
+          .map((e) => ({ equipmentCode: e.equipmentCode, equipmentName: e.equipmentName, groupLabel: [e.unitName, e.systemName, e.subSystemName].filter(Boolean).join(' / ') }))
+        : [];
+      const bop: TransformerOption[] = b.status === 'fulfilled'
+        ? b.value.data.map((e) => ({ equipmentCode: e.equipmentCode, equipmentName: e.equipmentName, groupLabel: e.groupLabel }))
+        : [];
+      setTransformerOptions([...unit, ...bop].filter((o, i, arr) => arr.findIndex((x) => x.equipmentCode === o.equipmentCode) === i));
+    });
+    return () => { cancelled = true; };
+  }, [selectedPlant]);
+
+  // Station service transformers (TSS) with their statuses. Older logs only have the saved text - shown as-is until re-saved.
+  useEffect(() => {
+    if (!log?.id) { savedSsRef.current = []; setSsRows([]); return; }
+    let cancelled = false;
+    hydroStationLogApi.getStationService(log.id).then((res) => {
+      if (cancelled) return;
+      let rows = res.data;
+      if (rows.length === 0 && log.stationService) {
+        rows = toArray(log.stationService).map((code) => ({
+          equipmentCode: code,
+          equipmentName: transformerOptions.find((e) => e.equipmentCode === code)?.equipmentName ?? code,
+          status: 'In Service', remarks: '',
+        }));
+      }
+      savedSsRef.current = rows; setSsRows(rows);
+    }).catch(() => { /* leave as is */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [log?.id]);
+
   const populateHeaderState = (data: HydroStationLog) => {
+    setSsRows(savedSsRef.current);
     setSelectedUnits(toArray(data.unitsInService));
     setSelectedBuses(toArray(data.linesInService));
     setHeaderTextForm({
@@ -300,6 +348,19 @@ export default function HydroStationLogPage() {
       setPermitForm(emptyPermitForm); setShowPermitForm(false);
     } catch { setPermitError('Failed to save permit.'); }
     finally { setSavingPermit(false); }
+  };
+
+  // Fill in a work order / EAM number that was not known when the permit was entered
+  const quickSetPermitNumber = async (permit: NonNullable<typeof log>['permits'][number], field: 'workOrderNumber' | 'eamNumber', value: string) => {
+    if (!log) return;
+    const res = await hydroStationLogApi.updatePermit(log.id, permit.id, {
+      permitTypeCode: permit.permitTypeCode ?? '', permitTypeName: permit.permitTypeName ?? '', permitNumber: permit.permitNumber ?? '',
+      workOrderNumber: permit.workOrderNumber ?? '', eamNumber: permit.eamNumber ?? '', permitHolder: permit.permitHolder ?? '',
+      workDescription: permit.workDescription ?? '', startDate: permit.startDate?.split('T')[0] ?? '',
+      completionDate: permit.completionDate ?? '', sortOrder: permit.sortOrder,
+      [field]: value,
+    });
+    setLog((p) => p ? { ...p, permits: p.permits.map((d) => d.id === permit.id ? res.data : d) } : p);
   };
 
   const handleDeletePermit = async () => {
@@ -458,7 +519,9 @@ export default function HydroStationLogPage() {
     if (!log) return;
     setSavingHeader(true); setHeaderError(null);
     try {
-      const res = await hydroStationLogApi.update(log.id, buildHeaderPayload());
+      const res = await hydroStationLogApi.update(log.id, { ...buildHeaderPayload(), stationService: ssRows.map((r) => r.equipmentCode).join(', ') });
+      const saved = await hydroStationLogApi.saveStationService(log.id, ssRows);
+      savedSsRef.current = saved.data;
       setLog(res.data); populateHeaderState(res.data); setHeaderEditing(false);
     } catch { setHeaderError('Failed to save header.'); }
     finally { setSavingHeader(false); }
@@ -928,6 +991,9 @@ export default function HydroStationLogPage() {
                       </Box>
                     )}
                   </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <StationServiceEditor options={transformerOptions} rows={ssRows} onChange={setSsRows} editing={headerEditing} />
+                  </Grid>
                   {TEXT_HEADER_FIELDS.map((field) => (
                     <Grid key={field.key} size={{ xs: 12, sm: 6 }}>
                       {headerEditing ? (
@@ -1059,6 +1125,16 @@ export default function HydroStationLogPage() {
                     </Stack>
                   </Paper>
                 )}
+                {(() => {
+                  const wo = log.permits.filter((d) => !d.workOrderNumber?.trim()).length;
+                  const eam = log.permits.filter((d) => !d.eamNumber?.trim()).length;
+                  if (wo + eam === 0) return null;
+                  return (
+                    <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>
+                      Awaiting numbers:{wo > 0 ? ` ${wo} work order #` : ''}{wo > 0 && eam > 0 ? ',' : ''}{eam > 0 ? ` ${eam} EAM #` : ''}. Click a "pending" tag to enter it.
+                    </Alert>
+                  );
+                })()}
                 {log.permits.length === 0 && !showPermitForm ? (
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2, fontStyle: 'italic' }}>
                     No permits in effect.
@@ -1087,8 +1163,8 @@ export default function HydroStationLogPage() {
                               : <Typography variant="caption" color="text.disabled">—</Typography>}
                           </TableCell>
                           <TableCell sx={{ fontSize: 12 }}>{permit.permitNumber ?? '—'}</TableCell>
-                          <TableCell sx={{ fontSize: 12 }}>{permit.workOrderNumber ?? '—'}</TableCell>
-                          <TableCell sx={{ fontSize: 12 }}>{permit.eamNumber ?? '—'}</TableCell>
+                          <TableCell sx={{ fontSize: 12 }}><PendingNumberCell value={permit.workOrderNumber} label="WO" canEdit={canEdit} onSave={(v) => quickSetPermitNumber(permit, 'workOrderNumber', v)} /></TableCell>
+                          <TableCell sx={{ fontSize: 12 }}><PendingNumberCell value={permit.eamNumber} label="EAM" canEdit={canEdit} onSave={(v) => quickSetPermitNumber(permit, 'eamNumber', v)} /></TableCell>
                           <TableCell sx={{ fontSize: 12 }}>{permit.permitHolder ?? '—'}</TableCell>
                           <TableCell sx={{ fontSize: 12, maxWidth: 200 }}>{permit.workDescription ?? '—'}</TableCell>
                           <TableCell sx={{ fontSize: 12 }}>

@@ -3,6 +3,9 @@ export interface DailyStationEnergyConsumption {
   plantName: string;
   plantCode: string;
   classificationType: string;
+  /** Station service transformer (SST/TSS); empty for legacy plant-level readings */
+  transformerCode: string;
+  transformerName: string;
   logDate: string;
   previousReading: number;
   currentReading: number;

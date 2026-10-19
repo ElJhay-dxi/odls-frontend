@@ -433,3 +433,13 @@ export interface ThermalSectionTextEntry {
   updatedByName?: string;
   updatedOn?: string;
 }
+// ─── Ambient conditions, unit by unit ───────────────────────────────────────────
+export interface ThermalAmbientRow {
+  id?: string;
+  unitCode: string;
+  unitName: string;
+  airTempC?: number | null;
+  airPressureMbar?: number | null;
+  relativeHumidityPct?: number | null;
+  sortOrder?: number;
+}
