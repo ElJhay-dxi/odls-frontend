@@ -23,6 +23,7 @@ import type { HourlyThermalReading, CreateHourlyThermalReadingForm } from '../..
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 import { THERMAL_UNIT_STATUSES } from './unitStatusOptions';
+import { useHourlyExtraFields, ExtraFieldInput, ExtraFieldSections } from '../../components/hourly/HourlyExtraFields';
 
 type FormKey = keyof CreateHourlyThermalReadingForm;
 type NumericFormKey = Exclude<FormKey, 'plantCode' | 'unitCode' | 'logDate' | 'logHour' | 'remarks'>;
@@ -214,6 +215,12 @@ export default function HourlyThermalReadingPage() {
     }
   }, [form.plantCode, units]);
 
+  // Extra fields set up for this plant in Hourly Readings → Hourly Extra Fields (incl. all-thermal-plant fields).
+  const extra = useHourlyExtraFields('thermal',
+    editTarget ? editTarget.plantCode : form.plantCode,
+    editTarget ? editTarget.unitCode : form.unitCode,
+    !!editTarget);
+
   useEffect(() => {
     const code = editTarget ? editTarget.unitCode : form.unitCode;
     const plant = editTarget ? editTarget.plantCode : form.plantCode;
@@ -281,6 +288,7 @@ export default function HourlyThermalReadingPage() {
     setUpdateForm(populated);
     pendingMetalRows.current = row.bearingMetalReadings ?? [];
     pendingDrainRows.current = row.bearingDrainReadings ?? [];
+    extra.loadFrom(row.extraFieldValues);
     setForm((prev) => ({
       ...prev, plantCode: row.plantCode, unitCode: row.unitCode,
       logDate: row.logDate.split('T')[0], logHour: row.logHour,
@@ -292,6 +300,7 @@ export default function HourlyThermalReadingPage() {
     setMetalRows([]); setDrainRows([]);
     pendingMetalRows.current = null; pendingDrainRows.current = null;
     setUnitDown(false); setUnitStatus('');
+    extra.reset();
   };
 
   const toNum = (v: string | number | undefined) => v === '' || v === undefined ? undefined : Number(v);
@@ -316,6 +325,8 @@ export default function HourlyThermalReadingPage() {
 
   const handleSave = async () => {
     if (unitDown && !unitStatus.trim()) { setSaveError('Select or type the unit status.'); return; }
+    const missingExtra = extra.missingRequired(unitDown);
+    if (missingExtra.length > 0) { setSaveError(`Please fill in: ${missingExtra.join(', ')}.`); return; }
     setSaving(true); setSaveError(null); setSaveSuccess(false);
     const savedPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
     const savedUnitCode = editTarget ? editTarget.unitCode : form.unitCode;
@@ -327,9 +338,11 @@ export default function HourlyThermalReadingPage() {
       const bearingDrainReadings = drainRows
         .filter((r) => r.drainTemperature !== '' && !isNaN(Number(r.drainTemperature)))
         .map((r) => ({ drainCode: r.drainCode, drainTemperature: Number(r.drainTemperature) }));
+      // Every active extra field is sent (blank = cleared). Values of fields that no longer apply are left untouched by the API.
+      const extraFieldValues = extra.payload();
 
       if (editTarget) {
-        const payload: Record<string, unknown> = { bearingMetalReadings, bearingDrainReadings };
+        const payload: Record<string, unknown> = { bearingMetalReadings, bearingDrainReadings, extraFieldValues };
         numericFieldKeys.forEach((k) => { payload[k] = toNum(updateForm[k] as string); });
         payload.remarks = updateForm.remarks || undefined;
         payload.unitStatus = unitDown ? unitStatus.trim() : null;
@@ -339,7 +352,7 @@ export default function HourlyThermalReadingPage() {
         const payload: Record<string, unknown> = {
           plantCode: form.plantCode, unitCode: form.unitCode,
           logDate: form.logDate, logHour: Number(form.logHour),
-          bearingMetalReadings, bearingDrainReadings,
+          bearingMetalReadings, bearingDrainReadings, extraFieldValues,
         };
         numericFieldKeys.forEach((k) => { payload[k] = toNum(form[k] as string); });
         payload.remarks = form.remarks || undefined;
@@ -349,6 +362,7 @@ export default function HourlyThermalReadingPage() {
       }
       setMetalRows([]); setDrainRows([]);
       setUnitDown(false); setUnitStatus('');
+      extra.reset();
       setSaveSuccess(true);
       fetchRecords();
       checkMissingHours(savedPlantCode, savedUnitCode, savedLogDate);
@@ -380,6 +394,11 @@ export default function HourlyThermalReadingPage() {
     if (!hasSteamTurbine && section.title === 'Steam Turbine Generator (STG)') return false;
     return true;
   });
+
+  // Shared props for the extra-field inputs
+  const extraProps = {
+    state: extra, unitDown, unitSelected: !!currentUnitCode, savedValues: editTarget?.extraFieldValues,
+  };
 
   // ── Plant type guard ─────────────────────────────────────────────────────────
   if (isWrongPlantType) return (
@@ -538,11 +557,16 @@ export default function HourlyThermalReadingPage() {
                             />
                           </Grid>
                         ))}
+                        {extra.inSection(section.title).map((f) => <ExtraFieldInput key={f.id} field={f} {...extraProps} />)}
                       </Grid>
                     </Box>
                   </Collapse>
                 </Paper>
               ))}
+
+              {/* Extra fields in their own sections (Hourly Readings → Hourly Extra Fields) */}
+              <ExtraFieldSections {...extraProps} builtInTitles={visibleSections.map((sec) => sec.title)}
+                collapsed={collapsed} onToggle={toggleSection} />
 
               {/* Bearing Metal Temperatures */}
               <Paper variant="outlined" sx={{ mb: 2, borderRadius: 2, overflow: 'hidden' }}>

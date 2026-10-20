@@ -26,6 +26,7 @@ import type {
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 import { usePlantTypeGuard } from '../../hooks/usePlantTypeGuard';
 import { HYDRO_UNIT_STATUSES } from './unitStatusOptions';
+import { useHourlyExtraFields, ExtraFieldInput, ExtraFieldSections } from '../../components/hourly/HourlyExtraFields';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
@@ -54,13 +55,6 @@ const emptyUpdateForm: UpdateHourlyHydroReadingForm = {
 
 type FormField = keyof CreateHourlyHydroReadingForm;
 type UpdateField = keyof UpdateHourlyHydroReadingForm;
-
-const NUMERIC_FIELD_KEYS: UpdateField[] = [
-  'frequency', 'activePowerMW', 'reactivePowerMVar', 'voltageKV', 'currentAmps', 'powerFactor',
-  'statorTemperature', 'generatorFieldVoltage', 'generatorFieldCurrent', 'exciterCurrent',
-  'gatePosition', 'turbineDischarge', 'spillwayDischarge',
-  'transformerOilTemperature', 'transformerWindingTemperature',
-];
 
 const SECTIONS = [
   {
@@ -126,6 +120,11 @@ export default function HourlyHydroReadingPage() {
   const [deleteTarget, setDeleteTarget] = useState<HourlyHydroReading | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  // Extra fields set up for this plant in Hourly Readings → Hourly Extra Fields (incl. all-hydro-plant fields).
+  const currentUnitCode = editTarget ? editTarget.unitCode : form.unitCode;
+  const extra = useHourlyExtraFields('hydro',
+    editTarget ? editTarget.plantCode : form.plantCode, currentUnitCode, !!editTarget);
 
   // Plant filter hook — restricts dropdown to user's assigned plants
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
@@ -210,9 +209,10 @@ export default function HourlyHydroReadingPage() {
       ...prev, plantCode: row.plantCode, unitCode: row.unitCode,
       logDate: row.logDate.split('T')[0], logHour: row.logHour,
     }));
+    extra.loadFrom(row.extraFieldValues);
   };
 
-  const cancelEdit = () => { setEditTarget(null); setUpdateForm(emptyUpdateForm); setUnitDown(false); setUnitStatus(''); };
+  const cancelEdit = () => { setEditTarget(null); setUpdateForm(emptyUpdateForm); setUnitDown(false); setUnitStatus(''); extra.reset(); };
 
   const handleUnitDownToggle = (checked: boolean) => {
     setUnitDown(checked);
@@ -230,6 +230,9 @@ export default function HourlyHydroReadingPage() {
 
   const handleSave = async () => {
     if (unitDown && !unitStatus.trim()) { setSaveError('Select or type the unit status.'); return; }
+    const missingExtra = extra.missingRequired(unitDown);
+    if (missingExtra.length > 0) { setSaveError(`Please fill in: ${missingExtra.join(', ')}.`); return; }
+    const extraFieldValues = extra.payload();
     setSaving(true); setSaveError(null); setSaveSuccess(false);
     const savedPlantCode = editTarget ? editTarget.plantCode : form.plantCode;
     const savedUnitCode = editTarget ? editTarget.unitCode : form.unitCode;
@@ -257,6 +260,7 @@ export default function HourlyHydroReadingPage() {
           transformerWindingTemperature: toNum(updateForm.transformerWindingTemperature),
           remarks: updateForm.remarks || undefined,
           unitStatus: unitDown ? unitStatus.trim() : null,
+          extraFieldValues,
         });
         setEditTarget(null); setUpdateForm(emptyUpdateForm);
       } else {
@@ -279,10 +283,12 @@ export default function HourlyHydroReadingPage() {
           transformerWindingTemperature: toNum(form.transformerWindingTemperature),
           remarks: form.remarks || undefined,
           unitStatus: unitDown ? unitStatus.trim() : null,
+          extraFieldValues,
         });
         setForm(emptyForm);
       }
       setUnitDown(false); setUnitStatus('');
+      extra.reset();
       setSaveSuccess(true);
       fetchRecords();
       checkMissingHours(savedPlantCode, savedUnitCode, savedLogDate);
@@ -311,6 +317,11 @@ export default function HourlyHydroReadingPage() {
   const isFormValid = editTarget ? true : form.plantCode && form.unitCode && form.logDate && form.logHour !== '' && form.logHour !== undefined;
   const toggleSection = (title: string) =>
     setCollapsed((prev) => ({ ...prev, [title]: !prev[title] }));
+
+  // Shared props for the extra-field inputs
+  const extraProps = {
+    state: extra, unitDown, unitSelected: !!currentUnitCode, savedValues: editTarget?.extraFieldValues,
+  };
 
   // ── Plant type guard ─────────────────────────────────────────────────────────
   if (isWrongPlantType) return (
@@ -480,11 +491,16 @@ export default function HourlyHydroReadingPage() {
                             />
                           </Grid>
                         ))}
+                        {extra.inSection(section.title).map((f) => <ExtraFieldInput key={f.id} field={f} {...extraProps} />)}
                       </Grid>
                     </Box>
                   </Collapse>
                 </Paper>
               ))}
+
+              {/* Extra fields in their own sections (Hourly Readings → Hourly Extra Fields) */}
+              <ExtraFieldSections {...extraProps} builtInTitles={SECTIONS.map((sec) => sec.title)}
+                collapsed={collapsed} onToggle={toggleSection} />
 
               <TextField label="Remarks"
                 value={activeValue('remarks')}

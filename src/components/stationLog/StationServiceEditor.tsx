@@ -67,7 +67,7 @@ export default function StationServiceEditor({ options, rows, onChange, editing 
         ) : (
           <Stack spacing={0.5} sx={{ mt: 0.5 }}>
             {rows.map((r) => (
-              <Stack key={r.equipmentCode} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Stack key={r.equipmentCode} direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
                 <Chip size="small" color="warning" variant="outlined" label={r.equipmentName || r.equipmentCode} />
                 <Typography variant="body2">{r.status}</Typography>
                 {r.remarks ? <Typography variant="body2" color="text.secondary">– {r.remarks}</Typography> : null}
@@ -82,7 +82,7 @@ export default function StationServiceEditor({ options, rows, onChange, editing 
   return (
     <Box>
       {label}
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }} flexWrap="wrap" useFlexGap>
+      <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
         <Autocomplete
           multiple size="small" disableCloseOnSelect sx={{ flex: 1, minWidth: 260 }}
           options={allOptions}
@@ -100,7 +100,7 @@ export default function StationServiceEditor({ options, rows, onChange, editing 
               </li>
             );
           }}
-          renderTags={() => null}
+          renderValue={() => null}
           renderInput={(p) => <TextField {...p} placeholder={rows.length ? `${rows.length} selected` : 'Select transformers'} />}
         />
         <Button size="small" variant="outlined" disabled={pool.length === 0} onClick={() => setSelection(pool)}>Select all</Button>

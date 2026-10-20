@@ -1,4 +1,5 @@
 import type { BearingMetalReadingRow, BearingDrainReadingRow } from './bearings';
+import type { HourlyExtraFieldValue, HourlyExtraFieldValueInput } from './hourlyExtraField';
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 export interface HourlyReadingAudit {
@@ -33,6 +34,7 @@ export interface HourlyHydroReading extends HourlyReadingAudit {
   spillwayDischarge?: number;
   transformerOilTemperature?: number;
   transformerWindingTemperature?: number;
+  extraFieldValues?: HourlyExtraFieldValue[];
 }
 
 export interface CreateHourlyHydroReadingForm {
@@ -99,6 +101,7 @@ export interface CreateHourlyHydroReadingPayload {
   transformerWindingTemperature?: number;
   remarks?: string;
   unitStatus?: string | null;
+  extraFieldValues?: HourlyExtraFieldValueInput[];
 }
 
 export interface UpdateHourlyHydroReadingPayload {
@@ -119,6 +122,7 @@ export interface UpdateHourlyHydroReadingPayload {
   transformerWindingTemperature?: number;
   remarks?: string;
   unitStatus?: string | null;
+  extraFieldValues?: HourlyExtraFieldValueInput[];
 }
 
 // ─── Thermal ──────────────────────────────────────────────────────────────────
@@ -144,6 +148,7 @@ export interface HourlyThermalReading extends HourlyReadingAudit {
   stgEx2000FldAmp?: number; stgEx2000FldVolts?: number; stgEx2000RotorTemp?: number;
   bearingMetalReadings: BearingMetalReadingRow[];
   bearingDrainReadings: BearingDrainReadingRow[];
+  extraFieldValues?: HourlyExtraFieldValue[];
 }
 
 export interface CreateHourlyThermalReadingForm {

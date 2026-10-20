@@ -38,7 +38,7 @@ export default function PendingNumberCell({ value, label, canEdit, onSave }: Pro
   }
 
   return (
-    <Stack direction="row" spacing={0.25} alignItems="center">
+    <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center' }}>
       <TextField size="small" autoFocus value={text} error={failed} disabled={saving}
         placeholder={`${label} #`} sx={{ minWidth: 110 }}
         onChange={(e) => setText(e.target.value)}

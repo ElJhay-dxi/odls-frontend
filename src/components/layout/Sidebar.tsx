@@ -65,6 +65,7 @@ const getNavItems = (bopLabel: string): NavItem[] => [
       { label: 'Exchange Generation', icon: <ElectricBolt />, path: '/hourly/exchange-generation', permission: 'hourly.exchange_generation.view' },
       { label: 'Bus Voltages', icon: <ElectricBolt />, path: '/hourly/bus-voltages', permission: 'hourly.bus_voltages.view' },
       { label: 'Peak Period Readings', icon: <BarChart />, path: '/hourly/peak-period', permission: 'hourly.peak_period.view' },
+      { label: 'Hourly Extra Fields', icon: <Tune />, path: '/hourly/extra-fields', permission: 'hourly.extra_fields.view' },
     ],
   },
   {
