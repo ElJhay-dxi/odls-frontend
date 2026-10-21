@@ -38,6 +38,8 @@ export default function PeakPeriodPage() {
   const [newMW, setNewMW] = useState('');
   const [newMVar, setNewMVar] = useState('');
   const [newVoltage, setNewVoltage] = useState('');
+  const [newFrequency, setNewFrequency] = useState('');
+  const [newPowerFactor, setNewPowerFactor] = useState('');
   const [savingInterval, setSavingInterval] = useState(false);
   const [intervalError, setIntervalError] = useState<string | null>(null);
 
@@ -45,6 +47,8 @@ export default function PeakPeriodPage() {
   const [editMW, setEditMW] = useState('');
   const [editMVar, setEditMVar] = useState('');
   const [editVoltage, setEditVoltage] = useState('');
+  const [editFrequency, setEditFrequency] = useState('');
+  const [editPowerFactor, setEditPowerFactor] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'record' | 'interval'; id: string; label: string } | null>(null);
@@ -110,9 +114,11 @@ export default function PeakPeriodPage() {
       const updated = await peakPeriodApi.addInterval(currentRecord.id, {
         intervalTime: newTime,
         mW: toNum(newMW), mVar: toNum(newMVar), voltage: toNum(newVoltage),
+        frequency: toNum(newFrequency), powerFactor: toNum(newPowerFactor),
       });
       setRecord(updated.data);
       setNewTime(''); setNewMW(''); setNewMVar(''); setNewVoltage('');
+      setNewFrequency(''); setNewPowerFactor('');
     } catch (err) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
       setIntervalError(axiosErr.response?.data?.message ?? 'Failed to save interval.');
@@ -126,11 +132,14 @@ export default function PeakPeriodPage() {
     setEditMW(interval.mW != null ? String(interval.mW) : '');
     setEditMVar(interval.mVar != null ? String(interval.mVar) : '');
     setEditVoltage(interval.voltage != null ? String(interval.voltage) : '');
+    setEditFrequency(interval.frequency != null ? String(interval.frequency) : '');
+    setEditPowerFactor(interval.powerFactor != null ? String(interval.powerFactor) : '');
   };
 
   const cancelEditInterval = () => {
     setEditIntervalId(null);
     setEditMW(''); setEditMVar(''); setEditVoltage('');
+    setEditFrequency(''); setEditPowerFactor('');
   };
 
   const handleSaveInterval = async (interval: PeakPeriodInterval) => {
@@ -140,6 +149,7 @@ export default function PeakPeriodPage() {
       const updated = await peakPeriodApi.updateInterval(record.id, interval.id, {
         intervalTime: interval.intervalTime,
         mW: toNum(editMW), mVar: toNum(editMVar), voltage: toNum(editVoltage),
+        frequency: toNum(editFrequency), powerFactor: toNum(editPowerFactor),
       });
       setRecord(updated.data);
       cancelEditInterval();
@@ -174,7 +184,7 @@ export default function PeakPeriodPage() {
     <Box>
       <PageHeader
         title="Peak Period Readings"
-        subtitle="15-minute interval MW, MVar and Voltage readings from 18:15 to 20:15"
+        subtitle="15-minute interval MW, MVar, Voltage, Frequency and Power Factor readings from 18:15 to 20:15"
         breadcrumbs={[{ label: 'Hourly Readings' }, { label: 'Peak Period' }]}
       />
 
@@ -299,6 +309,18 @@ export default function PeakPeriodPage() {
                       onChange={(e) => setNewVoltage(e.target.value)}
                       slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">kV</Typography> } }}
                     />
+                    <TextField
+                      label="Frequency" type="number" size="small" fullWidth value={newFrequency}
+                      onChange={(e) => setNewFrequency(e.target.value)}
+                      slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">Hz</Typography> } }}
+                    />
+                    <TextField
+                      label="Power Factor" type="number" size="small" fullWidth value={newPowerFactor}
+                      onChange={(e) => setNewPowerFactor(e.target.value)}
+                      error={newPowerFactor !== '' && Math.abs(Number(newPowerFactor)) > 1}
+                      helperText={newPowerFactor !== '' && Math.abs(Number(newPowerFactor)) > 1 ? 'Between -1 and 1' : undefined}
+                      slotProps={{ htmlInput: { step: 0.01, min: -1, max: 1 } }}
+                    />
                     {canCreate && (
                       <Button
                         variant="contained" fullWidth
@@ -356,6 +378,8 @@ export default function PeakPeriodPage() {
                         <TableCell sx={{ fontWeight: 700 }}>MW</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>MVar</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>Voltage (kV)</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Frequency (Hz)</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Power Factor</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
                       </TableRow>
                     </TableHead>
@@ -388,6 +412,16 @@ export default function PeakPeriodPage() {
                                   <TextField type="number" size="small" sx={{ width: 100 }}
                                     value={editVoltage} onChange={(e) => setEditVoltage(e.target.value)} />
                                 </TableCell>
+                                <TableCell>
+                                  <TextField type="number" size="small" sx={{ width: 100 }}
+                                    value={editFrequency} onChange={(e) => setEditFrequency(e.target.value)} />
+                                </TableCell>
+                                <TableCell>
+                                  <TextField type="number" size="small" sx={{ width: 100 }}
+                                    value={editPowerFactor} onChange={(e) => setEditPowerFactor(e.target.value)}
+                                    error={editPowerFactor !== '' && Math.abs(Number(editPowerFactor)) > 1}
+                                    slotProps={{ htmlInput: { step: 0.01, min: -1, max: 1 } }} />
+                                </TableCell>
                                 <TableCell align="right">
                                   <Tooltip title="Save">
                                     <IconButton size="small" color="primary"
@@ -412,6 +446,12 @@ export default function PeakPeriodPage() {
                                 </TableCell>
                                 <TableCell>
                                   <Typography variant="body2">{interval.voltage ?? '—'}</Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">{interval.frequency ?? '—'}</Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">{interval.powerFactor ?? '—'}</Typography>
                                 </TableCell>
                                 <TableCell align="right">
                                   {canEdit && (

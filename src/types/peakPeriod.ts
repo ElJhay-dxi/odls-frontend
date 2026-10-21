@@ -11,6 +11,8 @@ export interface PeakPeriodInterval {
   mW?: number | string;
   mVar?: number | string;
   voltage?: number | string;
+  frequency?: number | string;
+  powerFactor?: number | string;
 }
 
 export interface PeakPeriodReading {

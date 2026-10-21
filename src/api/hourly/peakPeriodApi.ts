@@ -15,11 +15,11 @@ export const peakPeriodApi = {
     axiosInstance.post<PeakPeriodReading>(BASE, data),
 
   // Add a single interval to an existing header
-  addInterval: (id: string, data: { intervalTime: string; mW?: number; mVar?: number; voltage?: number }) =>
+  addInterval: (id: string, data: { intervalTime: string; mW?: number; mVar?: number; voltage?: number; frequency?: number; powerFactor?: number }) =>
     axiosInstance.post<PeakPeriodReading>(`${BASE}/${id}/intervals`, data),
 
   // Update a single interval's values
-  updateInterval: (id: string, intervalId: string, data: { intervalTime: string; mW?: number; mVar?: number; voltage?: number }) =>
+  updateInterval: (id: string, intervalId: string, data: { intervalTime: string; mW?: number; mVar?: number; voltage?: number; frequency?: number; powerFactor?: number }) =>
     axiosInstance.put<PeakPeriodReading>(`${BASE}/${id}/intervals/${intervalId}`, data),
 
   // Update remarks on the header
