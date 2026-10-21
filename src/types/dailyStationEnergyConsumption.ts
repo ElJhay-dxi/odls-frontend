@@ -11,6 +11,11 @@ export interface DailyStationEnergyConsumption {
   currentReading: number;
   difference: number;
   progressiveTotal: number;
+  /** Reactive energy (MVArh) from the same meter — empty on older rows or where it isn't read. */
+  mvarhPreviousReading?: number | null;
+  mvarhCurrentReading?: number | null;
+  mvarhDifference?: number | null;
+  mvarhProgressiveTotal?: number | null;
   createdOn: string;
   createdByName: string;
   createdByEmail: string;

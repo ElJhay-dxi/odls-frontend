@@ -20,7 +20,7 @@ import type { DailyStationEnergyConsumption } from '../../types/dailyStationEner
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
 
 interface Meter { code: string; name: string }
-interface CardInput { current: string; previous: string }
+interface CardInput { current: string; previous: string; mvCurrent?: string; mvPrevious?: string }
 
 const today = () => new Date().toISOString().split('T')[0];
 const dateOnly = (v: string) => v.split('T')[0];
@@ -120,8 +120,28 @@ export default function DailyStationEnergyConsumptionPage() {
       : prior && dateOnly(prior.logDate).slice(0, 7) === logDate.slice(0, 7) ? prior.progressiveTotal : 0;
     const hasCurrent = currentStr !== '';
     const difference = hasCurrent ? Number(currentStr) - previous : 0;
-    const dirty = hasCurrent && (!existing || Number(currentStr) !== existing.currentReading);
-    return { existing, prior, currentStr, firstEntry, previous, difference, progressive: baseProgressive + difference, hasCurrent, dirty };
+
+    // MVArh — same pattern, chained only over days that have an MVArh reading
+    const existingMv = existing?.mvarhCurrentReading != null ? existing : null;
+    const mvPrior = own
+      .filter((r) => dateOnly(r.logDate) < logDate && r.mvarhCurrentReading != null)
+      .sort((a, b) => b.logDate.localeCompare(a.logDate))[0] ?? null;
+    const mvCurrentStr = inp?.mvCurrent ?? (existingMv ? String(existingMv.mvarhCurrentReading) : '');
+    const mvFirst = !existingMv && !mvPrior;
+    const mvPrevious = existingMv ? (existingMv.mvarhPreviousReading ?? 0)
+      : mvPrior ? (mvPrior.mvarhCurrentReading ?? 0) : Number(inp?.mvPrevious) || 0;
+    const mvBase = existingMv
+      ? (existingMv.mvarhProgressiveTotal ?? 0) - (existingMv.mvarhDifference ?? 0)
+      : mvPrior && dateOnly(mvPrior.logDate).slice(0, 7) === logDate.slice(0, 7) ? (mvPrior.mvarhProgressiveTotal ?? 0) : 0;
+    const mvHas = mvCurrentStr !== '';
+    const mvDifference = mvHas ? Number(mvCurrentStr) - mvPrevious : 0;
+    const mvChanged = (existing?.mvarhCurrentReading ?? null) !== (mvHas ? Number(mvCurrentStr) : null);
+
+    const dirty = hasCurrent && (!existing || Number(currentStr) !== existing.currentReading || mvChanged);
+    return {
+      existing, prior, currentStr, firstEntry, previous, difference, progressive: baseProgressive + difference, hasCurrent, dirty,
+      mvCurrentStr, mvFirst, mvPrevious, mvDifference, mvProgressive: mvBase + mvDifference, mvHas,
+    };
   };
 
   const patchInput = (code: string, p: Partial<CardInput>) =>
@@ -129,10 +149,13 @@ export default function DailyStationEnergyConsumptionPage() {
 
   const states = meters.map((m) => ({ m, s: meterState(m) }));
   const plantTotal = states.reduce((sum, { s }) => sum + (s.hasCurrent ? s.difference : 0), 0);
+  const plantMvTotal = states.reduce((sum, { s }) => sum + (s.mvHas ? s.mvDifference : 0), 0);
+  const anyMv = states.some(({ s }) => s.mvHas);
   const dirtyCount = states.filter(({ s }) => s.dirty).length;
 
   const canSaveAll = dirtyCount > 0 && states.every(({ m, s }) =>
-    !s.dirty || (s.existing ? canEdit : canCreate) && (!s.firstEntry || (inputs[m.code]?.previous ?? '') !== ''));
+    !s.dirty || (s.existing ? canEdit : canCreate) && (!s.firstEntry || (inputs[m.code]?.previous ?? '') !== '')
+      && (!s.mvFirst || !s.mvHas || (inputs[m.code]?.mvPrevious ?? '') !== ''));
 
   const handleSaveAll = async () => {
     setSaving(true);
@@ -142,9 +165,14 @@ export default function DailyStationEnergyConsumptionPage() {
     let saved = 0;
     for (const { m, s } of states) {
       if (!s.dirty) continue;
+      // MVArh is optional; the previous MVArh reading is only sent for the meter's first MVArh entry
+      const mvarh = {
+        mvarhCurrentReading: s.mvHas ? Number(s.mvCurrentStr) : null,
+        mvarhPreviousReading: s.mvFirst && s.mvHas ? Number(inputs[m.code]?.mvPrevious) : undefined,
+      };
       try {
         if (s.existing) {
-          await dailyStationEnergyConsumptionApi.update(s.existing.id, { currentReading: Number(s.currentStr) });
+          await dailyStationEnergyConsumptionApi.update(s.existing.id, { currentReading: Number(s.currentStr), ...mvarh });
         } else {
           await dailyStationEnergyConsumptionApi.create({
             plantCode,
@@ -153,6 +181,7 @@ export default function DailyStationEnergyConsumptionPage() {
             logDate,
             previousReading: s.firstEntry ? Number(inputs[m.code]?.previous) : undefined,
             currentReading: Number(s.currentStr),
+            ...mvarh,
           });
         }
         saved += 1;
@@ -192,7 +221,7 @@ export default function DailyStationEnergyConsumptionPage() {
     <Box>
       <PageHeader
         title="Daily Station Energy Consumption"
-        subtitle="Daily MWh readings recorded per station service transformer (SST / TSS) — Hydro and Thermal plants"
+        subtitle="Daily MWh and MVArh readings recorded per station service transformer (SST / TSS) — Hydro and Thermal plants"
         breadcrumbs={[{ label: 'Daily Readings' }, { label: 'Station Energy Consumption' }]}
       />
 
@@ -292,6 +321,23 @@ export default function DailyStationEnergyConsumptionPage() {
                                 onChange={(e) => patchInput(m.code, { current: e.target.value })}
                                 slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MWh</Typography> } }} />
                             </Grid>
+                            <Grid size={{ xs: 6 }}>
+                              <TextField label="Previous MVArh" size="small" fullWidth
+                                type={s.mvFirst ? 'number' : 'text'}
+                                disabled={!s.mvFirst}
+                                required={s.mvFirst && s.mvHas}
+                                value={s.mvFirst ? (inputs[m.code]?.mvPrevious ?? '') : s.mvPrevious.toFixed(2)}
+                                onChange={(e) => s.mvFirst && patchInput(m.code, { mvPrevious: e.target.value })}
+                                helperText={s.mvFirst ? 'First MVArh entry' : 'Auto-carried'} />
+                            </Grid>
+                            <Grid size={{ xs: 6 }}>
+                              <TextField label="Current MVArh" type="number" size="small" fullWidth
+                                disabled={s.existing ? !canEdit : !canCreate}
+                                value={s.mvCurrentStr}
+                                onChange={(e) => patchInput(m.code, { mvCurrent: e.target.value })}
+                                helperText="Optional"
+                                slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">MVArh</Typography> } }} />
+                            </Grid>
                           </Grid>
                           <Divider sx={{ my: 1.5 }} />
                           <Stack direction="row" spacing={3}>
@@ -306,6 +352,18 @@ export default function DailyStationEnergyConsumptionPage() {
                               <Typography sx={{ fontWeight: 700 }}>{s.hasCurrent ? s.progressive.toFixed(2) : '—'}</Typography>
                             </Box>
                           </Stack>
+                          <Stack direction="row" spacing={3} sx={{ mt: 1 }}>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">MVArh difference</Typography>
+                              <Typography sx={{ fontWeight: 700 }} color={s.mvDifference < 0 ? 'error.main' : 'text.primary'}>
+                                {s.mvHas ? s.mvDifference.toFixed(2) : '—'}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">MVArh progressive (month)</Typography>
+                              <Typography sx={{ fontWeight: 700 }}>{s.mvHas ? s.mvProgressive.toFixed(2) : '—'}</Typography>
+                            </Box>
+                          </Stack>
                         </Paper>
                       </Grid>
                     ))}
@@ -314,7 +372,9 @@ export default function DailyStationEnergyConsumptionPage() {
                   {states.length > 1 && (
                     <Paper variant="outlined" sx={{ p: 2, mt: 2, borderRadius: 2, backgroundColor: 'action.hover' }}>
                       <Typography variant="caption" color="text.secondary">Plant total for {logDate} (sum of the cards above)</Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 700 }}>{plantTotal.toFixed(2)} MWh</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        {plantTotal.toFixed(2)} MWh{anyMv ? ` · ${plantMvTotal.toFixed(2)} MVArh` : ''}
+                      </Typography>
                     </Paper>
                   )}
 
@@ -362,7 +422,7 @@ export default function DailyStationEnergyConsumptionPage() {
                       <TableRow>
                         <TableCell>Date</TableCell>
                         <TableCell>Transformer</TableCell>
-                        <TableCell>Current</TableCell>
+                        <TableCell>Current<Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>MWh / MVArh</Typography></TableCell>
                         <TableCell>Diff</TableCell>
                         <TableCell>Progr.</TableCell>
                         <TableCell align="right">Actions</TableCell>
@@ -377,11 +437,20 @@ export default function DailyStationEnergyConsumptionPage() {
                               {row.transformerName || row.transformerCode || 'Plant (legacy)'}
                             </Typography>
                           </TableCell>
-                          <TableCell><Typography variant="body2">{row.currentReading.toFixed(1)}</Typography></TableCell>
+                          <TableCell>
+                            <Typography variant="body2">{row.currentReading.toFixed(1)}</Typography>
+                            {row.mvarhCurrentReading != null && <Typography variant="caption" color="text.secondary">{row.mvarhCurrentReading.toFixed(1)}</Typography>}
+                          </TableCell>
                           <TableCell>
                             <Typography variant="body2" color={row.difference < 0 ? 'error.main' : 'text.primary'}>{row.difference.toFixed(1)}</Typography>
+                            {row.mvarhDifference != null && (
+                              <Typography variant="caption" color={row.mvarhDifference < 0 ? 'error.main' : 'text.secondary'}>{row.mvarhDifference.toFixed(1)}</Typography>
+                            )}
                           </TableCell>
-                          <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{row.progressiveTotal.toFixed(1)}</Typography></TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.progressiveTotal.toFixed(1)}</Typography>
+                            {row.mvarhProgressiveTotal != null && <Typography variant="caption" color="text.secondary">{row.mvarhProgressiveTotal.toFixed(1)}</Typography>}
+                          </TableCell>
                           <TableCell align="right">
                             {canEdit && (
                               <Tooltip title="Open this date to edit">
