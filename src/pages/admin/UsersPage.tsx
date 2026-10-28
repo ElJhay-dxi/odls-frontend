@@ -3,15 +3,17 @@ import {
   Alert, Typography, Grid, Divider, Chip, Stack, MenuItem,
   FormControl, InputLabel, Select, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Tooltip,
-  Switch, FormControlLabel, OutlinedInput, Checkbox, ListItemText,
+  Switch, FormControlLabel, OutlinedInput, Checkbox, ListItemText, Tabs, Tab, Badge,
 } from '@mui/material';
 import { Add, Edit, Delete, Save, Close, People, Search } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import AccessRequestsPanel from '../../components/admin/AccessRequestsPanel';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { appUsersApi, rolesApi } from '../../api/auth/userManagementApi';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
-import type { AppUser, Role } from '../../types/userManagement';
+import { NO_ACCESS_ROLE, type AppUser, type Role } from '../../types/userManagement';
 import type { PowerPlant } from '../../types/masterData';
 import { useSectionPermissions } from '../../hooks/usePermission';
 
@@ -39,6 +41,17 @@ export default function UsersPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Tabs: approved users, and access requests from first-time sign-ins (?tab=pending from the notification bell)
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [tab, setTab] = useState<'users' | 'pending' | 'declined'>(
+    initialTab === 'pending' || initialTab === 'declined' ? initialTab : 'users');
+  const [pendingCount, setPendingCount] = useState(0);
+  const fetchPendingCount = useCallback(() => {
+    appUsersApi.getAll({ status: 'Pending' }).then((res) => setPendingCount(res.data.length)).catch(() => {});
+  }, []);
+  useEffect(() => { fetchPendingCount(); }, [fetchPendingCount]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -146,6 +159,19 @@ export default function UsersPage() {
         breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]}
       />
 
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Tab value="users" label="Users" />
+        <Tab value="pending" label={
+          <Badge badgeContent={pendingCount} color="warning" sx={{ '& .MuiBadge-badge': { right: -14 } }}>Access requests</Badge>
+        } sx={{ pr: pendingCount ? 4 : 2 }} />
+        <Tab value="declined" label="Declined" />
+      </Tabs>
+
+      {tab !== 'users' ? (
+        <AccessRequestsPanel key={tab} status={tab === 'pending' ? 'Pending' : 'Declined'}
+          roles={roles} plants={plants} canReview={canEdit}
+          onChanged={() => { fetchPendingCount(); fetchUsers(); }} />
+      ) : (
       <Grid container spacing={3}>
         {/* ── Form ── */}
         {showForm && (
@@ -210,7 +236,7 @@ export default function UsersPage() {
                     <Select label="Role" value={form.roleId}
                       onChange={(e) => setForm((p) => ({ ...p, roleId: e.target.value }))}>
                       <MenuItem value="" disabled><em>Select a role…</em></MenuItem>
-                      {roles.filter((r) => r.isActive).map((r) => (
+                      {roles.filter((r) => r.isActive && r.name !== NO_ACCESS_ROLE).map((r) => (
                         <MenuItem key={r.id} value={r.id}>
                           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                             <Typography>{r.name}</Typography>
@@ -401,6 +427,7 @@ export default function UsersPage() {
           </Card>
         </Grid>
       </Grid>
+      )}
 
       <ConfirmDialog
         open={!!deleteTarget}

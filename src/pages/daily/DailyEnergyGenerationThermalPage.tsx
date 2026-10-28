@@ -39,6 +39,10 @@ const FUEL_CHIP_STYLES: Record<string, { color: string; backgroundColor: string 
 const getFuelChipSx = (fuel: string) => FUEL_CHIP_STYLES[fuel] ?? {};
 
 const cardKey = (unitCode: string, fuel: string) => `${unitCode}_${fuel}`;
+/** Two readings a day — each time is its own series. 00:00 is the official daily figure (load factor, reports). */
+const READING_TIMES = ['00:00', '05:00'];
+const timeOf = (r: DailyEnergyGenerationThermal) => r.logTime ?? '00:00';
+const sameMonth = (a: string, b: string) => a.slice(0, 7) === b.slice(0, 7);
 
 export default function DailyEnergyGenerationThermalPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('daily.energy_thermal');
@@ -52,6 +56,8 @@ export default function DailyEnergyGenerationThermalPage() {
 
   const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
   const [selectedDate, setSelectedDate] = useState(deepLink.date ?? new Date().toISOString().split('T')[0]);
+  const [selectedTime, setSelectedTime] = useState(
+    deepLink.time && READING_TIMES.includes(deepLink.time) ? deepLink.time : READING_TIMES[0]);
 
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
@@ -102,7 +108,7 @@ export default function DailyEnergyGenerationThermalPage() {
   const loadCard = useCallback((unit: PlantUnit, fuel: string) => {
     const key = cardKey(unit.unitCode, fuel);
     dailyEnergyGenerationThermalApi.getAll({
-      plantCode: selectedPlant, unitCode: unit.unitCode, fuelType: fuel,
+      plantCode: selectedPlant, unitCode: unit.unitCode, fuelType: fuel, logTime: selectedTime,
     }).then((res) => {
       const forDate = res.data.find((r) => r.logDate.split('T')[0] === selectedDate) ?? null;
       const prior = res.data
@@ -127,7 +133,7 @@ export default function DailyEnergyGenerationThermalPage() {
       setSavedRecords((prev) => ({ ...prev, [key]: null }));
       setPriorRecords((prev) => ({ ...prev, [key]: null }));
     });
-  }, [selectedPlant, selectedDate]);
+  }, [selectedPlant, selectedDate, selectedTime]);
 
   useEffect(() => {
     if (!selectedPlant || !selectedDate || plantUnits.length === 0) return;
@@ -177,6 +183,7 @@ export default function DailyEnergyGenerationThermalPage() {
           unitName: unit.unitName,
           fuelType: fuel,
           logDate: selectedDate,
+          logTime: selectedTime,
           previousActiveReading: prior ? undefined : (Number(form.manualPrevActive) || 0),
           currentActiveReading: Number(form.currentActive) || 0,
           previousReactiveReading: prior ? undefined : (Number(form.manualPrevReactive) || 0),
@@ -207,7 +214,7 @@ export default function DailyEnergyGenerationThermalPage() {
       await dailyEnergyGenerationThermalApi.delete(deleteTarget.id);
       setDeleteTarget(null);
       fetchHistory();
-      if (deleteTarget.logDate.split('T')[0] === selectedDate) {
+      if (deleteTarget.logDate.split('T')[0] === selectedDate && timeOf(deleteTarget) === selectedTime) {
         const unit = plantUnits.find((u) => u.unitCode === deleteTarget.unitCode);
         if (unit) loadCard(unit, deleteTarget.fuelType);
       }
@@ -270,6 +277,14 @@ export default function DailyEnergyGenerationThermalPage() {
                 value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }} />
             </Grid>
+            <Grid size={{ xs: 12, sm: 3 }}>
+              <FormControl fullWidth required>
+                <InputLabel>Reading Time</InputLabel>
+                <Select label="Reading Time" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)}>
+                  {READING_TIMES.map((t) => <MenuItem key={t} value={t}>{t} hrs</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
             {loadingUnits && (
               <Grid size={{ xs: 12, sm: 3 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -311,12 +326,14 @@ export default function DailyEnergyGenerationThermalPage() {
               const prevReactive = saved
                 ? saved.previousReactiveReading
                 : prior ? prior.currentReactiveReading : (Number(form.manualPrevReactive) || 0);
+              // Progressive totals restart each month
+              const priorInMonth = prior && sameMonth(prior.logDate, selectedDate) ? prior : null;
               const priorActiveProgressive = saved
                 ? saved.activeProgressiveTotal - saved.activeDifference
-                : (prior?.activeProgressiveTotal ?? 0);
+                : (priorInMonth?.activeProgressiveTotal ?? 0);
               const priorReactiveProgressive = saved
                 ? saved.reactiveProgressiveTotal - saved.reactiveDifference
-                : (prior?.reactiveProgressiveTotal ?? 0);
+                : (priorInMonth?.reactiveProgressiveTotal ?? 0);
 
               const currentActive = Number(form.currentActive) || 0;
               const currentReactive = Number(form.currentReactive) || 0;
@@ -462,7 +479,8 @@ export default function DailyEnergyGenerationThermalPage() {
 
           {/* Summary */}
           <Card variant="outlined" sx={{ mb: 3, borderLeft: '4px solid #B71C1C' }}>
-            <CardHeader title={`Summary — ${dayjs(selectedDate).format('DD MMM YYYY')}`} />
+            <CardHeader title={`Summary — ${dayjs(selectedDate).format('DD MMM YYYY')} at ${selectedTime} hrs`}
+              subheader={selectedTime === '00:00' ? 'Official daily figure (used for load factor and reports)' : 'Recorded for reference; load factor and reports use the 00:00 reading'} />
             <Divider />
             <CardContent>
               <Grid container spacing={2}>
@@ -515,6 +533,7 @@ export default function DailyEnergyGenerationThermalPage() {
                       <TableHead>
                         <TableRow sx={{ '& th': { backgroundColor: '#FBE9E7' } }}>
                           <TableCell>Date</TableCell>
+                          <TableCell>Time</TableCell>
                           <TableCell>Unit</TableCell>
                           <TableCell>Fuel</TableCell>
                           <TableCell>Prev Active</TableCell>
@@ -530,10 +549,11 @@ export default function DailyEnergyGenerationThermalPage() {
                       <TableBody>
                         {history.map((row, idx) => (
                           <TableRow key={row.id} data-record-id={row.id} hover
-                            selected={row.logDate.split('T')[0] === selectedDate}
+                            selected={row.logDate.split('T')[0] === selectedDate && timeOf(row) === selectedTime}
                             sx={{ cursor: 'pointer', backgroundColor: idx % 2 === 1 ? 'action.hover' : 'inherit' }}
-                            onClick={() => setSelectedDate(row.logDate.split('T')[0])}>
+                            onClick={() => { setSelectedDate(row.logDate.split('T')[0]); setSelectedTime(timeOf(row)); }}>
                             <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{dayjs(row.logDate).format('DD MMM YYYY')}</Typography></TableCell>
+                            <TableCell><Chip label={timeOf(row)} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} /></TableCell>
                             <TableCell>
                               <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                                 <Chip label={row.unitCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontSize: 11 }} />
@@ -554,6 +574,7 @@ export default function DailyEnergyGenerationThermalPage() {
                                   <IconButton size="small" onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedDate(row.logDate.split('T')[0]);
+                                    setSelectedTime(timeOf(row));
                                     window.scrollTo({ top: 0, behavior: 'smooth' });
                                   }}>
                                     <Edit sx={{ fontSize: 14 }} />

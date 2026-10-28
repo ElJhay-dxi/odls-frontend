@@ -23,10 +23,16 @@ export const rolesApi = {
 };
 
 export const appUsersApi = {
-  getAll: (params?: { activeOnly?: boolean; plantCode?: string }) =>
+  /** Approved users by default; pass status 'Pending' / 'Declined' for access requests. */
+  getAll: (params?: { activeOnly?: boolean; plantCode?: string; status?: string }) =>
     axiosInstance.get<AppUser[]>('/appusers', { params }),
   getById: (id: string) => axiosInstance.get<AppUser>(`/appusers/${id}`),
   create: (data: Record<string, unknown>) => axiosInstance.post<AppUser>('/appusers', data),
   update: (id: string, data: Record<string, unknown>) => axiosInstance.put<AppUser>(`/appusers/${id}`, data),
   delete: (id: string) => axiosInstance.delete(`/appusers/${id}`),
+  /** Give a pending (or declined) user a role and plants. */
+  approve: (id: string, data: { roleId: string; plantCodes: string[]; fullName?: string; employeeId?: string; designation?: string; phoneNumber?: string }) =>
+    axiosInstance.put<AppUser>(`/appusers/${id}/approve`, data),
+  decline: (id: string, reason?: string) =>
+    axiosInstance.put<AppUser>(`/appusers/${id}/decline`, { reason }),
 };

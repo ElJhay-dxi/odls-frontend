@@ -1407,7 +1407,8 @@ export default function FuelReadingsPage() {
 
   const [selectedPlant, setSelectedPlant] = useState(deepLink.plant ?? '');
   const [selectedDate, setSelectedDate] = useState(deepLink.date ?? today);
-  const [selectedTime, setSelectedTime] = useState(GAS_READING_TIMES[0]);
+  const [selectedTime, setSelectedTime] = useState(
+    deepLink.time && GAS_READING_TIMES.includes(deepLink.time) ? deepLink.time : GAS_READING_TIMES[0]);
 
   const [plantUnits, setPlantUnits] = useState<PlantUnit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);

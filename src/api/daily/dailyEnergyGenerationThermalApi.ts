@@ -13,6 +13,7 @@ export const dailyEnergyGenerationThermalApi = {
     logDate?: string;
     unitCode?: string;
     fuelType?: string;
+    logTime?: string;
   }) =>
     axiosInstance.get<DailyEnergyGenerationThermal[]>(BASE, { params }),
 

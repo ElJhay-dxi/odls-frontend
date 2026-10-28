@@ -1,5 +1,6 @@
 import { Box, CircularProgress, Typography, Alert, Button } from '@mui/material';
 import { useUser } from '../../context/UserContext';
+import AccessRequestPage from '../../pages/auth/AccessRequestPage';
 
 export default function UserGate({ children }: { children: React.ReactNode }) {
   const { profile, loading, error, reload } = useUser();
@@ -26,5 +27,7 @@ export default function UserGate({ children }: { children: React.ReactNode }) {
   }
 
   if (!profile) return null;
+  // Signed in but not approved yet (or declined): the request screen instead of the app
+  if (profile.status && profile.status !== 'Active') return <AccessRequestPage />;
   return <>{children}</>;
 }

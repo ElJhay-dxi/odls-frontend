@@ -34,7 +34,7 @@ export default function DailyStationEnergyConsumptionPage() {
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
 
   const [plantCode, setPlantCode] = useState(deepLink.plant ?? '');
-  const [logDate, setLogDate] = useState(today());
+  const [logDate, setLogDate] = useState(deepLink.date ?? today());
 
   const [transformers, setTransformers] = useState<TransformerOption[]>([]);
   const [loadingTransformers, setLoadingTransformers] = useState(false);

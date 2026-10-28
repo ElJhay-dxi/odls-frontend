@@ -5,13 +5,14 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Notifications,
   Logout,
   Person,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useMsal } from '@azure/msal-react';
+import { useNavigate } from 'react-router-dom';
 import GlobalSearch from './GlobalSearch';
+import NotificationBell from './NotificationBell';
 
 interface TopBarProps {
   sidebarOpen: boolean;
@@ -22,6 +23,7 @@ interface TopBarProps {
 export default function TopBar({ sidebarOpen, onToggleSidebar, drawerWidth }: TopBarProps) {
   const { instance, accounts } = useMsal();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const navigate = useNavigate();
 
   const user = accounts[0];
   const displayName = user?.name ?? 'User';
@@ -68,11 +70,7 @@ export default function TopBar({ sidebarOpen, onToggleSidebar, drawerWidth }: To
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Tooltip title="Notifications">
-            <IconButton color="inherit" size="small">
-              <Notifications />
-            </IconButton>
-          </Tooltip>
+          <NotificationBell />
 
           <Tooltip title={displayName}>
             <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} size="small" sx={{ ml: 0.5 }}>
@@ -108,9 +106,9 @@ export default function TopBar({ sidebarOpen, onToggleSidebar, drawerWidth }: To
             </Typography>
           </Box>
           <Divider />
-          <MenuItem onClick={() => setAnchorEl(null)}>
+          <MenuItem onClick={() => { setAnchorEl(null); navigate('/profile'); }}>
             <ListItemIcon><Person fontSize="small" /></ListItemIcon>
-            Profile
+            My Profile
           </MenuItem>
           <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
             <ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon>

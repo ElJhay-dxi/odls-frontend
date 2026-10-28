@@ -70,6 +70,7 @@ const LabAdminPage = lazy(() => import('./pages/lab/LabAdminPage'));
 
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
+const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'));
 
 // Reports
 const HydroReportsPage = lazy(() => import('./pages/reports/HydroReportsPage'));
@@ -111,6 +112,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<AppShell />}>
                   <Route index element={<DashboardPage />} />
+                  <Route path="profile" element={<ProfilePage />} />
 
                   {/* Master Data */}
                   <Route path="master/plant-classifications" element={<G p="master.view"><PlantClassificationPage /></G>} />

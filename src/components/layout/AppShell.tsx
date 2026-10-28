@@ -1,12 +1,13 @@
 import { Box } from '@mui/material';
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar, { DRAWER_WIDTH } from './Sidebar';
 import TopBar from './TopBar';
 import RecordHighlighter from './RecordHighlighter';
 
 export default function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}>
@@ -27,7 +28,8 @@ export default function AppShell() {
           overflow: 'auto',
         }}
       >
-        <Outlet />
+        {/* Re-open the page when only its link's ?plant=&date= changes (notifications, search) so it picks the new values */}
+        <Outlet key={location.search} />
         <RecordHighlighter />
       </Box>
     </Box>

@@ -6,6 +6,8 @@ export interface DailyEnergyGenerationThermal {
   unitName: string;
   fuelType: string;
   logDate: string;
+  /** Reading time "00:00" or "05:00" — each time is its own series. 00:00 is the official daily figure. */
+  logTime?: string;
   // Active energy (MWh)
   previousActiveReading: number;
   currentActiveReading: number;
@@ -31,6 +33,7 @@ export interface CreateDailyEnergyGenerationThermalDto {
   unitName: string;
   fuelType: string;
   logDate: string;
+  logTime?: string;
   previousActiveReading?: number;
   currentActiveReading: number;
   previousReactiveReading?: number;
