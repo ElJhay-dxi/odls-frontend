@@ -71,10 +71,13 @@ const LabAdminPage = lazy(() => import('./pages/lab/LabAdminPage'));
 // Dashboard
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'));
+const UserProfilePage = lazy(() => import('./pages/admin/UserProfilePage'));
 
 // Reports
 const HydroReportsPage = lazy(() => import('./pages/reports/HydroReportsPage'));
 const ThermalReportsPage = lazy(() => import('./pages/reports/ThermalReportsPage'));
+const HourlySummaryPage = lazy(() => import('./pages/summaries/HourlySummaryPage'));
+const DailySummaryPage = lazy(() => import('./pages/summaries/DailySummaryPage'));
 
 // Admin
 const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
@@ -176,12 +179,15 @@ export default function App() {
                   {/* Reports */}
                   <Route path="reports/hydro" element={<G p="reports.view"><HydroReportsPage /></G>} />
                   <Route path="reports/thermal" element={<G p="reports.thermal.view"><ThermalReportsPage /></G>} />
+                  <Route path="summaries/hourly" element={<G p="summaries.hourly.view"><HourlySummaryPage /></G>} />
+                  <Route path="summaries/daily" element={<G p="summaries.daily.view"><DailySummaryPage /></G>} />
 
                   {/* Admin */}
                   <Route path="admin/permissions" element={<G p="permissions.view"><PermissionsPage /></G>} />
                   <Route path="admin/roles" element={<G p="roles.view"><RolesPage /></G>} />
                   <Route path="admin/role-permissions" element={<G p="roles.edit"><RolePermissionsPage /></G>} />
                   <Route path="admin/users" element={<G p="users.view"><UsersPage /></G>} />
+                  <Route path="admin/users/:id" element={<G p="users.view"><UserProfilePage /></G>} />
                   <Route path="admin/audit-log" element={<G p="admin.audit.view"><AuditLogPage /></G>} />
 
                   <Route path="*" element={<Navigate to="/" replace />} />

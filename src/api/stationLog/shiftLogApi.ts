@@ -32,4 +32,15 @@ export const shiftLogApi = {
 
   getPreviousOfficers: (params: PreviousOfficersParams) =>
     axiosInstance.get<ShiftLogOfficer[]>(`${BASE}/previous-officers`, { params }),
+
+  /** People who can be picked as incoming / outgoing officers at a plant (roles with "Appear as Shift Officer"). */
+  getEligibleOfficers: (plantCode: string) =>
+    axiosInstance.get<ShiftOfficerOption[]>(`${BASE}/eligible-officers`, { params: { plantCode } }),
 };
+
+export interface ShiftOfficerOption {
+  id: string;
+  fullName: string;
+  designation?: string | null;
+  roleName: string;
+}

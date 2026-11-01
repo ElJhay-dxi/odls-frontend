@@ -8,19 +8,15 @@ import {
   OutlinedInput, Checkbox, ListItemText,
 } from '@mui/material';
 import { Save, Search, Edit, Delete, Assignment, History } from '@mui/icons-material';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
-import { appUsersApi } from '../../api/auth/userManagementApi';
-import { shiftLogApi } from '../../api/stationLog/shiftLogApi';
+import { shiftLogApi, type ShiftOfficerOption } from '../../api/stationLog/shiftLogApi';
 import { getShiftOptions } from '../../utils/shiftConfig';
 import type { PowerPlant } from '../../types/masterData';
-import type { AppUser } from '../../types/userManagement';
 import type { ShiftLog, CreateShiftLogForm, UpdateShiftLogForm } from '../../types/shiftLog';
 import { useSectionPermissions, usePlantFilter } from '../../hooks/usePermission';
-
-const OFFICER_ROLES = ['shift lead', 'shift engineer', 'operator', 'shift supervisor'];
 
 const emptyForm: CreateShiftLogForm = {
   plantCode: '',
@@ -43,8 +39,9 @@ export default function ShiftLogPage() {
   const { canCreate, canEdit, canDelete } = useSectionPermissions('station_logs.shift_logs');
   const [plants, setPlants] = useState<PowerPlant[]>([]);
   const { availablePlants, plantLocked, autoPlantCode } = usePlantFilter(plants);
-  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
-  const [officers, setOfficers] = useState<AppUser[]>([]);
+  // Officers who can be picked at the selected plant — users whose role has "Appear as Shift Officer"
+  const [eligibleOfficers, setEligibleOfficers] = useState<ShiftOfficerOption[]>([]);
+  const [loadingOfficers, setLoadingOfficers] = useState(false);
   const [loadingPrevOfficers, setLoadingPrevOfficers] = useState(false);
 
   const [form, setForm] = useState<CreateShiftLogForm>(emptyForm);
@@ -67,7 +64,6 @@ export default function ShiftLogPage() {
 
   useEffect(() => {
     powerPlantApi.getAll().then((res) => setPlants(res.data));
-    appUsersApi.getAll({ activeOnly: true }).then((res) => setAllUsers(res.data));
   }, []);
 
   // Auto-select plant when user has only one assigned
@@ -78,17 +74,28 @@ export default function ShiftLogPage() {
     }
   }, [autoPlantCode]);
 
-  // Filter officers by selected plant and role
+  // Load the plant's officers from the server (who appears is set by the role's permissions, not hard-coded)
+  const officerPlant = editTarget ? editTarget.plantCode : form.plantCode;
   useEffect(() => {
-    const plantCode = editTarget ? editTarget.plantCode : form.plantCode;
-    if (!plantCode) { setOfficers([]); return; }
-    const filtered = allUsers.filter((u) => {
-      const roleMatch = OFFICER_ROLES.some((r) => u.roleName.toLowerCase().includes(r));
-      const plantMatch = u.plants.length === 0 || u.plants.some((p) => p.plantCode === plantCode);
-      return roleMatch && plantMatch;
-    });
-    setOfficers(filtered);
-  }, [form.plantCode, editTarget, allUsers]);
+    if (!officerPlant) { setEligibleOfficers([]); return; }
+    let cancelled = false;
+    setLoadingOfficers(true);
+    shiftLogApi.getEligibleOfficers(officerPlant)
+      .then((res) => { if (!cancelled) setEligibleOfficers(res.data); })
+      .catch(() => { if (!cancelled) setEligibleOfficers([]); })
+      .finally(() => { if (!cancelled) setLoadingOfficers(false); });
+    return () => { cancelled = true; };
+  }, [officerPlant]);
+
+  // When editing an older log, keep showing officers it already names even if they no longer qualify
+  const officers = useMemo<ShiftOfficerOption[]>(() => {
+    if (!editTarget) return eligibleOfficers;
+    const extra = [...editTarget.officers, ...editTarget.outgoingOfficers]
+      .filter((o, i, arr) => arr.findIndex((x) => x.officerId === o.officerId) === i)
+      .filter((o) => !eligibleOfficers.some((e) => e.id === o.officerId))
+      .map((o) => ({ id: o.officerId, fullName: o.officerName, designation: o.officerDesignation, roleName: 'No longer listed as an officer' }));
+    return [...eligibleOfficers, ...extra];
+  }, [eligibleOfficers, editTarget]);
 
   // Reset shift and officers when plant changes (create mode only)
   useEffect(() => {
@@ -345,6 +352,12 @@ export default function ShiftLogPage() {
                   sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
                   Handover Officers
                 </Typography>
+                {officerPlant && !loadingOfficers && eligibleOfficers.length === 0 && (
+                  <Alert severity="info" variant="outlined" sx={{ mb: 1.5 }}>
+                    No one at this plant can be picked as an officer yet. In Admin → Role Permissions, give their role
+                    "Appear as Shift Officer", and assign them to this plant (or let the role create shift logs).
+                  </Alert>
+                )}
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: '#1B5E20' }}>
@@ -355,6 +368,7 @@ export default function ShiftLogPage() {
                       activeOfficerIds,
                       handleOfficerChange,
                       !editTarget && (!form.plantCode || officers.length === 0),
+                      loadingOfficers,
                     )}
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -366,7 +380,7 @@ export default function ShiftLogPage() {
                       activeOutgoingIds,
                       handleOutgoingChange,
                       !editTarget && (!form.plantCode || officers.length === 0),
-                      loadingPrevOfficers,
+                      loadingPrevOfficers || loadingOfficers,
                     )}
                     {!editTarget && form.shiftCode && !loadingPrevOfficers && activeOutgoingIds.length > 0 && (
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>

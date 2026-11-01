@@ -8,7 +8,7 @@ import {
   Science, Assignment, BarChart, Settings, LocationOn,
   AdminPanelSettings, Security, People, OilBarrel,
   Biotech, ContentPaste, Water, FilterAlt, Assessment,
-  Cable, Park, LocalFireDepartment,
+  Cable, Park, LocalFireDepartment, TableChart, Schedule, CalendarMonth,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -110,6 +110,14 @@ const getNavItems = (bopLabel: string): NavItem[] => [
       { label: 'Safety Documents', icon: <LocalFireDepartment />, path: '/lab/safety-documents', permission: 'lab.safetydocs.view' },
       { label: 'Lab Reports', icon: <Assessment />, path: '/lab/reports', permission: 'lab.reports.view' },
       { label: 'Lab Admin', icon: <AdminPanelSettings />, path: '/lab/admin', permission: 'lab.control_limits.view' },
+    ],
+  },
+  {
+    label: 'Record Summaries',
+    icon: <TableChart />,
+    children: [
+      { label: 'Hourly Summary', icon: <Schedule />, path: '/summaries/hourly', permission: 'summaries.hourly.view' },
+      { label: 'Daily Summary', icon: <CalendarMonth />, path: '/summaries/daily', permission: 'summaries.daily.view' },
     ],
   },
   {

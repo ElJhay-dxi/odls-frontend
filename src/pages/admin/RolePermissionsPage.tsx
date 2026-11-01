@@ -5,7 +5,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
 } from '@mui/material';
 import { Save, Security, CheckBox, CheckBoxOutlineBlank } from '@mui/icons-material';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import { rolesApi, permissionsApi } from '../../api/auth/userManagementApi';
 import type { Role, Permission } from '../../types/userManagement';
@@ -195,14 +195,20 @@ export default function RolePermissionsPage() {
                         </TableHead>
                         <TableBody>
                           {Object.entries(sections).map(([section, perms]) => {
-                            const sectionAssigned = perms.filter((p) => assigned.has(p.id)).length;
-                            const sectionAll = sectionAssigned === perms.length;
+                            // View / Create / Edit / Delete go in the columns; any other permission of the
+                            // section (e.g. "Appear as Shift Officer") gets its own labelled row below it
+                            const standard = perms.filter((p) => ACTION_ORDER.some((a) => p.code.endsWith(`.${a}`)));
+                            const extras = perms.filter((p) => !standard.includes(p));
+                            const sectionAssigned = standard.filter((p) => assigned.has(p.id)).length;
+                            const sectionAll = standard.length > 0 && sectionAssigned === standard.length;
                             const byAction = (action: string) =>
                               perms.find((p) => p.code.endsWith(`.${action}`));
                             const sectionLabel = section.split('.').pop()?.replace(/_/g, ' ') ?? section;
 
                             return (
-                              <TableRow key={section} hover>
+                              <Fragment key={section}>
+                              {standard.length > 0 && (
+                              <TableRow hover>
                                 <TableCell>
                                   <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
                                     {sectionLabel}
@@ -229,11 +235,28 @@ export default function RolePermissionsPage() {
                                 <TableCell align="center" sx={{ p: 0.5 }}>
                                   <Checkbox size="small" checked={sectionAll}
                                     indeterminate={sectionAssigned > 0 && !sectionAll}
-                                    onChange={() => canEdit && toggleSection(perms)}
+                                    onChange={() => canEdit && toggleSection(standard)}
                                     disabled={!canEdit}
                                   />
                                 </TableCell>
                               </TableRow>
+                              )}
+                              {extras.map((p) => (
+                                <TableRow key={p.id} hover>
+                                  <TableCell sx={{ pl: standard.length > 0 ? 3 : 2 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.name}</Typography>
+                                    {p.description && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{p.description}</Typography>
+                                    )}
+                                  </TableCell>
+                                  <TableCell colSpan={ACTION_ORDER.length} align="center" sx={{ p: 0.5 }}>
+                                    <Checkbox size="small" checked={assigned.has(p.id)}
+                                      onChange={() => canEdit && toggle(p.id)} disabled={!canEdit} />
+                                  </TableCell>
+                                  <TableCell />
+                                </TableRow>
+                              ))}
+                              </Fragment>
                             );
                           })}
                         </TableBody>

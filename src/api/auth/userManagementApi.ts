@@ -1,5 +1,5 @@
 import axiosInstance from '../axiosInstance';
-import type { AppUser, Role, Permission } from '../../types/userManagement';
+import type { AppUser, Role, Permission, CurrentUserProfile } from '../../types/userManagement';
 
 export const permissionsApi = {
   getAll: (group?: string) =>
@@ -27,6 +27,8 @@ export const appUsersApi = {
   getAll: (params?: { activeOnly?: boolean; plantCode?: string; status?: string }) =>
     axiosInstance.get<AppUser[]>('/appusers', { params }),
   getById: (id: string) => axiosInstance.get<AppUser>(`/appusers/${id}`),
+  /** Someone's full profile (details, plants, role, permissions) — needs View Users. */
+  getProfile: (id: string) => axiosInstance.get<CurrentUserProfile>(`/appusers/${id}/profile`),
   create: (data: Record<string, unknown>) => axiosInstance.post<AppUser>('/appusers', data),
   update: (id: string, data: Record<string, unknown>) => axiosInstance.put<AppUser>(`/appusers/${id}`, data),
   delete: (id: string) => axiosInstance.delete(`/appusers/${id}`),

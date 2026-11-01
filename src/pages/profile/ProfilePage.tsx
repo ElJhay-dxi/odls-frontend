@@ -14,7 +14,7 @@ import dayjs from 'dayjs';
 import PageHeader from '../../components/shared/PageHeader';
 import { useUser } from '../../context/UserContext';
 import { permissionsApi } from '../../api/auth/userManagementApi';
-import type { Permission } from '../../types/userManagement';
+import type { CurrentUserProfile, Permission } from '../../types/userManagement';
 
 const ACTIONS = ['view', 'create', 'edit', 'delete', 'export'] as const;
 const ACTION_LABELS: Record<string, string> = { view: 'View', create: 'Create', edit: 'Edit', delete: 'Delete', export: 'Export' };
@@ -23,6 +23,8 @@ interface Section {
   key: string;            // permission code without the action, e.g. "hourly.thermal_units"
   label: string;          // e.g. "Thermal Unit Readings"
   actions: Record<string, boolean | undefined>; // undefined = the action doesn't exist for this section
+  /** Permissions that aren't view/create/edit/delete/export, e.g. "Appear as Shift Officer" */
+  extras: { label: string; has: boolean }[];
 }
 interface Group { name: string; order: number; sections: Section[] }
 
@@ -40,8 +42,16 @@ function buildGroups(all: Permission[], mine: Set<string>, isAdmin: boolean): Gr
     let g = groups.get(p.group);
     if (!g) { g = { name: p.group, order: p.displayOrder, sections: [] }; groups.set(p.group, g); }
     let s = sections.get(`${p.group}|${key}`);
-    if (!s) { s = { key, label, actions: {} }; sections.set(`${p.group}|${key}`, s); g.sections.push(s); }
-    s.actions[action] = isAdmin || mine.has(p.code);
+    const has = isAdmin || mine.has(p.code);
+    if (!(ACTIONS as readonly string[]).includes(action)) {
+      // A one-off permission: keep it under its section, labelled by its own name
+      if (!s) { s = { key, label: key, actions: {}, extras: [] }; sections.set(`${p.group}|${key}`, s); g.sections.push(s); }
+      s.extras.push({ label: p.name, has });
+      continue;
+    }
+    if (!s) { s = { key, label, actions: {}, extras: [] }; sections.set(`${p.group}|${key}`, s); g.sections.push(s); }
+    else if (s.label === key) s.label = label;
+    s.actions[action] = has;
   }
   return [...groups.values()].sort((a, b) => a.order - b.order);
 }
@@ -71,10 +81,24 @@ function Stat({ value, label }: { value: ReactNode; label: string }) {
   );
 }
 
-export default function ProfilePage() {
-  const { profile, loading, error, isAdmin } = useUser();
-  const { accounts } = useMsal();
-  const account = accounts[0];
+export interface ProfileViewProps {
+  profile: CurrentUserProfile;
+  /** The person shown is a System Admin (full access). */
+  isAdmin: boolean;
+  /** Microsoft account they sign in with — only known for yourself. */
+  signedInAs?: string;
+  /** True on "My Profile"; false when viewing someone else (wording switches from "you" to "they"). */
+  self?: boolean;
+  title: string;
+  subtitle: string;
+  breadcrumbs: { label: string; path?: string }[];
+  /** Extra button(s) in the header band, e.g. "Back to users". */
+  headerAction?: ReactNode;
+}
+
+/** The profile layout, for yourself or for a user opened from the Users page. */
+export function ProfileView({ profile, isAdmin, signedInAs, self = false, title, subtitle, breadcrumbs, headerAction }: ProfileViewProps) {
+  const t = (mine: string, theirs: string) => (self ? mine : theirs);
 
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [permError, setPermError] = useState(false);
@@ -96,7 +120,7 @@ export default function ProfilePage() {
       .map((g) => ({
         ...g,
         sections: g.sections.filter((s) =>
-          (!onlyMine || Object.values(s.actions).some(Boolean)) &&
+          (!onlyMine || Object.values(s.actions).some(Boolean) || s.extras.some((x) => x.has)) &&
           (!q || s.label.toLowerCase().includes(q) || g.name.toLowerCase().includes(q))),
       }))
       .filter((g) => g.sections.length > 0);
@@ -105,16 +129,13 @@ export default function ProfilePage() {
   const sectionsWithAccess = groups.reduce((n, g) => n + g.sections.filter((s) => s.actions.view || Object.values(s.actions).some(Boolean)).length, 0);
   const canEditSomewhere = groups.some((g) => g.sections.some((s) => s.actions.create || s.actions.edit));
 
-  if (loading) return <Box sx={{ textAlign: 'center', py: 8 }}><CircularProgress /></Box>;
-  if (error || !profile) return <Alert severity="error">{error ?? 'Could not load your profile.'}</Alert>;
 
   const initials = profile.fullName.split(' ').filter(Boolean).map((n) => n[0]).join('').slice(0, 2).toUpperCase();
   const plantTypes = [...new Set(profile.plants.map((p) => p.classificationType).filter(Boolean))];
 
   return (
     <Box>
-      <PageHeader title="My Profile" subtitle="Your account, role, plants and what you can do in the app"
-        breadcrumbs={[{ label: 'My Profile' }]} />
+      <PageHeader title={title} subtitle={subtitle} breadcrumbs={breadcrumbs} />
 
       {/* ── Header band ─────────────────────────────────────────────── */}
       <Card sx={{ mb: 3, overflow: 'hidden' }}>
@@ -136,6 +157,9 @@ export default function ProfilePage() {
               <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }} useFlexGap>
                 <Chip icon={<Security />} label={profile.roleName} color="primary" size="small" />
                 {isAdmin && <Chip icon={<AdminPanelSettings />} label="Full access" color="secondary" size="small" />}
+                {!self && profile.status && profile.status !== 'Active' && (
+                  <Chip size="small" color="warning" label={profile.status === 'Pending' ? 'Waiting for access' : 'Request declined'} />
+                )}
                 {plantTypes.map((t) => (
                   <Chip key={t} size="small" variant="outlined" label={t}
                     icon={t.toLowerCase() === 'hydro' ? <WaterDrop /> : <Bolt />}
@@ -145,8 +169,9 @@ export default function ProfilePage() {
             </Box>
             <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap' }} useFlexGap>
               <Stat value={isAdmin || profile.plants.length === 0 ? 'All' : profile.plants.length} label="Plants" />
-              <Stat value={isAdmin ? 'All' : sectionsWithAccess} label="Areas you can open" />
+              <Stat value={isAdmin ? 'All' : sectionsWithAccess} label={t('Areas you can open', 'Areas they can open')} />
               <Stat value={profile.createdOn ? dayjs(profile.createdOn).format('MMM YYYY') : '—'} label="Member since" />
+              {headerAction}
             </Stack>
           </Stack>
         </CardContent>
@@ -158,13 +183,13 @@ export default function ProfilePage() {
           <Stack spacing={3}>
             <Card>
               <CardContent>
-                <Typography sx={{ fontWeight: 700, mb: 1 }}>Your details</Typography>
+                <Typography sx={{ fontWeight: 700, mb: 1 }}>{t('Your details', 'Details')}</Typography>
                 <Divider sx={{ mb: 0.5 }} />
                 <DetailRow icon={<Email fontSize="small" />} label="Email" value={profile.email} />
                 <DetailRow icon={<BadgeIcon fontSize="small" />} label="Employee ID" value={profile.employeeId} />
                 <DetailRow icon={<Work fontSize="small" />} label="Designation" value={profile.designation} />
                 <DetailRow icon={<Phone fontSize="small" />} label="Phone" value={profile.phoneNumber} />
-                <DetailRow icon={<Login fontSize="small" />} label="Signed in as (Microsoft account)" value={account?.username} />
+                {self && <DetailRow icon={<Login fontSize="small" />} label="Signed in as (Microsoft account)" value={signedInAs} />}
                 <DetailRow icon={<CalendarMonth fontSize="small" />} label="Account set up"
                   value={profile.createdOn ? dayjs(profile.createdOn).format('DD MMM YYYY') : null} />
               </CardContent>
@@ -174,15 +199,15 @@ export default function ProfilePage() {
               <CardContent>
                 <Stack direction="row" sx={{ alignItems: 'center', mb: 1 }} spacing={1}>
                   <Factory fontSize="small" color="action" />
-                  <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>Your plants</Typography>
+                  <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>{t('Your plants', 'Plants')}</Typography>
                   {profile.plants.length > 0 && <Chip size="small" label={profile.plants.length} />}
                 </Stack>
                 <Divider sx={{ mb: 1.5 }} />
                 {isAdmin || profile.plants.length === 0 ? (
                   <Alert severity="info" variant="outlined" icon={<Factory fontSize="small" />}>
                     {isAdmin
-                      ? 'As a system admin you can work with every plant.'
-                      : 'No plants are assigned to you, so you can see every plant.'}
+                      ? t('As a system admin you can work with every plant.', 'As a system admin they can work with every plant.')
+                      : t('No plants are assigned to you, so you can see every plant.', 'No plants are assigned, so they can see every plant.')}
                   </Alert>
                 ) : (
                   <Stack spacing={1}>
@@ -216,7 +241,7 @@ export default function ProfilePage() {
               <CardContent>
                 <Stack direction="row" sx={{ alignItems: 'center', mb: 1 }} spacing={1}>
                   <Security fontSize="small" color="action" />
-                  <Typography sx={{ fontWeight: 700 }}>Your role</Typography>
+                  <Typography sx={{ fontWeight: 700 }}>{t('Your role', 'Role')}</Typography>
                 </Stack>
                 <Divider sx={{ mb: 1.5 }} />
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>{profile.roleName}</Typography>
@@ -228,8 +253,8 @@ export default function ProfilePage() {
                 {!isAdmin && (
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
                     {canEditSomewhere
-                      ? 'You can view and enter data in the areas marked below.'
-                      : 'Your role is view-only: you can open the areas below but not change data.'}
+                      ? t('You can view and enter data in the areas marked below.', 'They can view and enter data in the areas marked below.')
+                      : t('Your role is view-only: you can open the areas below but not change data.', 'Their role is view-only: they can open the areas below but not change data.')}
                   </Typography>
                 )}
               </CardContent>
@@ -239,25 +264,25 @@ export default function ProfilePage() {
               <CardContent>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}
                   sx={{ alignItems: { xs: 'stretch', sm: 'center' }, mb: 1 }}>
-                  <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>What you can do</Typography>
+                  <Typography sx={{ fontWeight: 700, flexGrow: 1 }}>{t('What you can do', 'What they can do')}</Typography>
                   <TextField size="small" placeholder="Find an area…" value={filter} onChange={(e) => setFilter(e.target.value)}
                     sx={{ minWidth: 200 }}
                     slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18, color: 'text.disabled' }} /></InputAdornment> } }} />
                   {!isAdmin && (
                     <FormControlLabel sx={{ mr: 0 }}
                       control={<Switch size="small" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />}
-                      label={<Typography variant="body2">Only mine</Typography>} />
+                      label={<Typography variant="body2">{t('Only mine', 'Only theirs')}</Typography>} />
                   )}
                 </Stack>
                 <Divider sx={{ mb: 2 }} />
 
                 {permError ? (
-                  <Alert severity="warning">Couldn't load the list of areas. Your access itself is unaffected.</Alert>
+                  <Alert severity="warning">Couldn't load the list of areas.{self ? ' Your access itself is unaffected.' : ''}</Alert>
                 ) : allPermissions.length === 0 ? (
                   <Box sx={{ textAlign: 'center', py: 3 }}><CircularProgress size={24} /></Box>
                 ) : visibleGroups.length === 0 ? (
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
-                    {filter ? 'No areas match your search.' : 'Your role has no permissions yet. Contact your system admin.'}
+                    {filter ? 'No areas match your search.' : t('Your role has no permissions yet. Contact your system admin.', 'This role has no permissions yet.')}
                   </Typography>
                 ) : (
                   <Stack spacing={2.5}>
@@ -274,10 +299,18 @@ export default function ProfilePage() {
                               }}>
                               <Typography variant="body2" sx={{ fontWeight: 500, flexGrow: 1 }}>{s.label}</Typography>
                               <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }} useFlexGap>
+                                {s.extras.map((x) => (
+                                  <Tooltip key={x.label} title={x.has ? `${t('You', 'They')}: ${x.label}` : `Not given to ${t('you', 'them')}: ${x.label}`}>
+                                    <Chip size="small" label={x.label}
+                                      icon={x.has ? <CheckCircle /> : <RemoveCircleOutlined />}
+                                      color={x.has ? 'success' : 'default'} variant={x.has ? 'filled' : 'outlined'}
+                                      sx={{ height: 22, fontSize: 11, opacity: x.has ? 1 : 0.6 }} />
+                                  </Tooltip>
+                                ))}
                                 {ACTIONS.filter((a) => s.actions[a] !== undefined).map((a) => {
                                   const has = !!s.actions[a];
                                   return (
-                                    <Tooltip key={a} title={has ? `You can ${a} ${s.label}` : `You can't ${a} ${s.label}`}>
+                                    <Tooltip key={a} title={has ? `${t('You', 'They')} can ${a} ${s.label}` : `${t('You', 'They')} can't ${a} ${s.label}`}>
                                       <Chip size="small" label={ACTION_LABELS[a]}
                                         icon={has ? <CheckCircle /> : <RemoveCircleOutlined />}
                                         color={has ? 'success' : 'default'} variant={has ? 'filled' : 'outlined'}
@@ -299,12 +332,27 @@ export default function ProfilePage() {
         </Grid>
       </Grid>
 
+      {self && (
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 3, color: 'text.secondary' }}>
         <InfoOutlined fontSize="small" />
         <Typography variant="caption">
           Your details, role and plants are managed by your system admin. If anything here is wrong or you need more access, contact them.
         </Typography>
       </Stack>
+      )}
     </Box>
+  );
+}
+
+/** "My Profile" — the signed-in user. */
+export default function ProfilePage() {
+  const { profile, loading, error, isAdmin } = useUser();
+  const { accounts } = useMsal();
+  if (loading) return <Box sx={{ textAlign: 'center', py: 8 }}><CircularProgress /></Box>;
+  if (error || !profile) return <Alert severity="error">{error ?? 'Could not load your profile.'}</Alert>;
+  return (
+    <ProfileView profile={profile} isAdmin={isAdmin} signedInAs={accounts[0]?.username} self
+      title="My Profile" subtitle="Your account, role, plants and what you can do in the app"
+      breadcrumbs={[{ label: 'My Profile' }]} />
   );
 }

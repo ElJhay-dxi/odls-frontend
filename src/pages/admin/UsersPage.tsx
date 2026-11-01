@@ -5,9 +5,9 @@ import {
   TableContainer, TableHead, TableRow, IconButton, Tooltip,
   Switch, FormControlLabel, OutlinedInput, Checkbox, ListItemText, Tabs, Tab, Badge,
 } from '@mui/material';
-import { Add, Edit, Delete, Save, Close, People, Search } from '@mui/icons-material';
+import { Add, Edit, Delete, Save, Close, People, Search, Visibility } from '@mui/icons-material';
 import { useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import AccessRequestsPanel from '../../components/admin/AccessRequestsPanel';
 import PageHeader from '../../components/shared/PageHeader';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
@@ -44,6 +44,7 @@ export default function UsersPage() {
 
   // Tabs: approved users, and access requests from first-time sign-ins (?tab=pending from the notification bell)
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialTab = searchParams.get('tab');
   const [tab, setTab] = useState<'users' | 'pending' | 'declined'>(
     initialTab === 'pending' || initialTab === 'declined' ? initialTab : 'users');
@@ -402,6 +403,11 @@ export default function UsersPage() {
                             />
                           </TableCell>
                           <TableCell align="right">
+                            <Tooltip title="View profile">
+                              <IconButton size="small" onClick={() => navigate(`/admin/users/${user.id}`)}>
+                                <Visibility fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                             {canEdit && (
                               <Tooltip title="Edit">
                                 <IconButton size="small" color="primary" onClick={() => openEdit(user)}>
