@@ -13,6 +13,7 @@ import {
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
+import VgifHeatingValueHint from '../../components/vgif/VgifHeatingValueHint';
 import ConfirmDialog from '../../components/shared/ConfirmDialog';
 import { powerPlantApi } from '../../api/masterData/powerPlantApi';
 import { plantUnitApi } from '../../api/masterData/plantUnitApi';
@@ -316,6 +317,11 @@ function GasTurbineSection({
                       helperText="BTU/scf"
                       slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">BTU/scf</Typography> } }}
                     />
+                    <VgifHeatingValueHint date={gasTurbineEditTarget ? (gasTurbineEditTarget.logDate ?? '') : logDate}
+                      onUse={(v) => {
+                        if (gasTurbineEditTarget) setGasTurbineUpdateForm((prev) => ({ ...prev, heatingValue: v }));
+                        else setGasTurbineForm((prev) => ({ ...prev, heatingValue: v }));
+                      }} />
                   </Grid>
                 </Grid>
               </Paper>
@@ -659,6 +665,11 @@ function FlowComputerSection({
                       helperText="BTU/scf"
                       slotProps={{ input: { endAdornment: <Typography variant="caption" color="text.secondary">BTU/scf</Typography> } }}
                     />
+                    <VgifHeatingValueHint date={flowComputerEditTarget ? (flowComputerEditTarget.logDate ?? '') : logDate}
+                      onUse={(v) => {
+                        if (flowComputerEditTarget) setFlowComputerUpdateForm((prev) => ({ ...prev, heatingValue: v }));
+                        else setFlowComputerForm((prev) => ({ ...prev, heatingValue: v }));
+                      }} />
                   </Grid>
                 </Grid>
               </Paper>

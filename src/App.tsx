@@ -78,6 +78,11 @@ const HydroReportsPage = lazy(() => import('./pages/reports/HydroReportsPage'));
 const ThermalReportsPage = lazy(() => import('./pages/reports/ThermalReportsPage'));
 const HourlySummaryPage = lazy(() => import('./pages/summaries/HourlySummaryPage'));
 const DailySummaryPage = lazy(() => import('./pages/summaries/DailySummaryPage'));
+const VgifAg15Page = lazy(() => import('./pages/vgif/VgifAg15Page'));
+const VgifAg12Page = lazy(() => import('./pages/vgif/VgifAg12Page'));
+const VgifSettingsPage = lazy(() => import('./pages/vgif/VgifSettingsPage'));
+const VgifReportsPage = lazy(() => import('./pages/vgif/VgifReportsPage'));
+const VgifAg12AnalysisPage = lazy(() => import('./pages/vgif/VgifAg12AnalysisPage'));
 
 // Admin
 const PermissionsPage = lazy(() => import('./pages/admin/PermissionsPage'));
@@ -156,6 +161,11 @@ export default function App() {
                   <Route path="daily/plant-load-factor" element={<G p="daily.plant_load_factor.view"><DailyPlantLoadFactorPage /></G>} />
                   <Route path="daily/water-system" element={<G p="daily.water_system.view"><WaterSystemReadingsPage /></G>} />
                   <Route path="hydrology" element={<G p="daily.hydrology.view"><HydrologyPage /></G>} />
+                  <Route path="daily/vgif/ag15" element={<G p="vgif.ag15.view"><VgifAg15Page /></G>} />
+                  <Route path="daily/vgif/ag12" element={<G p="vgif.ag12.view"><VgifAg12Page /></G>} />
+                  <Route path="daily/vgif/ag12-analysis" element={<G p="vgif.analysis.view"><VgifAg12AnalysisPage /></G>} />
+                  <Route path="daily/vgif/reports" element={<G p="vgif.reports.view"><VgifReportsPage /></G>} />
+                  <Route path="daily/vgif/settings" element={<G p="vgif.settings.view"><VgifSettingsPage /></G>} />
 
                   {/* Station Logs */}
                   <Route path="station-logs/shift-logs" element={<G p="station_logs.shift_logs.view"><ShiftLogPage /></G>} />

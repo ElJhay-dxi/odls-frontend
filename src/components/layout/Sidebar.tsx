@@ -8,7 +8,7 @@ import {
   Science, Assignment, BarChart, Settings, LocationOn,
   AdminPanelSettings, Security, People, OilBarrel,
   Biotech, ContentPaste, Water, FilterAlt, Assessment,
-  Cable, Park, LocalFireDepartment, TableChart, Schedule, CalendarMonth,
+  Cable, Park, LocalFireDepartment, TableChart, Schedule, CalendarMonth, GasMeter,
 } from '@mui/icons-material';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -83,6 +83,17 @@ const getNavItems = (bopLabel: string): NavItem[] => [
       { label: 'Plant Load Factor', icon: <BarChart />, path: '/daily/plant-load-factor', permission: 'daily.plant_load_factor.view' },
       { label: 'Water System', icon: <WaterDrop />, path: '/daily/water-system', permission: 'daily.water_system.view' },
       { label: 'Hydrology', icon: <WaterDrop />, path: '/hydrology', permission: 'daily.hydrology.view' },
+      {
+        label: 'VGIF Master Readings',
+        icon: <GasMeter />,
+        children: [
+          { label: 'AG15 Daily', icon: <CalendarMonth />, path: '/daily/vgif/ag15', permission: 'vgif.ag15.view' },
+          { label: 'AG12 Composition', icon: <Science />, path: '/daily/vgif/ag12', permission: 'vgif.ag12.view' },
+          { label: 'Reports & Summaries', icon: <Assessment />, path: '/daily/vgif/reports', permission: 'vgif.reports.view' },
+          { label: 'AG12 Analysis', icon: <BarChart />, path: '/daily/vgif/ag12-analysis', permission: 'vgif.analysis.view' },
+          { label: 'VGIF Settings', icon: <Settings />, path: '/daily/vgif/settings', permission: 'vgif.settings.view' },
+        ],
+      },
     ],
   },
   {
@@ -237,7 +248,7 @@ export default function Sidebar({ open }: SidebarProps) {
                 else if (item.path) navigate(item.path);
               }}
               sx={{
-                pl: depth === 0 ? 2 : 3.5,
+                pl: depth === 0 ? 2 : 2 + depth * 1.5,
                 py: 0.9,
                 mx: 1,
                 borderRadius: 1.5,
